@@ -7,14 +7,15 @@ const path = require('path');
 const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
+const { v4: uuidv4 } = require('uuid');
 
 const { connectRedis, getRedisClient } = require('./config/redis');
+const { getPoolStatus } = require('./config/database');
 const db = require('./config/database');
 const setupSocketHandlers = require('./socket/handlers');
 const { logger, requestLogger } = require('./utils/logger');
 const corsOptions = require('./config/cors');
 
-// Import routes
 const authRoutes = require('./routes/auth');
 const songRoutes = require('./routes/songs');
 const playlistRoutes = require('./routes/playlists');
@@ -22,18 +23,15 @@ const playbackRoutes = require('./routes/playback');
 const roomRoutes = require('./routes/rooms');
 const aiRoutes = require('./routes/ai');
 
-// Import AI service for initialization
 const colabAIService = require('./services/colabAIService');
 
 const app = express();
-
 app.set('trust proxy', 1);
-const server = http.createServer(app);
-const io = socketIo(server, {
-  cors: corsOptions
-});
 
-// Security middleware
+const server = http.createServer(app);
+const io = socketIo(server, { cors: corsOptions });
+
+// Security
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -42,13 +40,19 @@ app.use(helmet({
       scriptSrc: ["'self'"],
       imgSrc: ["'self'", "data:", "https:"],
       mediaSrc: ["'self'", "blob:"],
-      connectSrc: ["'self'", "wss:", "ws:"]
-    }
-  }
+      connectSrc: ["'self'", "wss:", "ws:"],
+    },
+  },
 }));
 
-// Compression
 app.use(compression());
+
+// Request ID
+app.use((req, res, next) => {
+  req.id = req.get('X-Request-ID') || uuidv4();
+  res.setHeader('X-Request-ID', req.id);
+  next();
+});
 
 // Rate limiting
 const apiLimiter = rateLimit({
@@ -56,7 +60,7 @@ const apiLimiter = rateLimit({
   max: 200,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Too many requests, please try again later.' }
+  message: { error: 'Too many requests, please try again later.' },
 });
 
 const streamLimiter = rateLimit({
@@ -64,7 +68,19 @@ const streamLimiter = rateLimit({
   max: 2000,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Too many streaming requests, please try again later.' }
+  message: { error: 'Too many streaming requests, please try again later.' },
+});
+
+const authLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  message: { error: 'Too many authentication attempts.' },
+});
+
+const healthLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  message: { error: 'Too many health checks.' },
 });
 
 app.use('/api/songs', (req, res, next) => {
@@ -75,28 +91,17 @@ app.use('/api/songs', (req, res, next) => {
 });
 
 app.use('/api/', (req, res, next) => {
-  if (req.path.startsWith('/songs/')) {
-    return next();
-  }
+  if (req.path.startsWith('/songs/')) return next();
   return apiLimiter(req, res, next);
 });
 
-const authLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 10,
-  message: { error: 'Too many authentication attempts.' }
-});
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
 
-// CORS
+// CORS + Body parsing
 app.use(cors(corsOptions));
-
-// Body parsing
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
-
-// Request logging
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(requestLogger);
 
 // API Routes
@@ -107,18 +112,19 @@ app.use('/api/playback', playbackRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/ai', aiRoutes);
 
-// Enhanced health check
-app.get('/api/health', async (req, res) => {
+// Health check
+app.get('/api/health', healthLimiter, async (req, res) => {
   const health = {
     status: 'ok',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    checks: {}
+    requestId: req.id,
+    checks: {},
   };
 
   try {
     await db.query('SELECT 1');
-    health.checks.database = { status: 'healthy' };
+    health.checks.database = { status: 'healthy', ...getPoolStatus() };
   } catch (err) {
     health.status = 'degraded';
     health.checks.database = { status: 'unhealthy', error: err.message };
@@ -126,9 +132,11 @@ app.get('/api/health', async (req, res) => {
 
   try {
     const redis = getRedisClient();
-    if (redis) {
+    if (redis && redis.isReady) {
       await redis.ping();
       health.checks.redis = { status: 'healthy' };
+    } else {
+      health.checks.redis = { status: 'not_connected' };
     }
   } catch (err) {
     health.status = 'degraded';
@@ -138,32 +146,31 @@ app.get('/api/health', async (req, res) => {
   res.status(health.status === 'ok' ? 200 : 503).json(health);
 });
 
-// Serve React App (Static)
+// Static files
 const clientBuildPath = path.join(__dirname, '../client/build');
 app.use(express.static(clientBuildPath));
 
-// SPA Fallback: Any route not handled by API returns index.html
+// SPA fallback
 app.get('*', (req, res, next) => {
   if (req.url.startsWith('/api')) return next();
   res.sendFile(path.join(clientBuildPath, 'index.html'));
 });
 
-// Socket.io handlers
+// Socket.io
 setupSocketHandlers(io);
 
 // Error handling
 app.use((err, req, res, next) => {
-  logger.error(err.stack);
+  logger.error({ requestId: req.id, error: err.message, stack: err.stack, method: req.method, url: req.originalUrl });
   res.status(err.status || 500).json({
-    error: process.env.NODE_ENV === 'production'
-      ? 'Internal server error'
-      : err.message
+    error: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message,
+    requestId: req.id,
   });
 });
 
-// 404 handler
+// 404
 app.use((req, res) => {
-  res.status(404).json({ error: 'Route not found' });
+  res.status(404).json({ error: 'Route not found', requestId: req.id });
 });
 
 const PORT = process.env.PORT || 5000;
@@ -174,12 +181,10 @@ const startServer = async () => {
     logger.info('Connected to Redis');
 
     const aiInitialized = await colabAIService.initialize();
-    logger.info(aiInitialized
-      ? 'Colab AI Service initialized'
-      : 'Colab AI Service running in fallback mode');
+    logger.info(aiInitialized ? 'Colab AI Service initialized' : 'Colab AI Service running in fallback mode');
 
     server.listen(PORT, () => {
-      logger.info(`Server running on port ${PORT} (${process.env.NODE_ENV || 'development'})`);
+      logger.info(`Hathor server running on port ${PORT} (${process.env.NODE_ENV || 'development'})`);
     });
   } catch (error) {
     logger.error('Failed to start server:', error);

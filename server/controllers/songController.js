@@ -3,25 +3,51 @@ const fsp = require('fs/promises');
 const path = require('path');
 const mime = require('mime-types');
 const db = require('../config/database');
+const { redisClient } = require('../config/redis');
 const { signStreamToken } = require('../utils/streamToken');
-
-const UPLOAD_DIR = path.resolve(__dirname, '..', '..', 'uploads');
+const { logger } = require('../utils/logger');
+const {
+  DEFAULT_PAGE_LIMIT,
+  MAX_PAGE_LIMIT,
+  CACHE_TTL_SONGS,
+  ALLOWED_GENRES,
+  UPLOAD_DIR,
+} = require('../config/constants');
 
 function resolveUploadPath(dbFilePath) {
   const stripped = String(dbFilePath || '').replace(/^\/?uploads\//, '');
-  const normalized = path.normalize(stripped);
-  const resolved = path.resolve(UPLOAD_DIR, normalized);
+  const resolved = path.resolve(UPLOAD_DIR, stripped);
+  const relative = path.relative(UPLOAD_DIR, resolved);
 
-  if (!resolved.startsWith(UPLOAD_DIR + path.sep)) {
-    throw new Error('Invalid file path');
+  if (relative.startsWith('..') || relative.startsWith('/') || path.isAbsolute(relative)) {
+    throw new Error('Invalid file path: path traversal detected');
   }
-
+  if (!resolved.startsWith(UPLOAD_DIR)) {
+    throw new Error('Invalid file path: outside upload directory');
+  }
   return resolved;
 }
 
 const getSongs = async (req, res) => {
   try {
-    const { genre, search, limit = 50, offset = 0 } = req.query;
+    const { genre, search, limit, offset } = req.query;
+    const pageLimit = Math.min(parseInt(limit) || DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT);
+    const pageOffset = Math.max(parseInt(offset) || 0, 0);
+
+    if (genre && !ALLOWED_GENRES.includes(genre)) {
+      return res.status(400).json({ error: 'Invalid genre', allowed: ALLOWED_GENRES });
+    }
+
+    const cacheKey = `songs:${genre || 'all'}:${search || ''}:${pageLimit}:${pageOffset}`;
+
+    try {
+      const cached = await redisClient.get(cacheKey);
+      if (cached) {
+        return res.json({ songs: JSON.parse(cached), cached: true });
+      }
+    } catch (cacheErr) {
+      // Proceed without cache
+    }
 
     let query = 'SELECT * FROM songs WHERE 1=1';
     const params = [];
@@ -32,19 +58,26 @@ const getSongs = async (req, res) => {
     }
 
     if (search) {
-      params.push(`%${search}%`);
+      const sanitizedSearch = search.replace(/[%_\\]/g, '\\$&');
+      params.push(`%${sanitizedSearch}%`);
       query += ` AND (title ILIKE $${params.length} OR artist ILIKE $${params.length} OR album ILIKE $${params.length})`;
     }
 
     query += ' ORDER BY created_at DESC';
-    params.push(limit, offset);
+    params.push(pageLimit, pageOffset);
     query += ` LIMIT $${params.length - 1} OFFSET $${params.length}`;
 
     const result = await db.query(query, params);
 
+    try {
+      await redisClient.setEx(cacheKey, CACHE_TTL_SONGS, JSON.stringify(result.rows));
+    } catch (cacheErr) {
+      // Ignore cache write errors
+    }
+
     res.json({ songs: result.rows });
   } catch (error) {
-    console.error('Get songs error:', error);
+    logger.error('Get songs error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -52,7 +85,6 @@ const getSongs = async (req, res) => {
 const getSongById = async (req, res) => {
   try {
     const { id } = req.params;
-
     const result = await db.query('SELECT * FROM songs WHERE id = $1', [id]);
 
     if (result.rows.length === 0) {
@@ -61,7 +93,7 @@ const getSongById = async (req, res) => {
 
     res.json({ song: result.rows[0] });
   } catch (error) {
-    console.error('Get song error:', error);
+    logger.error('Get song error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -85,12 +117,14 @@ const uploadSong = async (req, res) => {
       [title, artist, album || null, parseInt(duration, 10), filePath, genre || null, year ? parseInt(year, 10) : null, req.user.userId]
     );
 
+    logger.info({ action: 'song_uploaded', songId: result.rows[0].id, userId: req.user.userId });
+
     res.status(201).json({
       message: 'Song uploaded successfully',
-      song: result.rows[0]
+      song: result.rows[0],
     });
   } catch (error) {
-    console.error('Upload song error:', error);
+    logger.error('Upload song error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -106,14 +140,14 @@ const getStreamUrl = async (req, res) => {
 
     const token = signStreamToken({
       userId: req.user.userId,
-      songId: Number(id)
+      songId: Number(id),
     });
 
     return res.json({
-      url: `/api/songs/${id}/stream?t=${encodeURIComponent(token)}`
+      url: `/api/songs/${id}/stream?t=${encodeURIComponent(token)}`,
     });
   } catch (error) {
-    console.error('Get stream URL error:', error);
+    logger.error('Get stream URL error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -127,7 +161,6 @@ const streamSong = async (req, res) => {
     }
 
     const result = await db.query('SELECT file_path FROM songs WHERE id = $1', [id]);
-
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Song not found' });
     }
@@ -137,13 +170,13 @@ const streamSong = async (req, res) => {
     let stat;
     try {
       stat = await fsp.stat(filePath);
-    } catch (error) {
+    } catch {
       return res.status(404).json({ error: 'Audio file missing' });
     }
 
     const fileSize = stat.size;
     const range = req.headers.range;
-    const contentType = mime.lookup(filePath) || 'application/octet-stream';
+    const contentType = mime.lookup(filePath) || 'audio/mpeg';
 
     res.setHeader('Accept-Ranges', 'bytes');
     res.setHeader('Content-Type', contentType);
@@ -153,7 +186,6 @@ const streamSong = async (req, res) => {
 
     if (range) {
       const match = String(range).match(/^bytes=(\d*)-(\d*)$/);
-
       if (!match) {
         return res.status(416).setHeader('Content-Range', `bytes */${fileSize}`).end();
       }
@@ -178,7 +210,7 @@ const streamSong = async (req, res) => {
       }
 
       end = Math.min(end, fileSize - 1);
-      const chunkSize = (end - start) + 1;
+      const chunkSize = end - start + 1;
 
       res.status(206);
       res.setHeader('Content-Range', `bytes ${start}-${end}/${fileSize}`);
@@ -186,13 +218,9 @@ const streamSong = async (req, res) => {
 
       const stream = fs.createReadStream(filePath, { start, end });
       stream.on('error', () => {
-        if (!res.headersSent) {
-          res.status(500).end();
-        } else {
-          res.destroy();
-        }
+        if (!res.headersSent) res.status(500).end();
+        else res.destroy();
       });
-
       return stream.pipe(res);
     }
 
@@ -201,20 +229,15 @@ const streamSong = async (req, res) => {
 
     const stream = fs.createReadStream(filePath);
     stream.on('error', () => {
-      if (!res.headersSent) {
-        res.status(500).end();
-      } else {
-        res.destroy();
-      }
+      if (!res.headersSent) res.status(500).end();
+      else res.destroy();
     });
-
     return stream.pipe(res);
   } catch (error) {
-    console.error('Stream song error:', error);
+    logger.error('Stream song error:', error);
     if (!res.headersSent) {
       return res.status(500).json({ error: 'Internal server error' });
     }
-    return undefined;
   }
 };
 
@@ -229,7 +252,19 @@ const recordListening = async (req, res) => {
 
     res.json({ message: 'Listening recorded' });
   } catch (error) {
-    console.error('Record listening error:', error);
+    logger.error('Record listening error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+const getGenres = async (req, res) => {
+  try {
+    const result = await db.query(
+      'SELECT DISTINCT genre, COUNT(*) as count FROM songs WHERE genre IS NOT NULL GROUP BY genre ORDER BY count DESC'
+    );
+    res.json({ genres: result.rows });
+  } catch (error) {
+    logger.error('Get genres error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -240,5 +275,6 @@ module.exports = {
   uploadSong,
   getStreamUrl,
   streamSong,
-  recordListening
+  recordListening,
+  getGenres,
 };

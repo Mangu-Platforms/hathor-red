@@ -1,117 +1,38 @@
 import api from './api';
 
 export const musicService = {
-  getSongs: async (params = {}) => {
-    const response = await api.get('/songs', { params });
-    return response.data;
-  },
+  getSongs: (params) => api.get('/songs', { params }).then(r => r.data),
+  getSong: (id) => api.get(`/songs/${id}`).then(r => r.data),
+  getGenres: () => api.get('/songs/genres').then(r => r.data),
+  getStreamUrl: (id) => api.get(`/songs/${id}/stream-url`).then(r => r.data),
+  uploadSong: (formData) => api.post('/songs/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then(r => r.data),
+  recordListening: (songId, duration) => api.post('/songs/record-listening', { songId, duration }).then(r => r.data),
 
-  getSongById: async (id) => {
-    const response = await api.get(`/songs/${id}`);
-    return response.data;
-  },
+  getPlaylists: () => api.get('/playlists').then(r => r.data),
+  getPlaylist: (id) => api.get(`/playlists/${id}`).then(r => r.data),
+  createPlaylist: (data) => api.post('/playlists', data).then(r => r.data),
+  addToPlaylist: (playlistId, songId) => api.post('/playlists/add-song', { playlistId, songId }).then(r => r.data),
+  removeFromPlaylist: (playlistId, songId) => api.delete(`/playlists/${playlistId}/songs/${songId}`).then(r => r.data),
+  deletePlaylist: (id) => api.delete(`/playlists/${id}`).then(r => r.data),
+  generateAIPlaylist: (prompt, name, songCount) => api.post('/playlists/generate-ai', { prompt, name, songCount }).then(r => r.data),
 
-  uploadSong: async (formData) => {
-    const response = await api.post('/songs/upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
-    return response.data;
-  },
+  getPlaybackState: () => api.get('/playback/state').then(r => r.data),
+  updatePlaybackState: (state) => api.post('/playback/state', state).then(r => r.data),
 
-  getStreamUrl: async (id) => {
-    const response = await api.get(`/songs/${id}/stream-url`);
-    return response.data.url;
-  },
+  getRooms: () => api.get('/rooms').then(r => r.data),
+  getRoom: (id) => api.get(`/rooms/${id}`).then(r => r.data),
+  createRoom: (data) => api.post('/rooms', data).then(r => r.data),
+  joinRoom: (id) => api.post(`/rooms/${id}/join`).then(r => r.data),
+  leaveRoom: (id) => api.post(`/rooms/${id}/leave`).then(r => r.data),
+  deleteRoom: (id) => api.delete(`/rooms/${id}`).then(r => r.data),
 
-  recordListening: async (songId, duration) => {
-    const response = await api.post('/songs/record-listening', {
-      songId,
-      duration,
-    });
-    return response.data;
-  },
-
-  getPlaylists: async () => {
-    const response = await api.get('/playlists');
-    return response.data;
-  },
-
-  getPlaylistById: async (id) => {
-    const response = await api.get(`/playlists/${id}`);
-    return response.data;
-  },
-
-  createPlaylist: async (name, description, isPublic) => {
-    const response = await api.post('/playlists', {
-      name,
-      description,
-      isPublic,
-    });
-    return response.data;
-  },
-
-  addSongToPlaylist: async (playlistId, songId) => {
-    const response = await api.post('/playlists/add-song', {
-      playlistId,
-      songId,
-    });
-    return response.data;
-  },
-
-  generateAIPlaylist: async (prompt, name) => {
-    const response = await api.post('/playlists/generate-ai', {
-      prompt,
-      name,
-    });
-    return response.data;
-  },
-
-  deletePlaylist: async (id) => {
-    const response = await api.delete(`/playlists/${id}`);
-    return response.data;
-  },
-
-  getPlaybackState: async () => {
-    const response = await api.get('/playback/state');
-    return response.data;
-  },
-
-  updatePlaybackState: async (state) => {
-    const response = await api.post('/playback/state', state);
-    return response.data;
-  },
-
-  getRooms: async () => {
-    const response = await api.get('/rooms');
-    return response.data;
-  },
-
-  getRoomById: async (id) => {
-    const response = await api.get(`/rooms/${id}`);
-    return response.data;
-  },
-
-  createRoom: async (name, isPublic, maxListeners) => {
-    const response = await api.post('/rooms', {
-      name,
-      isPublic,
-      maxListeners,
-    });
-    return response.data;
-  },
-
-  joinRoom: async (id) => {
-    const response = await api.post(`/rooms/${id}/join`);
-    return response.data;
-  },
-
-  leaveRoom: async (id) => {
-    const response = await api.post(`/rooms/${id}/leave`);
-    return response.data;
-  },
-
-  deleteRoom: async (id) => {
-    const response = await api.delete(`/rooms/${id}`);
-    return response.data;
-  },
+  getAIStatus: () => api.get('/ai/status').then(r => r.data),
+  getRecommendations: (params) => api.get('/ai/recommendations', { params }).then(r => r.data),
+  getDailyMix: () => api.get('/ai/daily-mix').then(r => r.data),
+  getSimilarSongs: (songId) => api.get(`/ai/similar/${songId}`).then(r => r.data),
+  detectMood: (input) => api.post('/ai/mood/detect', { input }).then(r => r.data),
+  search: (q) => api.get('/ai/search', { params: { q } }).then(r => r.data),
+  chat: (message, history, context) => api.post('/ai/chat', { message, conversationHistory: history, context }).then(r => r.data),
 };

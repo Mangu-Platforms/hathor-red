@@ -1,220 +1,222 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
-import { musicService } from '../services/music';
 import { useAuth } from '../contexts/AuthContext';
-import './ListeningRoom.css';
+import { usePlayer } from '../contexts/PlayerContext';
+import { musicService } from '../services/music';
 
 const ListeningRoom = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { loadSong, togglePlay, isPlaying, currentSong, setQueueAndPlay } = usePlayer();
 
-  const [socket, setSocket] = useState(null);
   const [room, setRoom] = useState(null);
   const [participants, setParticipants] = useState([]);
   const [messages, setMessages] = useState([]);
-  const [messageInput, setMessageInput] = useState('');
-  const [currentSong, setCurrentSong] = useState(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [position, setPosition] = useState(0);
+  const [chatInput, setChatInput] = useState('');
+  const [socket, setSocket] = useState(null);
+  const [typingUsers, setTypingUsers] = useState([]);
+  const messagesEndRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
+
+  const token = localStorage.getItem('token');
+  const API_URL = process.env.REACT_APP_API_URL || '';
 
   useEffect(() => {
-    loadRoom();
-    
-    const token = localStorage.getItem('token');
-    const newSocket = io(process.env.REACT_APP_API_URL || 'http://localhost:5000', {
+    const fetchRoom = async () => {
+      try {
+        const res = await musicService.getRoom(id);
+        setRoom(res.room);
+        setParticipants(res.participants);
+      } catch (err) {
+        console.error('Failed to fetch room:', err);
+      }
+    };
+    fetchRoom();
+    musicService.joinRoom(id).catch(() => {});
+
+    return () => {
+      musicService.leaveRoom(id).catch(() => {});
+    };
+  }, [id]);
+
+  useEffect(() => {
+    if (!token) return;
+
+    const newSocket = io(API_URL || window.location.origin, {
       auth: { token },
+      transports: ['websocket', 'polling'],
     });
 
     newSocket.on('connect', () => {
-      console.log('Connected to socket');
-      newSocket.emit('join-room', id);
+      newSocket.emit('join-room', parseInt(id));
     });
 
     newSocket.on('room-state', (state) => {
-      setIsPlaying(state.isPlaying);
-      setPosition(state.position);
       if (state.currentSongId) {
-        loadCurrentSong(state.currentSongId);
+        musicService.getSong(state.currentSongId).then(res => {
+          loadSong(res.song);
+        }).catch(() => {});
       }
     });
 
     newSocket.on('room-update', (update) => {
-      if (update.action === 'play') {
-        setIsPlaying(true);
-        setPosition(update.position);
-      } else if (update.action === 'pause') {
-        setIsPlaying(false);
-        setPosition(update.position);
-      } else if (update.action === 'seek') {
-        setPosition(update.position);
-      } else if (update.action === 'change-song') {
-        loadCurrentSong(update.songId);
+      if (update.action === 'play') togglePlay();
+      if (update.action === 'pause') togglePlay();
+      if (update.action === 'change-song' && update.songId) {
+        musicService.getSong(update.songId).then(res => {
+          loadSong(res.song);
+        }).catch(() => {});
       }
     });
 
+    newSocket.on('chat-message', (msg) => {
+      setMessages(prev => [...prev, msg]);
+    });
+
     newSocket.on('user-joined', (data) => {
-      addMessage(`${data.username} joined the room`, 'system');
-      loadRoom();
+      setParticipants(prev => [...prev.filter(p => p.id !== data.userId), {
+        id: data.userId, username: data.username, joined_at: new Date().toISOString(),
+      }]);
+      setMessages(prev => [...prev, { system: true, message: `${data.username} joined the room`, timestamp: data.timestamp }]);
     });
 
     newSocket.on('user-left', (data) => {
-      addMessage(`${data.username} left the room`, 'system');
-      loadRoom();
+      setParticipants(prev => prev.filter(p => p.id !== data.userId));
+      setMessages(prev => [...prev, { system: true, message: `${data.username} left the room`, timestamp: data.timestamp }]);
     });
 
-    newSocket.on('chat-message', (data) => {
-      addMessage(data.message, 'chat', data.username);
+    newSocket.on('user-typing', (data) => {
+      setTypingUsers(prev => [...new Set([...prev, data.username])]);
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        setTypingUsers(prev => prev.filter(u => u !== data.username));
+      }, 2000);
     });
 
-    newSocket.on('error', (error) => {
-      console.error('Socket error:', error);
-      alert(error.message);
+    newSocket.on('error', (err) => {
+      console.error('Socket error:', err);
     });
 
     setSocket(newSocket);
 
     return () => {
-      if (newSocket) {
-        newSocket.emit('leave-room', id);
-        newSocket.disconnect();
-      }
+      newSocket.emit('leave-room', parseInt(id));
+      newSocket.disconnect();
     };
-  }, [id]);
+  }, [id, token, API_URL, loadSong, togglePlay]);
 
-  const loadRoom = async () => {
-    try {
-      const data = await musicService.getRoomById(id);
-      setRoom(data.room);
-      setParticipants(data.participants);
-      if (data.room.current_song_id) {
-        loadCurrentSong(data.room.current_song_id);
-      }
-    } catch (error) {
-      console.error('Failed to load room:', error);
-      alert('Room not found');
-      navigate('/rooms');
-    }
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const sendMessage = () => {
+    if (!chatInput.trim() || !socket) return;
+    socket.emit('room-chat', { roomId: parseInt(id), message: chatInput });
+    setChatInput('');
   };
 
-  const loadCurrentSong = async (songId) => {
-    try {
-      const data = await musicService.getSongById(songId);
-      setCurrentSong(data.song);
-    } catch (error) {
-      console.error('Failed to load song:', error);
-    }
+  const handleTyping = () => {
+    socket?.emit('typing', { roomId: parseInt(id) });
   };
 
-  const addMessage = (text, type = 'chat', username = null) => {
-    setMessages((prev) => [
-      ...prev,
-      { text, type, username, timestamp: Date.now() },
-    ]);
+  const sendControl = (action) => {
+    if (!socket || !room) return;
+    const data = { roomId: parseInt(id), action };
+    if (action === 'seek') data.position = 0;
+    if (currentSong && (action === 'play' || action === 'change-song')) data.songId = currentSong.id;
+    socket.emit('room-control', data);
   };
 
-  const sendMessage = (e) => {
-    e.preventDefault();
-    if (messageInput.trim() && socket) {
-      socket.emit('room-chat', { roomId: id, message: messageInput });
-      setMessageInput('');
-    }
-  };
-
-  const handleControl = (action, data = {}) => {
-    if (socket && room && room.host_id === user.id) {
-      socket.emit('room-control', { roomId: id, action, ...data });
-    }
-  };
-
-  const leaveRoom = async () => {
-    try {
-      await musicService.leaveRoom(id);
-      navigate('/rooms');
-    } catch (error) {
-      console.error('Failed to leave room:', error);
-    }
-  };
-
-  if (!room) {
-    return <div className="loading">Loading room...</div>;
-  }
+  if (!room) return <div className="loading-screen">Loading room...</div>;
 
   const isHost = room.host_id === user?.id;
 
   return (
-    <div className="listening-room-container">
+    <div className="listening-room">
       <div className="room-header">
-        <div>
-          <h1>{room.name}</h1>
-          <p>Host: {room.host_display_name || room.host_username}</p>
+        <button className="back-btn" onClick={() => navigate('/rooms')}>
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} width="20" height="20"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+        </button>
+        <div className="room-info">
+          <h2>{room.name}</h2>
+          <p>Hosted by {room.host_display_name || room.host_username} {room.is_public ? 'Public' : 'Private'} Room</p>
         </div>
-        <button onClick={leaveRoom} className="btn-leave">Leave Room</button>
+        <div className="room-listener-count">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5} width="18" height="18"><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+          {participants.length} listener{participants.length !== 1 ? 's' : ''}
+        </div>
       </div>
 
-      <div className="room-content">
+      <div className="room-layout">
         <div className="room-main">
-          <div className="now-playing">
-            <h2>Now Playing</h2>
-            {currentSong ? (
-              <div className="current-song">
-                <h3>{currentSong.title}</h3>
-                <p>{currentSong.artist}</p>
-                <div className="playback-status">
-                  {isPlaying ? '▶️ Playing' : '⏸️ Paused'}
-                </div>
+          {currentSong && (
+            <div className="room-now-playing">
+              <div className="room-cover-large">
+                {currentSong.cover_url ? <img src={currentSong.cover_url} alt="" /> : <div className="room-cover-placeholder-lg">{currentSong.title?.[0]}</div>}
               </div>
-            ) : (
-              <p>No song playing</p>
-            )}
-
-            {isHost && (
-              <div className="host-controls">
-                <button onClick={() => handleControl('play', { position })}>Play</button>
-                <button onClick={() => handleControl('pause', { position })}>Pause</button>
+              <div className="room-now-playing-info">
+                <div className="room-now-label">Now Playing</div>
+                <div className="room-now-title">{currentSong.title}</div>
+                <div className="room-now-artist">{currentSong.artist}</div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
-          <div className="chat-container">
-            <h3>Chat</h3>
-            <div className="messages">
-              {messages.map((msg, index) => (
-                <div key={index} className={`message ${msg.type}`}>
-                  {msg.type === 'chat' && <strong>{msg.username}: </strong>}
-                  {msg.text}
+          {isHost && (
+            <div className="room-host-controls">
+              <button onClick={() => sendControl('play')} disabled={isPlaying}>Play</button>
+              <button onClick={() => sendControl('pause')} disabled={!isPlaying}>Pause</button>
+              <button onClick={() => sendControl('change-song')}>Change Song</button>
+            </div>
+          )}
+
+          <div className="room-participants">
+            <h4>In this room</h4>
+            <div className="participants-list">
+              {participants.map(p => (
+                <div key={p.id} className="participant">
+                  <div className="participant-avatar">{(p.display_name || p.username)?.[0]?.toUpperCase()}</div>
+                  <span>{p.display_name || p.username}</span>
+                  {p.id === room.host_id && <span className="host-badge">Host</span>}
                 </div>
               ))}
             </div>
-            <form onSubmit={sendMessage} className="message-form">
-              <input
-                type="text"
-                value={messageInput}
-                onChange={(e) => setMessageInput(e.target.value)}
-                placeholder="Type a message..."
-              />
-              <button type="submit">Send</button>
-            </form>
           </div>
         </div>
 
-        <div className="room-sidebar">
-          <h3>Participants ({participants.length})</h3>
-          <div className="participants-list">
-            {participants.map((participant) => (
-              <div key={participant.id} className="participant">
-                <div className="avatar">
-                  {participant.avatar_url ? (
-                    <img src={participant.avatar_url} alt={participant.username} />
-                  ) : (
-                    participant.username[0].toUpperCase()
-                  )}
-                </div>
-                <span>{participant.display_name || participant.username}</span>
-                {participant.id === room.host_id && <span className="host-badge">Host</span>}
+        <div className="room-chat">
+          <div className="chat-messages">
+            {messages.map((msg, i) => (
+              <div key={i} className={`chat-message ${msg.system ? 'system' : ''}`}>
+                {msg.system ? (
+                  <span className="system-text">{msg.message}</span>
+                ) : (
+                  <>
+                    <span className="chat-username">{msg.username}</span>
+                    <span className="chat-text">{msg.message}</span>
+                    <span className="chat-time">{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  </>
+                )}
               </div>
             ))}
+            {typingUsers.length > 0 && (
+              <div className="typing-indicator">{typingUsers.join(', ')} typing...</div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+          <div className="chat-input-area">
+            <input
+              type="text"
+              value={chatInput}
+              onChange={e => { setChatInput(e.target.value); handleTyping(); }}
+              onKeyDown={e => e.key === 'Enter' && sendMessage()}
+              placeholder="Type a message..."
+            />
+            <button onClick={sendMessage}>
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} width="18" height="18"><path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+            </button>
           </div>
         </div>
       </div>
