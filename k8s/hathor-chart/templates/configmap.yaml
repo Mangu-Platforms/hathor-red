@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "hathor-music.fullname" . }}-config
+  labels:
+    {{- include "hathor-music.labels" . | nindent 4 }}
+data:
+  {{- range $key, $value := .Values.env }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
+  FEATURE_HLS_STREAMING: {{ .Values.features.hlsStreaming | quote }}
+  FEATURE_STEM_SEPARATION: {{ .Values.features.stemSeparation | quote }}
+  FEATURE_VECTOR_SEARCH: {{ .Values.features.vectorSearch | quote }}
+  FEATURE_LLM_PLAYLIST: {{ .Values.features.llmPlaylist | quote }}
+  FEATURE_WEBRTC_VIDEO: {{ .Values.features.webRTCVideo | quote }}
+  FEATURE_ANALYTICS: {{ .Values.features.analytics | quote }}
+  FEATURE_OAUTH: {{ .Values.features.oauth | quote }}
+  FEATURE_OTEL: {{ .Values.features.otel | quote }}
