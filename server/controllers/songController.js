@@ -3,25 +3,57 @@ const fsp = require('fs/promises');
 const path = require('path');
 const mime = require('mime-types');
 const db = require('../config/database');
+const { redisClient } = require('../config/redis');
 const { signStreamToken } = require('../utils/streamToken');
+const { logger } = require('../utils/logger');
 
 const UPLOAD_DIR = path.resolve(__dirname, '..', '..', 'uploads');
+const ALLOWED_GENRES = ['Rock', 'Pop', 'Jazz', 'Classical', 'Hip Hop', 'Electronic', 'R&B', 'Country',
+  'Metal', 'Indie', 'Blues', 'Folk', 'Ambient'];
 
+/**
+ * Resolve and validate upload file path
+ * Prevents path traversal attacks
+ */
 function resolveUploadPath(dbFilePath) {
   const stripped = String(dbFilePath || '').replace(/^\/?uploads\//, '');
-  const normalized = path.normalize(stripped);
-  const resolved = path.resolve(UPLOAD_DIR, normalized);
-
-  if (!resolved.startsWith(UPLOAD_DIR + path.sep)) {
-    throw new Error('Invalid file path');
+  const resolved = path.resolve(UPLOAD_DIR, stripped);
+  const relative = path.relative(UPLOAD_DIR, resolved);
+  if (relative.startsWith('..') || relative.startsWith('/') || path.isAbsolute(relative)) {
+    throw new Error('Invalid file path: path traversal detected');
   }
-
+  if (!resolved.startsWith(UPLOAD_DIR)) {
+    throw new Error('Invalid file path: outside upload directory');
+  }
   return resolved;
 }
 
+/**
+ * Get songs with optional filtering and Redis caching
+ */
 const getSongs = async (req, res) => {
   try {
     const { genre, search, limit = 50, offset = 0 } = req.query;
+    const pageLimit = Math.min(parseInt(limit, 10) || 50, 200);
+    const pageOffset = Math.max(parseInt(offset, 10) || 0, 0);
+
+    // Validate genre against allowlist
+    if (genre && !ALLOWED_GENRES.includes(genre)) {
+      return res.status(400).json({ error: 'Invalid genre', allowed: ALLOWED_GENRES });
+    }
+
+    // Build cache key
+    const cacheKey = `songs:${genre || 'all'}:${search || ''}:${pageLimit}:${pageOffset}`;
+
+    // Try Redis cache
+    try {
+      const cached = await redisClient.get(cacheKey);
+      if (cached) {
+        return res.json({ songs: JSON.parse(cached), cached: true });
+      }
+    } catch (cacheErr) {
+      logger.warn('Redis cache miss (proceeding to DB):', cacheErr.message);
+    }
 
     let query = 'SELECT * FROM songs WHERE 1=1';
     const params = [];
@@ -32,19 +64,27 @@ const getSongs = async (req, res) => {
     }
 
     if (search) {
-      params.push(`%${search}%`);
+      const sanitizedSearch = search.replace(/[%_]/g, '\\$&');
+      params.push(`%${sanitizedSearch}%`);
       query += ` AND (title ILIKE $${params.length} OR artist ILIKE $${params.length} OR album ILIKE $${params.length})`;
     }
 
     query += ' ORDER BY created_at DESC';
-    params.push(limit, offset);
+    params.push(pageLimit, pageOffset);
     query += ` LIMIT $${params.length - 1} OFFSET $${params.length}`;
 
     const result = await db.query(query, params);
 
+    // Cache result for 5 minutes
+    try {
+      await redisClient.setEx(cacheKey, 300, JSON.stringify(result.rows));
+    } catch (cacheErr) {
+      logger.warn('Failed to cache songs:', cacheErr.message);
+    }
+
     res.json({ songs: result.rows });
   } catch (error) {
-    console.error('Get songs error:', error);
+    logger.error('Get songs error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
