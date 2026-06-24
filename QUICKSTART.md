@@ -173,6 +173,8 @@ Press `Ctrl+C` in the terminal running `npm run dev`
 
 ## Next Steps
 
+- **Deploying:** See `DEPLOYMENT.md` for production setup instructions, including Vercel for the frontend and Railway/Docker for the backend.
+
 1. **Read the full documentation:**
    - [README.md](README.md) - Project overview
    - [API.md](API.md) - API reference

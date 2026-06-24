@@ -427,6 +427,11 @@ docker-compose down
 
 ### Option 3: Cloud Platform Deployment
 
+#### Vercel (Frontend)
+The React client is configured for Vercel deployment:
+- Uses `vercel.json` for proper monorepo routing (`"buildCommand": "pnpm run build"`, `"outputDirectory": "client/build"`).
+- Connect the repository to Vercel and it will automatically deploy the frontend. Ensure `REACT_APP_API_URL` points to your backend.
+
 #### Heroku
 
 1. Install Heroku CLI

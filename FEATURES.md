@@ -303,6 +303,7 @@ socket.on('user-joined', handleUserJoin)
 - Web Audio API for playback
 - Socket.io client for real-time
 - Responsive CSS design
+- Vercel-ready with integrated build pipeline for monorepo configuration
 
 ### Real-time Communication
 - WebSocket connections via Socket.io
