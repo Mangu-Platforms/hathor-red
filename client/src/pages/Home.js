@@ -1,83 +1,124 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import { usePlayer } from '../contexts/PlayerContext';
-import Player from '../components/Player';
+import React, { useEffect, useState } from 'react';
 import SongList from '../components/SongList';
 import AIPlaylistGenerator from '../components/AIPlaylistGenerator';
-import AIRecommendations from '../components/AIRecommendations';
-import AIChat from '../components/AIChat';
-import './Home.css';
+import { musicService } from '../services/music';
+import { usePlayer } from '../contexts/PlayerContext';
 
 const Home = () => {
-  const { user, logout } = useAuth();
-  const { currentSong } = usePlayer();
-  const [showAIChat, setShowAIChat] = useState(false);
-  const [activeView, setActiveView] = useState('songs'); // 'songs' or 'recommendations'
+  const [songs, setSongs] = useState([]);
+  const [playlists, setPlaylists] = useState([]);
+  const [genres, setGenres] = useState([]);
+  const [dailyMix, setDailyMix] = useState([]);
+  const [activeTab, setActiveTab] = useState('discover');
+  const [loading, setLoading] = useState(true);
+  const { setQueueAndPlay } = usePlayer();
+
+  const fetchSongs = async () => {
+    try { const res = await musicService.getSongs(); setSongs(res.songs); }
+    catch (err) { console.error(err); }
+  };
+
+  const fetchPlaylists = async () => {
+    try { const res = await musicService.getPlaylists(); setPlaylists(res.playlists); }
+    catch (err) { console.error(err); }
+  };
+
+  const fetchGenres = async () => {
+    try { const res = await musicService.getGenres(); setGenres(res.genres); }
+    catch (err) { console.error(err); }
+  };
+
+  const fetchDailyMix = async () => {
+    try { const res = await musicService.getDailyMix(); setDailyMix(res.songs || []); }
+    catch (err) { console.error(err); }
+  };
+
+  useEffect(() => {
+    setLoading(true);
+    Promise.all([fetchSongs(), fetchPlaylists(), fetchGenres(), fetchDailyMix()]).finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="loading-screen">Loading your music universe...</div>;
 
   return (
-    <div className="home-container">
-      <header className="header">
-        <div className="header-content">
-          <h1 className="logo">Hathor Music</h1>
-          <nav className="nav">
-            <Link to="/">Home</Link>
-            <Link to="/playlists">Playlists</Link>
-            <Link to="/rooms">Listening Rooms</Link>
-            <Link to="/podcast">Podcasts</Link>
-            <div className="user-menu">
-              <span>Welcome, {user?.display_name || user?.username}!</span>
-              <button onClick={logout} className="btn-logout">Logout</button>
+    <div className="home-page">
+      <div className="hero-section">
+        <h1>Welcome to Hathor</h1>
+        <p>The greatest music platform on Earth</p>
+      </div>
+
+      <div className="tabs">
+        {['discover', 'ai-playlist', 'playlists'].map(tab => (
+          <button key={tab} className={`tab ${activeTab === tab ? 'active' : ''}`} onClick={() => setActiveTab(tab)}>
+            {tab === 'discover' && 'Discover'}
+            {tab === 'ai-playlist' && 'AI Playlist'}
+            {tab === 'playlists' && 'My Playlists'}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'discover' && (
+        <>
+          {dailyMix.length > 0 && (
+            <section className="section">
+              <div className="section-header">
+                <h2>Your Daily Mix</h2>
+                <button className="play-all-btn" onClick={() => setQueueAndPlay(dailyMix)}>
+                  <svg fill="currentColor" viewBox="0 0 24 24" width="14" height="14"><path d="M8 5v14l11-7z" /></svg>
+                  Play All
+                </button>
+              </div>
+              <SongList songs={dailyMix.slice(0, 8)} title="" showSearch={false} />
+            </section>
+          )}
+
+          {genres.length > 0 && (
+            <section className="section">
+              <h2>Browse by Genre</h2>
+              <div className="genre-grid">
+                {genres.map(g => (
+                  <button key={g.genre} className="genre-card" onClick={() => fetchSongs({ genre: g.genre })}>
+                    <div className="genre-card-bg">{g.genre?.[0]}</div>
+                    <span className="genre-card-name">{g.genre}</span>
+                    <span className="genre-card-count">{g.count} songs</span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <SongList songs={songs} title="All Songs" showSearch={true} onRefresh={fetchSongs} />
+        </>
+      )}
+
+      {activeTab === 'ai-playlist' && <AIPlaylistGenerator />}
+
+      {activeTab === 'playlists' && (
+        <div className="playlists-section">
+          <h2>My Playlists</h2>
+          {playlists.length === 0 ? (
+            <div className="empty-state">
+              <p>No playlists yet</p>
+              <p>Create your first playlist using the AI Playlist tab!</p>
             </div>
-          </nav>
+          ) : (
+            <div className="playlist-grid">
+              {playlists.map(pl => (
+                <div key={pl.id} className="playlist-card">
+                  <div className="playlist-card-cover">
+                    {pl.cover_url ? <img src={pl.cover_url} alt="" /> : <div className="playlist-cover-placeholder">{pl.name?.[0]}</div>}
+                  </div>
+                  <div className="playlist-card-info">
+                    <h4>{pl.name}</h4>
+                    <p>{pl.description || (pl.is_ai_generated ? 'AI Generated' : 'Custom Playlist')}</p>
+                    {pl.is_public && <span className="public-badge">Public</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-      </header>
-
-      <main className="main-content">
-        <Player />
-
-        <div className="view-toggle">
-          <button
-            className={activeView === 'songs' ? 'active' : ''}
-            onClick={() => setActiveView('songs')}
-          >
-            Browse Songs
-          </button>
-          <button
-            className={activeView === 'recommendations' ? 'active' : ''}
-            onClick={() => setActiveView('recommendations')}
-          >
-            AI Recommendations
-          </button>
-        </div>
-
-        <div className="content-grid">
-          <div className="content-main">
-            {activeView === 'songs' ? (
-              <SongList />
-            ) : (
-              <AIRecommendations currentSongId={currentSong?.id} />
-            )}
-          </div>
-          <div className="content-sidebar">
-            <AIPlaylistGenerator />
-          </div>
-        </div>
-      </main>
-
-      {/* Floating AI Chat Button */}
-      <button
-        className="ai-chat-fab"
-        onClick={() => setShowAIChat(true)}
-        title="AI Music Assistant"
-      >
-        <svg viewBox="0 0 24 24" fill="currentColor">
-          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
-        </svg>
-      </button>
-
-      {/* AI Chat Modal */}
-      <AIChat isOpen={showAIChat} onClose={() => setShowAIChat(false)} />
+      )}
     </div>
   );
 };

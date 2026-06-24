@@ -12,11 +12,25 @@ const authMiddleware = (req, res, next) => {
       return res.status(401).json({ error: 'Invalid Authorization header format' });
     }
 
-    const decoded = jwt.verify(match[1], process.env.JWT_SECRET);
+    if (!process.env.JWT_SECRET) {
+      console.error('JWT_SECRET is not configured');
+      return res.status(500).json({ error: 'Server authentication misconfigured' });
+    }
+
+    const decoded = jwt.verify(match[1], process.env.JWT_SECRET, {
+      issuer: 'hathor-music',
+      clockTolerance: 60,
+    });
     req.user = decoded;
     return next();
   } catch (error) {
-    return res.status(401).json({ error: 'Invalid authentication token' });
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ error: 'Token expired' });
+    }
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+    return res.status(401).json({ error: 'Authentication failed' });
   }
 };
 

@@ -1,5 +1,7 @@
 const db = require('../config/database');
 const colabAIService = require('../services/colabAIService');
+const { logger } = require('../utils/logger');
+const { DEFAULT_AI_PLAYLIST_SIZE, MAX_AI_PLAYLIST_SIZE } = require('../config/constants');
 
 const getPlaylists = async (req, res) => {
   try {
@@ -12,7 +14,7 @@ const getPlaylists = async (req, res) => {
 
     res.json({ playlists: result.rows });
   } catch (error) {
-    console.error('Get playlists error:', error);
+    logger.error('Get playlists error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -21,17 +23,12 @@ const getPlaylistById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const playlistResult = await db.query(
-      'SELECT * FROM playlists WHERE id = $1',
-      [id]
-    );
-
+    const playlistResult = await db.query('SELECT * FROM playlists WHERE id = $1', [id]);
     if (playlistResult.rows.length === 0) {
       return res.status(404).json({ error: 'Playlist not found' });
     }
 
     const playlist = playlistResult.rows[0];
-
     if (!playlist.is_public && playlist.user_id !== req.user.userId) {
       return res.status(403).json({ error: 'Access denied' });
     }
@@ -45,12 +42,9 @@ const getPlaylistById = async (req, res) => {
       [id]
     );
 
-    res.json({
-      playlist,
-      songs: songsResult.rows
-    });
+    res.json({ playlist, songs: songsResult.rows });
   } catch (error) {
-    console.error('Get playlist error:', error);
+    logger.error('Get playlist error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -65,15 +59,15 @@ const createPlaylist = async (req, res) => {
 
     const result = await db.query(
       'INSERT INTO playlists (user_id, name, description, is_public) VALUES ($1, $2, $3, $4) RETURNING *',
-      [req.user.userId, name, description || null, isPublic || false]
+      [req.user.userId, name, description || null, isPublic !== false]
     );
 
     res.status(201).json({
       message: 'Playlist created successfully',
-      playlist: result.rows[0]
+      playlist: result.rows[0],
     });
   } catch (error) {
-    console.error('Create playlist error:', error);
+    logger.error('Create playlist error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -100,7 +94,7 @@ const addSongToPlaylist = async (req, res) => {
       [playlistId]
     );
 
-    const position = maxPositionResult.rows[0].max_pos + 1;
+    const position = parseInt(maxPositionResult.rows[0].max_pos, 10) + 1;
 
     await db.query(
       'INSERT INTO playlist_songs (playlist_id, song_id, position) VALUES ($1, $2, $3)',
@@ -112,20 +106,21 @@ const addSongToPlaylist = async (req, res) => {
     if (error.constraint === 'playlist_songs_playlist_id_song_id_key') {
       return res.status(409).json({ error: 'Song already in playlist' });
     }
-    console.error('Add song to playlist error:', error);
+    logger.error('Add song to playlist error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
 
 const generateAIPlaylist = async (req, res) => {
   try {
-    const { prompt, name, songCount = 10 } = req.body;
+    const { prompt, name, songCount = DEFAULT_AI_PLAYLIST_SIZE } = req.body;
 
     if (!prompt) {
       return res.status(400).json({ error: 'Prompt is required' });
     }
 
-    // Get user's listening history for context
+    const count = Math.min(parseInt(songCount) || DEFAULT_AI_PLAYLIST_SIZE, MAX_AI_PLAYLIST_SIZE);
+
     const historyResult = await db.query(
       `SELECT s.genre, s.artist, COUNT(*) as play_count
        FROM listening_history lh
@@ -139,33 +134,48 @@ const generateAIPlaylist = async (req, res) => {
 
     const context = {
       history: historyResult.rows,
-      favoriteGenres: [...new Set(historyResult.rows.map(r => r.genre).filter(Boolean))]
+      favoriteGenres: [...new Set(historyResult.rows.map(r => r.genre).filter(Boolean))],
     };
 
-    // Use Colab AI service to analyze the prompt
     const analysis = await colabAIService.analyzePlaylistPrompt(prompt, context);
-
-    // Build query based on AI analysis
     let genres = analysis.genres || [];
 
-    // Fallback to keyword matching if no genres detected
     if (genres.length === 0) {
-      const keywords = prompt.toLowerCase().split(' ');
-      if (keywords.some(k => ['chill', 'relax', 'calm'].includes(k))) {
-        genres.push('Jazz', 'Classical', 'Electronic');
+      const keywords = prompt.toLowerCase().split(/\s+/);
+      const moodMap = {
+        chill: ['Jazz', 'Classical', 'Electronic', 'Ambient'],
+        relax: ['Jazz', 'Classical', 'Ambient', 'Lo-Fi'],
+        calm: ['Classical', 'Ambient', 'New Age'],
+        workout: ['Rock', 'Hip Hop', 'Electronic', 'Trap'],
+        energy: ['Rock', 'Electronic', 'Hip Hop', 'Metal'],
+        pump: ['Electronic', 'Hip Hop', 'Rock'],
+        gym: ['Electronic', 'Hip Hop', 'Rock'],
+        run: ['Electronic', 'Hip Hop', 'Rock'],
+        party: ['Electronic', 'Hip Hop', 'Pop', 'Disco'],
+        dance: ['Electronic', 'Hip Hop', 'Pop', 'Disco'],
+        club: ['Electronic', 'Hip Hop', 'House'],
+        study: ['Classical', 'Jazz', 'Lo-Fi', 'Ambient'],
+        focus: ['Classical', 'Ambient', 'Electronic'],
+        work: ['Classical', 'Jazz', 'Lo-Fi'],
+        sleep: ['Ambient', 'Classical', 'New Age'],
+        sad: ['R&B', 'Indie', 'Blues', 'Soul'],
+        happy: ['Pop', 'Disco', 'Funk', 'Soul'],
+        romantic: ['R&B', 'Jazz', 'Soul'],
+      };
+
+      for (const [key, vals] of Object.entries(moodMap)) {
+        if (keywords.some(k => key.includes(k) || k.includes(key))) {
+          genres.push(...vals);
+        }
       }
-      if (keywords.some(k => ['workout', 'energy', 'pump'].includes(k))) {
-        genres.push('Rock', 'Hip Hop', 'Electronic');
-      }
-      if (keywords.some(k => ['party', 'dance', 'club'].includes(k))) {
-        genres.push('Electronic', 'Hip Hop');
-      }
+
       if (genres.length === 0) {
-        genres = ['Rock', 'Hip Hop', 'Electronic', 'Jazz', 'Classical'];
+        genres = ['Rock', 'Hip Hop', 'Electronic', 'Jazz', 'Pop'];
       }
     }
 
-    // Build the songs query
+    genres = [...new Set(genres)];
+
     let query = 'SELECT * FROM songs WHERE 1=1';
     const params = [];
     let paramIndex = 1;
@@ -176,24 +186,23 @@ const generateAIPlaylist = async (req, res) => {
       params.push(...genres);
     }
 
-    // Filter by year/era if provided by AI
-    if (analysis.era && analysis.era.start && analysis.era.end) {
+    if (analysis.era?.start && analysis.era?.end) {
       query += ` AND year >= $${paramIndex++} AND year <= $${paramIndex++}`;
       params.push(analysis.era.start, analysis.era.end);
     }
 
     query += ' ORDER BY RANDOM()';
     query += ` LIMIT $${paramIndex}`;
-    params.push(Math.min(songCount, 50));
+    params.push(count);
 
     const songsResult = await db.query(query, params);
 
-    const playlistName = name || `AI Playlist: ${prompt.slice(0, 30)}`;
-    const description = analysis.description || `Generated from prompt: ${prompt}`;
+    const playlistName = name || `AI: ${prompt.slice(0, 40)}`;
+    const description = analysis.description || `Generated from: ${prompt}`;
 
     const playlistResult = await db.query(
-      'INSERT INTO playlists (user_id, name, description, is_ai_generated, prompt) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [req.user.userId, playlistName, description, true, prompt]
+      'INSERT INTO playlists (user_id, name, description, is_ai_generated, prompt, is_public) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [req.user.userId, playlistName, description, true, prompt, false]
     );
 
     const playlist = playlistResult.rows[0];
@@ -212,18 +221,20 @@ const generateAIPlaylist = async (req, res) => {
       await db.query(insertQuery, values);
     }
 
+    logger.info({ action: 'ai_playlist_generated', userId: req.user.userId, playlistId: playlist.id });
+
     res.status(201).json({
       message: 'AI playlist generated successfully',
       playlist,
       songs: songsResult.rows,
       analysis: {
         mood: analysis.mood,
-        genres: genres,
-        description: description
-      }
+        genres,
+        description,
+      },
     });
   } catch (error) {
-    console.error('Generate AI playlist error:', error);
+    logger.error('Generate AI playlist error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -243,7 +254,36 @@ const deletePlaylist = async (req, res) => {
 
     res.json({ message: 'Playlist deleted successfully' });
   } catch (error) {
-    console.error('Delete playlist error:', error);
+    logger.error('Delete playlist error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+const removeSongFromPlaylist = async (req, res) => {
+  try {
+    const { id, songId } = req.params;
+
+    const playlistResult = await db.query(
+      'SELECT user_id FROM playlists WHERE id = $1',
+      [id]
+    );
+
+    if (playlistResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Playlist not found' });
+    }
+
+    if (playlistResult.rows[0].user_id !== req.user.userId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    await db.query(
+      'DELETE FROM playlist_songs WHERE playlist_id = $1 AND song_id = $2',
+      [id, songId]
+    );
+
+    res.json({ message: 'Song removed from playlist' });
+  } catch (error) {
+    logger.error('Remove song from playlist error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -254,5 +294,6 @@ module.exports = {
   createPlaylist,
   addSongToPlaylist,
   generateAIPlaylist,
-  deletePlaylist
+  deletePlaylist,
+  removeSongFromPlaylist,
 };

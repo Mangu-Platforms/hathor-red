@@ -1,129 +1,108 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { musicService } from '../services/music';
-import './Rooms.css';
 
 const Rooms = () => {
   const [rooms, setRooms] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const [roomName, setRoomName] = useState('');
-  const [isPublic, setIsPublic] = useState(true);
-  const [maxListeners, setMaxListeners] = useState(50);
+  const [showCreate, setShowCreate] = useState(false);
+  const [newRoomName, setNewRoomName] = useState('');
+  const [newRoomPublic, setNewRoomPublic] = useState(true);
+  const [newRoomMaxListeners, setNewRoomMaxListeners] = useState(50);
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    loadRooms();
-  }, []);
+  const fetchRooms = async () => {
+    try { const res = await musicService.getRooms(); setRooms(res.rooms); }
+    catch (err) { console.error(err); }
+  };
 
-  const loadRooms = async () => {
+  useEffect(() => { fetchRooms(); }, []);
+
+  const handleCreate = async () => {
+    if (!newRoomName.trim()) return;
     try {
-      setLoading(true);
-      const data = await musicService.getRooms();
-      setRooms(data.rooms);
-    } catch (error) {
-      console.error('Failed to load rooms:', error);
-    } finally {
-      setLoading(false);
+      const res = await musicService.createRoom({
+        name: newRoomName,
+        isPublic: newRoomPublic,
+        maxListeners: newRoomMaxListeners,
+      });
+      setShowCreate(false);
+      setNewRoomName('');
+      navigate(`/room/${res.room.id}`);
+    } catch (err) {
+      console.error(err);
     }
   };
 
-  const handleCreateRoom = async (e) => {
-    e.preventDefault();
+  const handleJoin = async (roomId) => {
     try {
-      await musicService.createRoom(roomName, isPublic, maxListeners);
-      setShowCreateForm(false);
-      setRoomName('');
-      loadRooms();
-    } catch (error) {
-      console.error('Failed to create room:', error);
-      alert('Failed to create room');
+      await musicService.joinRoom(roomId);
+      navigate(`/room/${roomId}`);
+    } catch (err) {
+      console.error(err);
     }
   };
 
   return (
     <div className="rooms-page">
       <div className="rooms-header">
-        <h1>🎧 Listening Rooms</h1>
-        <p>Join or create a room to listen to music together in real-time</p>
-        <button onClick={() => setShowCreateForm(!showCreateForm)} className="btn-create">
-          {showCreateForm ? 'Cancel' : '+ Create Room'}
+        <h1>Listening Rooms</h1>
+        <button className="create-room-btn" onClick={() => setShowCreate(!showCreate)}>
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} width="18" height="18"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+          Create Room
         </button>
       </div>
 
-      {showCreateForm && (
+      {showCreate && (
         <div className="create-room-form">
-          <h2>Create New Room</h2>
-          <form onSubmit={handleCreateRoom}>
-            <div className="form-group">
-              <label>Room Name</label>
-              <input
-                type="text"
-                value={roomName}
-                onChange={(e) => setRoomName(e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="form-group">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={isPublic}
-                  onChange={(e) => setIsPublic(e.target.checked)}
-                />
-                Public Room
-              </label>
-            </div>
-
-            <div className="form-group">
-              <label>Max Listeners</label>
-              <input
-                type="number"
-                value={maxListeners}
-                onChange={(e) => setMaxListeners(parseInt(e.target.value))}
-                min="1"
-                max="100"
-              />
-            </div>
-
-            <button type="submit" className="btn-submit">Create Room</button>
-          </form>
+          <input type="text" placeholder="Room name" value={newRoomName} onChange={e => setNewRoomName(e.target.value)} />
+          <label><input type="checkbox" checked={newRoomPublic} onChange={e => setNewRoomPublic(e.target.checked)} /> Public room</label>
+          <input type="number" min="2" max="100" value={newRoomMaxListeners} onChange={e => setNewRoomMaxListeners(parseInt(e.target.value) || 50)} placeholder="Max listeners" />
+          <div className="create-room-actions">
+            <button className="btn-primary" onClick={handleCreate}>Create</button>
+            <button className="btn-secondary" onClick={() => setShowCreate(false)}>Cancel</button>
+          </div>
         </div>
       )}
 
-      {loading ? (
-        <div className="loading">Loading rooms...</div>
-      ) : rooms.length === 0 ? (
-        <div className="empty">No rooms available. Create one!</div>
-      ) : (
-        <div className="rooms-grid">
-          {rooms.map((room) => (
-            <Link to={`/room/${room.id}`} key={room.id} className="room-card">
-              <div className="room-header">
-                <h3>{room.name}</h3>
-                {room.is_playing && <span className="live-badge">🔴 LIVE</span>}
-              </div>
-              
-              <div className="room-info">
-                <p className="host">Host: {room.host_display_name || room.host_username}</p>
-                {room.current_song_title && (
-                  <p className="now-playing">
-                    🎵 {room.current_song_title} - {room.current_song_artist}
-                  </p>
+      <div className="rooms-grid">
+        {rooms.length === 0 ? (
+          <div className="empty-state">
+            <p>No active listening rooms</p>
+            <p>Be the first to create one and invite your friends!</p>
+          </div>
+        ) : (
+          rooms.map(room => (
+            <div key={room.id} className="room-card" onClick={() => handleJoin(room.id)}>
+              <div className="room-card-cover">
+                {room.current_song_id ? (
+                  <div className="room-playing-indicator">
+                    <span /><span /><span />
+                  </div>
+                ) : (
+                  <div className="room-card-icon">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1}><path strokeLinecap="round" strokeLinejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" /></svg>
+                  </div>
                 )}
               </div>
-
-              <div className="room-footer">
-                <span className="listeners">👥 {room.listener_count || 0} listening</span>
-                <span className="join-btn">Join →</span>
+              <div className="room-card-info">
+                <h3>{room.name}</h3>
+                <p>Host: {room.host_display_name || room.host_username}</p>
+                <div className="room-card-meta">
+                  <span>
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5} width="14" height="14"><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                    {room.listener_count || 0} / {room.max_listeners}
+                  </span>
+                  {room.current_song_title && (
+                    <span className="room-now-playing-text">
+                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5} width="12" height="12"><path strokeLinecap="round" strokeLinejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" /></svg>
+                      {room.current_song_title} - {room.current_song_artist}
+                    </span>
+                  )}
+                </div>
               </div>
-            </Link>
-          ))}
-        </div>
-      )}
-
-      <div className="back-link">
-        <Link to="/">← Back to Home</Link>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );

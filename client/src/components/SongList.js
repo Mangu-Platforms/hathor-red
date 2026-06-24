@@ -1,98 +1,123 @@
-import React, { useState, useEffect } from 'react';
-import { musicService } from '../services/music';
+import React, { useState } from 'react';
 import { usePlayer } from '../contexts/PlayerContext';
-import './SongList.css';
+import { musicService } from '../services/music';
 
-const SongList = () => {
-  const [songs, setSongs] = useState([]);
-  const [loading, setLoading] = useState(true);
+const SongList = ({ songs, title, showSearch = false, onRefresh }) => {
+  const { setQueueAndPlay, currentSong, isPlaying } = usePlayer();
   const [search, setSearch] = useState('');
   const [selectedGenre, setSelectedGenre] = useState('');
+  const [addingToPlaylist, setAddingToPlaylist] = useState(null);
+  const [playlists, setPlaylists] = useState([]);
 
-  const { playSong, currentSong } = usePlayer();
+  const filtered = songs.filter(s => {
+    const matchesSearch = !search || s.title?.toLowerCase().includes(search.toLowerCase()) || s.artist?.toLowerCase().includes(search.toLowerCase());
+    const matchesGenre = !selectedGenre || s.genre === selectedGenre;
+    return matchesSearch && matchesGenre;
+  });
 
-  useEffect(() => {
-    loadSongs();
-  }, [search, selectedGenre]);
+  const genres = [...new Set(songs.map(s => s.genre).filter(Boolean))].sort();
 
-  const loadSongs = async () => {
+  const handlePlay = (song, index) => {
+    setQueueAndPlay(songs, index);
+  };
+
+  const handleAddToPlaylist = async (songId) => {
     try {
-      setLoading(true);
-      const data = await musicService.getSongs({ search, genre: selectedGenre });
-      setSongs(data.songs);
-    } catch (error) {
-      console.error('Failed to load songs:', error);
-    } finally {
-      setLoading(false);
+      const res = await musicService.getPlaylists();
+      setPlaylists(res.playlists);
+      setAddingToPlaylist(songId);
+    } catch (err) {
+      console.error(err);
     }
   };
 
-  const handlePlay = (song) => {
-    playSong(song);
+  const confirmAdd = async (playlistId) => {
+    try {
+      await musicService.addToPlaylist(playlistId, addingToPlaylist);
+      setAddingToPlaylist(null);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   return (
-    <div className="song-list-container">
+    <div className="song-list">
       <div className="song-list-header">
-        <h2>Music Library</h2>
-        
-        <div className="filters">
-          <input
-            type="text"
-            placeholder="Search songs..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="search-input"
-          />
-
-          <select
-            value={selectedGenre}
-            onChange={(e) => setSelectedGenre(e.target.value)}
-            className="genre-select"
-          >
-            <option value="">All Genres</option>
-            <option value="Rock">Rock</option>
-            <option value="Hip Hop">Hip Hop</option>
-            <option value="Electronic">Electronic</option>
-            <option value="Jazz">Jazz</option>
-            <option value="Classical">Classical</option>
-          </select>
-        </div>
+        <h2>{title}</h2>
+        {onRefresh && <button className="refresh-btn" onClick={onRefresh}>Refresh</button>}
       </div>
 
-      {loading ? (
-        <div className="loading">Loading songs...</div>
-      ) : songs.length === 0 ? (
-        <div className="empty">No songs found</div>
-      ) : (
-        <div className="song-grid">
-          {songs.map((song) => (
-            <div
-              key={song.id}
-              className={`song-card ${currentSong?.id === song.id ? 'active' : ''}`}
-              onClick={() => handlePlay(song)}
-            >
-              {song.cover_url ? (
-                <img src={song.cover_url} alt={song.title} className="song-cover" />
-              ) : (
-                <div className="song-cover-placeholder">🎵</div>
-              )}
-              
-              <div className="song-info">
-                <h3>{song.title}</h3>
-                <p className="artist">{song.artist}</p>
-                {song.album && <p className="album">{song.album}</p>}
-                <div className="song-meta">
-                  {song.genre && <span className="genre-tag">{song.genre}</span>}
-                  <span className="duration">{Math.floor(song.duration / 60)}:{(song.duration % 60).toString().padStart(2, '0')}</span>
-                </div>
-              </div>
-            </div>
-          ))}
+      {showSearch && (
+        <div className="song-list-filters">
+          <input type="text" placeholder="Search songs..." value={search} onChange={e => setSearch(e.target.value)} className="search-input" />
+          <select value={selectedGenre} onChange={e => setSelectedGenre(e.target.value)} className="genre-select">
+            <option value="">All Genres</option>
+            {genres.map(g => <option key={g} value={g}>{g}</option>)}
+          </select>
         </div>
       )}
+
+      <div className="songs">
+        {filtered.length === 0 ? (
+          <div className="empty-state">No songs found</div>
+        ) : (
+          filtered.map((song, index) => (
+            <div key={song.id} className={`song-row ${currentSong?.id === song.id ? 'active' : ''}`}>
+              <div className="song-number">
+                {currentSong?.id === song.id && isPlaying ? (
+                  <div className="playing-indicator">
+                    <span /><span /><span />
+                  </div>
+                ) : (
+                  <span>{index + 1}</span>
+                )}
+              </div>
+              <div className="song-cover">
+                {song.cover_url ? <img src={song.cover_url} alt="" /> : <div className="song-cover-placeholder">{song.title?.[0]}</div>}
+              </div>
+              <div className="song-info" onClick={() => handlePlay(song, index)}>
+                <div className="song-title">{song.title}</div>
+                <div className="song-artist">{song.artist} {song.genre && <span className="song-genre">{song.genre}</span>}</div>
+              </div>
+              <div className="song-meta">
+                {song.year && <span className="song-year">{song.year}</span>}
+                <span className="song-duration">{formatDuration(song.duration)}</span>
+              </div>
+              <div className="song-actions">
+                <button className="song-action-btn" onClick={() => handlePlay(song, index)} title="Play">
+                  <svg fill="currentColor" viewBox="0 0 24 24" width="18" height="18"><path d="M8 5v14l11-7z" /></svg>
+                </button>
+                <button className="song-action-btn" onClick={() => handleAddToPlaylist(song.id)} title="Add to playlist">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} width="18" height="18"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+                </button>
+              </div>
+
+              {addingToPlaylist === song.id && (
+                <div className="playlist-popup">
+                  <div className="playlist-popup-header">
+                    <span>Add to playlist</span>
+                    <button onClick={() => setAddingToPlaylist(null)}>x</button>
+                  </div>
+                  {playlists.map(pl => (
+                    <button key={pl.id} className="playlist-popup-item" onClick={() => confirmAdd(pl.id)}>
+                      {pl.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 };
+
+function formatDuration(seconds) {
+  if (!seconds) return '0:00';
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
 
 export default SongList;

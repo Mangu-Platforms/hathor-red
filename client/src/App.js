@@ -1,8 +1,9 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { SpeedInsights } from '@vercel/speed-insights/react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { PlayerProvider } from './contexts/PlayerContext';
+import Sidebar from './components/Sidebar';
+import MusicPlayer from './components/MusicPlayer';
 import Login from './components/Login';
 import Register from './components/Register';
 import Home from './pages/Home';
@@ -13,83 +14,40 @@ import './App.css';
 
 const PrivateRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
-
-  if (loading) {
-    return <div className="loading-screen">Loading...</div>;
-  }
-
+  if (loading) return <div className="loading-screen">Loading...</div>;
   return isAuthenticated ? children : <Navigate to="/login" />;
 };
 
 const PublicRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
-
-  if (loading) {
-    return <div className="loading-screen">Loading...</div>;
-  }
-
+  if (loading) return <div className="loading-screen">Loading...</div>;
   return !isAuthenticated ? children : <Navigate to="/" />;
 };
+
+const AppLayout = ({ children }) => (
+  <div className="app-layout">
+    <Sidebar />
+    <main className="main-content">
+      {children}
+    </main>
+    <MusicPlayer />
+  </div>
+);
 
 function App() {
   return (
     <Router>
       <AuthProvider>
         <PlayerProvider>
-          <div className="App">
-            <Routes>
-              <Route
-                path="/login"
-                element={
-                  <PublicRoute>
-                    <Login />
-                  </PublicRoute>
-                }
-              />
-              <Route
-                path="/register"
-                element={
-                  <PublicRoute>
-                    <Register />
-                  </PublicRoute>
-                }
-              />
-              <Route
-                path="/"
-                element={
-                  <PrivateRoute>
-                    <Home />
-                  </PrivateRoute>
-                }
-              />
-              <Route
-                path="/rooms"
-                element={
-                  <PrivateRoute>
-                    <Rooms />
-                  </PrivateRoute>
-                }
-              />
-              <Route
-                path="/room/:id"
-                element={
-                  <PrivateRoute>
-                    <ListeningRoom />
-                  </PrivateRoute>
-                }
-              />
-              <Route path="/playlists" element={<PrivateRoute><Home /></PrivateRoute>} />
-              <Route
-                path="/podcast"
-                element={
-                  <PrivateRoute>
-                    <Podcast />
-                  </PrivateRoute>
-                }
-              />
-            </Routes>
-            <SpeedInsights />
-          </div>
+          <Routes>
+            <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+            <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
+            <Route path="/" element={<PrivateRoute><AppLayout><Home /></AppLayout></PrivateRoute>} />
+            <Route path="/playlists" element={<PrivateRoute><AppLayout><Home /></AppLayout></PrivateRoute>} />
+            <Route path="/rooms" element={<PrivateRoute><AppLayout><Rooms /></AppLayout></PrivateRoute>} />
+            <Route path="/room/:id" element={<PrivateRoute><AppLayout><ListeningRoom /></AppLayout></PrivateRoute>} />
+            <Route path="/podcast" element={<PrivateRoute><AppLayout><Podcast /></AppLayout></PrivateRoute>} />
+          </Routes>
         </PlayerProvider>
       </AuthProvider>
     </Router>

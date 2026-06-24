@@ -5,15 +5,14 @@ const AuthContext = createContext();
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (!context) throw new Error('useAuth must be used within an AuthProvider');
   return context;
 };
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const loadUser = async () => {
@@ -21,32 +20,51 @@ export const AuthProvider = ({ children }) => {
         try {
           const data = await authService.getProfile();
           setUser(data.user);
-        } catch (error) {
-          console.error('Failed to load user:', error);
+        } catch (err) {
+          console.error('Failed to load user:', err);
           authService.logout();
         }
       }
       setLoading(false);
     };
-
     loadUser();
+
+    const handleLogout = () => {
+      setUser(null);
+      window.location.href = '/login';
+    };
+    window.addEventListener('auth:logout', handleLogout);
+    return () => window.removeEventListener('auth:logout', handleLogout);
   }, []);
 
   const login = async (username, password) => {
-    const data = await authService.login(username, password);
-    setUser(data.user);
-    return data;
+    setError(null);
+    try {
+      const data = await authService.login(username, password);
+      setUser(data.user);
+      return data;
+    } catch (err) {
+      setError(err.response?.data?.error || 'Login failed');
+      throw err;
+    }
   };
 
   const register = async (username, email, password, displayName) => {
-    const data = await authService.register(username, email, password, displayName);
-    setUser(data.user);
-    return data;
+    setError(null);
+    try {
+      const data = await authService.register(username, email, password, displayName);
+      setUser(data.user);
+      return data;
+    } catch (err) {
+      setError(err.response?.data?.error || 'Registration failed');
+      throw err;
+    }
   };
 
   const logout = () => {
     authService.logout();
     setUser(null);
+    setError(null);
   };
 
   const updateProfile = async (profileData) => {
@@ -55,15 +73,9 @@ export const AuthProvider = ({ children }) => {
     return data;
   };
 
-  const value = {
-    user,
-    loading,
-    login,
-    register,
-    logout,
-    updateProfile,
-    isAuthenticated: !!user,
-  };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={{ user, loading, error, login, register, logout, updateProfile, isAuthenticated: !!user }}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
