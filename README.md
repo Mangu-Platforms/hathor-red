@@ -1,307 +1,140 @@
-# 🎵 Hathor Music Platform
+# Hathor Red Music Platform v2.0
 
-An AI-powered music streaming platform with advanced features including on-demand playback, cross-device sync, AI playlist generation, native stem separation, vibe control sliders, and digital listening rooms with real-time synchronization.
+## Next-Generation Music Streaming with AI, Social Rooms & Professional Audio Tools
 
-## ✨ Features
+[![CI](https://github.com/redinc23/hathor-red/actions/workflows/ci-v2.yml/badge.svg)](https://github.com/redinc23/hathor-red/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-red.svg)](https://opensource.org/licenses/MIT)
+[![Tests](https://img.shields.io/badge/tests-22-brightgreen.svg)](https://github.com/redinc23/hathor-red/tree/main/server/tests)
 
-### Core Features
-- **🎧 On-Demand Playback** - Stream music instantly with high-quality audio
-- **🔄 Cross-Device Sync** - Seamlessly continue playback across all your devices
-- **🤖 AI Playlist Generator** - Create playlists from natural language prompts
-- **🎚️ Native Stem Separation** - Toggle vocals, drums, bass, and other stems independently
-- **🎛️ Vibe Control Sliders** - Adjust playback speed and pitch in real-time
-- **🏠 Digital Listening Rooms** - Listen to music together in real-time with friends
-- **👤 User Authentication** - Secure JWT-based authentication with user profiles
+### What's New in v2.0
 
-### Technology Stack
+Hathor Red has been transformed from a functional prototype into a **production-grade music streaming platform**:
 
-#### Backend
-- **Node.js** + **Express** - RESTful API server
-- **PostgreSQL** - Relational database for structured data
-- **Redis** - Fast caching and session management
-- **Socket.io** - Real-time WebSocket communication
-- **JWT** - Secure token-based authentication
+- 🤖 **AI-Powered** — OpenAI GPT-4o for natural language playlists, semantic search with pgvector embeddings
+- 🎵 **HLS Streaming** — Adaptive bitrate from 64k to lossless with FFmpeg transcoding
+- 🔐 **OAuth2** — Google & Spotify login with JWT refresh token rotation
+- 📹 **Video Chat** — WebRTC video calls inside listening rooms
+- 📈 **Observability** — OpenTelemetry, Prometheus metrics, Grafana dashboards
+- ☸️ **Kubernetes** — Helm chart with HPA, PDB, NetworkPolicy
+- 🧪 **22 Tests** — Auth utilities, AI service, caching, and CORS
 
-#### Frontend
-- **React 18** - Modern UI framework
-- **React Router** - Client-side routing
-- **Web Audio API** - Advanced audio processing
-- **Socket.io Client** - Real-time features
-- **Axios** - HTTP client
-
-## 📁 Project Structure
+## Architecture
 
 ```
-hathor-red/
-├── server/                    # Backend application
-│   ├── config/               # Configuration files
-│   │   ├── database.js       # PostgreSQL connection
-│   │   └── redis.js          # Redis connection
-│   ├── controllers/          # Request handlers
-│   │   ├── authController.js
-│   │   ├── songController.js
-│   │   ├── playlistController.js
-│   │   ├── playbackController.js
-│   │   └── roomController.js
-│   ├── middleware/           # Express middleware
-│   │   ├── auth.js           # JWT authentication
-│   │   └── upload.js         # File upload handling
-│   ├── routes/               # API routes
-│   │   ├── auth.js
-│   │   ├── songs.js
-│   │   ├── playlists.js
-│   │   ├── playback.js
-│   │   └── rooms.js
-│   ├── socket/               # WebSocket handlers
-│   │   └── handlers.js
-│   ├── utils/                # Utility functions
-│   │   └── auth.js
-│   └── index.js              # Server entry point
-├── client/                   # Frontend application
-│   ├── public/              # Static files
-│   │   └── index.html
-│   ├── src/
-│   │   ├── components/      # React components
-│   │   │   ├── Login.js
-│   │   │   ├── Register.js
-│   │   │   ├── Player.js
-│   │   │   ├── SongList.js
-│   │   │   ├── AIPlaylistGenerator.js
-│   │   │   └── ListeningRoom.js
-│   │   ├── pages/           # Page components
-│   │   │   ├── Home.js
-│   │   │   └── Rooms.js
-│   │   ├── contexts/        # React contexts
-│   │   │   ├── AuthContext.js
-│   │   │   └── PlayerContext.js
-│   │   ├── services/        # API services
-│   │   │   ├── api.js
-│   │   │   ├── auth.js
-│   │   │   └── music.js
-│   │   ├── App.js          # Main app component
-│   │   ├── index.js        # Entry point
-│   │   └── *.css           # Styling files
-│   └── package.json
-├── database/                # Database files
-│   ├── schema.sql          # Database schema
-│   └── seed.sql            # Sample data
-├── uploads/                # Uploaded audio files
-├── .env.example           # Environment variables template
-├── .gitignore            # Git ignore rules
-├── package.json          # Root dependencies
-├── API.md                   # API documentation
-├── ARCHITECTURE.md          # Full-stack architecture & roadmap
-├── DEPLOYMENT.md            # Deployment guide
-├── DEPLOYMENT_CHECKLIST.md  # Step-by-step deployment checklist
-├── PRODUCTION_READY.md      # Production readiness guide
-└── README.md                # This file
+┌──────────────────────────────────────────────────────┐
+│                  Hathor Red v2.0                     │
+├──────────┬──────────┬──────────┬─────────────────────┤
+│  Auth    │  Songs   │  Rooms   │  AI Services        │
+│  JWT+OA  │  HLS+St  │  Video   │  GPT-4o+Vecto       │
+├──────────┴──────────┴──────────┴─────────────────────┤
+│              API Layer (/api/v1/)                     │
+├──────────────────────────────────────────────────────┤
+│  OpenTelemetry  │  Feature Flags  │  Error Handler    │
+├──────────────────────────────────────────────────────┤
+│  PostgreSQL 15  │  pgvector  │  Redis 7  │  Socket.io │
+└──────────────────────────────────────────────────────┘
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
-
-- Node.js 18.x or higher
-- PostgreSQL 13.x or higher
-- Redis 6.x or higher
-- npm or yarn
+- Node.js 18+
+- PostgreSQL 15+ with pgvector extension
+- Redis 7+
+- FFmpeg (optional, for HLS streaming)
+- Demucs (optional, for stem separation)
 
 ### Installation
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/redinc23/hathor-red.git
-   cd hathor-red
-   ```
-
-   Already cloned? Pull the latest changes:
-   ```bash
-   git pull
-   ```
-
-2. **Install dependencies**
-   ```bash
-   npm install
-   cd client && npm install && cd ..
-   ```
-
-3. **Setup PostgreSQL database**
-   ```bash
-   # Create database
-   createdb hathor_music
-   
-   # Run schema
-   psql -d hathor_music -f database/schema.sql
-   
-   # (Optional) Load sample data
-   psql -d hathor_music -f database/seed.sql
-   ```
-
-4. **Start Redis**
-   ```bash
-   redis-server
-   ```
-
-5. **Configure environment variables**
-   ```bash
-   cp .env.example .env
-   # Edit .env with your configuration
-   ```
-
-6. **Start the application**
-   ```bash
-   # Development mode (runs both frontend and backend)
-   npm run dev
-   
-   # Or separately:
-   # Terminal 1 - Backend
-   npm run server
-   
-   # Terminal 2 - Frontend
-   npm run client
-   ```
-
-7. **Access the application**
-   - Frontend: http://localhost:3000
-   - Backend API: http://localhost:5000/api
-   - Health Check: http://localhost:5000/api/health
-
-## 📖 Documentation
-
-- **[Manual (How It Works Now)](docs/MANUAL.md)** - Practical guide for anyone new to the codebase
-- **[Standards Living Document](docs/STANDARDS_LIVING_DOCUMENT.md)** - Rock-hard repeatable standards, AI prompts, juncture controls
-- **[Deploy (Railway/Render)](DEPLOY.md)** - Get live in 15 min
-- **[API Documentation](API.md)** - Complete REST API and WebSocket reference
-- **[Architecture & Roadmap](ARCHITECTURE.md)** - Full-stack architecture and deployment roadmap
-- **[Deployment Guide](DEPLOYMENT.md)** - Production deployment instructions
-- **[Deployment Checklist](DEPLOYMENT_CHECKLIST.md)** - Step-by-step deployment checklist
-- **[Production Readiness](PRODUCTION_READY.md)** - Gaps and fixes for production deployment
-- **[Quick Start](QUICKSTART.md)** - Get started in minutes
-- **[Features](FEATURES.md)** - Detailed feature documentation
-- **[Mastery Roadmap](MASTERY_ROADMAP.md)** - Phased plan for achieving full codebase ownership
-
-## 🧭 MVP Readiness (East Asia Niche-Market Music Platform)
-
-**How far from MVP?** Core streaming, playback, rooms, auth, and AI playlisting are implemented, so this repo covers a strong product core. To reach an MVP for an East Asia niche-market offering (think Apple Music/Spotify/Amazon Music for a specific regional audience), the main gaps are market-specific licensing, localization, and payments/compliance.
-
-**Already covered in this repo**
-- Streaming playback, playlists, listening rooms, and cross-device sync
-- User accounts/authentication and basic API surface
-- Upload pipeline and catalog primitives (songs, playlists)
-
-**Remaining for MVP in East Asia niche market**
-- Localization (language packs, typography, locale-aware search/metadata)
-- Regional licensing/catalog ingestion + rights management workflow
-- Payments for target markets (local wallets/cards, tax handling)
-- Compliance: data residency, content moderation, and regional privacy rules
-- Regional partnerships, distribution ops, and analytics for the niche audience
-
-## 🎯 Key Features Explained
-
-### AI Playlist Generator
-The AI playlist generator uses natural language processing to understand user prompts and create personalized playlists. Simply describe your mood or occasion:
-- "Upbeat workout songs with high energy"
-- "Chill relaxing music for studying"
-- "Party dance tracks for the weekend"
-
-### Stem Separation
-Toggle individual audio stems (vocals, drums, bass, other) on/off while listening. This feature uses the Web Audio API for client-side processing.
-
-### Vibe Control Sliders
-Adjust playback speed (0.5x - 2x) and pitch shift (-12 to +12 semitones) in real-time without stopping the music.
-
-### Digital Listening Rooms
-Create or join listening rooms to enjoy music synchronously with friends. Features include:
-- Real-time playback synchronization
-- Host controls for play/pause/skip
-- Live chat
-- Participant list
-- Up to 50 concurrent listeners per room
-
-### Cross-Device Sync
-Your playback state (current song, position, settings) is automatically synced across all your devices using Redis caching and WebSocket updates.
-
-## 🔐 Authentication
-
-The platform uses JWT (JSON Web Tokens) for secure authentication:
-1. Register a new account or login
-2. Receive a JWT token
-3. Token is automatically included in all API requests
-4. Token expires after 7 days (configurable)
-
-## 🎨 User Interface
-
-The UI features a modern, gradient-based design with:
-- Responsive layout for desktop and mobile
-- Intuitive music player controls
-- Real-time visual feedback
-- Smooth animations and transitions
-
-## 🛠️ Development
-
-### Available Scripts
-
 ```bash
-# Install all dependencies (root + client)
-npm run install-all
+# Clone
+git clone https://github.com/redinc23/hathor-red.git
+cd hathor-red
 
-# Start both servers concurrently
+# Install dependencies
+pnpm install
+
+# Set up environment
+cp .env.example .env
+# Edit .env with your credentials
+
+# Run migrations
+psql -U postgres -d hathor_music -f database/schema.sql
+
+# Seed the database
+npm run db:setup
+
+# Start development
 npm run dev
-
-# Start backend only
-npm run server
-
-# Start frontend only
-npm run client
-
-# Build frontend for production
-npm run build
 ```
 
-### Environment Variables
-
-See `.env.example` for all available configuration options.
-
-## 🚢 Deployment
-
-See [DEPLOYMENT.md](DEPLOYMENT.md) for comprehensive deployment instructions covering:
-- Traditional server deployment
-- Docker deployment
-- Cloud platform deployment (Heroku, AWS, Azure, GCP)
-- SSL setup
-- Process management
-- Monitoring and maintenance
-
-## 🔀 Pull Request Operations
-
-To approve or tag an existing pull request without the GitHub CLI, use:
+### Run Tests
 
 ```bash
-export GITHUB_TOKEN=<token-with-repo-scope>
-scripts/manage-prs.sh --repo owner/repo --pr 123 --approve
-scripts/manage-prs.sh --repo owner/repo --pr 123 --tag needs-review
+# Run all tests
+npm test
+
+# With coverage
+npm run test:coverage
+
+# Watch mode
+npm run test:watch
 ```
 
-You can combine both actions in one command by passing `--approve` and `--tag` together.
+## API Documentation
 
-## 🤝 Contributing
+- **Swagger UI**: http://localhost:5000/api/docs
+- **ReDoc**: http://localhost:5000/api/docs/redoc
+- **OpenAPI Spec**: http://localhost:5000/api/docs/openapi.yaml
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+## Deployment
 
-## 📄 License
+### Docker
+```bash
+docker build -f Dockerfile.v2 -t hathor-music .
+docker-compose -f docker-compose.prod.yml up -d
+```
 
-This project is licensed under the MIT License.
+### Kubernetes
+```bash
+helm install hathor ./k8s/hathor-chart -f k8s/hathor-chart/values-prod.yaml
+```
 
-## 🙏 Acknowledgments
+### Railway/Render
+See `DEPLOY.md` for platform-specific instructions.
 
-- Built with React, Node.js, PostgreSQL, Redis, and Socket.io
-- Uses Web Audio API for advanced audio processing
-- Inspired by modern music streaming platforms
+## Environment Variables
 
-## 📧 Support
+Key variables (see `.env.example` for full list):
 
-For issues, questions, or suggestions, please open an issue on GitHub.
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `DATABASE_URL` | PostgreSQL connection string | Yes |
+| `REDIS_URL` | Redis connection string | Yes |
+| `JWT_SECRET` | JWT signing secret | Yes |
+| `OPENAI_API_KEY` | OpenAI API key | For AI features |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID | For OAuth |
+| `FFMPEG_PATH` | FFmpeg binary path | For HLS |
+
+## Feature Flags
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `FEATURE_HLS_STREAMING` | HLS adaptive streaming | `true` |
+| `FEATURE_LLM_PLAYLIST` | AI playlist generation | `true` |
+| `FEATURE_VECTOR_SEARCH` | Semantic search | `true` |
+| `FEATURE_WEBRTC_VIDEO` | Video chat in rooms | `true` |
+| `FEATURE_OAUTH` | Social login | `true` |
+| `FEATURE_ANALYTICS` | Event tracking | `true` |
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file.
 
 ---
 
-**Built with ❤️ for music lovers everywhere**
+Built with passion for the future of music. 🎵
