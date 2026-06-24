@@ -98,7 +98,7 @@ cp .env.example .env
 # Edit .env file with your settings
 # Minimum required changes:
 # - DB_PASSWORD (your PostgreSQL password)
-# - JWT_SECRET (generate with: openssl rand -base64 32)
+# - JWT_SECRET (required — generate with: node -e "console.log(require('crypto').randomBytes(64).toString('hex'))")
 ```
 
 ### 5. Start the Application (1 minute)

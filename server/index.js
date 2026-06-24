@@ -7,6 +7,7 @@ const path = require('path');
 const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
+const { v4: uuidv4 } = require('uuid');
 
 const { connectRedis, getRedisClient } = require('./config/redis');
 const db = require('./config/database');
@@ -28,6 +29,14 @@ const colabAIService = require('./services/colabAIService');
 const app = express();
 
 app.set('trust proxy', 1);
+
+// Request ID middleware for tracing
+app.use((req, res, next) => {
+  req.id = req.get('X-Request-ID') || uuidv4();
+  res.setHeader('X-Request-ID', req.id);
+  next();
+});
+
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: corsOptions
@@ -107,12 +116,18 @@ app.use('/api/playback', playbackRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/ai', aiRoutes);
 
-// Enhanced health check
-app.get('/api/health', async (req, res) => {
+const healthLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  message: { error: 'Too many health checks' }
+});
+
+app.get('/api/health', healthLimiter, async (req, res) => {
   const health = {
     status: 'ok',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
+    requestId: req.id,
     checks: {}
   };
 
@@ -153,11 +168,18 @@ setupSocketHandlers(io);
 
 // Error handling
 app.use((err, req, res, next) => {
-  logger.error(err.stack);
+  logger.error({
+    requestId: req.id,
+    error: err.message,
+    stack: err.stack,
+    method: req.method,
+    url: req.originalUrl
+  });
   res.status(err.status || 500).json({
     error: process.env.NODE_ENV === 'production'
       ? 'Internal server error'
-      : err.message
+      : err.message,
+    requestId: req.id
   });
 });
 

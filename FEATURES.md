@@ -368,9 +368,9 @@ socket.on('user-joined', handleUserJoin)
 ## 🔒 Security Features
 
 ### Authentication
-- Bcrypt password hashing (10 rounds)
-- JWT with expiration
-- Token-based API access
+- Bcrypt password hashing (12 rounds)
+- JWT with expiration and issuer validation
+- Token-based API access with client-side expiry checks
 - Secure WebSocket connections
 
 ### Authorization
@@ -382,9 +382,10 @@ socket.on('user-joined', handleUserJoin)
 ### Data Protection
 - SQL injection prevention (parameterized queries)
 - XSS protection (input sanitization)
-- CORS configuration
-- Rate limiting ready
-- File upload validation
+- CORS configuration (null origin blocked in production)
+- Rate limiting on API, auth, streaming, and health endpoints
+- File upload validation and path traversal protection
+- Song catalog Redis caching with genre allowlist validation
 
 ---
 
