@@ -32,6 +32,15 @@ export const AuthProvider = ({ children }) => {
     loadUser();
   }, []);
 
+  useEffect(() => {
+    const handleAuthLogout = () => {
+      setUser(null);
+    };
+
+    window.addEventListener('auth:logout', handleAuthLogout);
+    return () => window.removeEventListener('auth:logout', handleAuthLogout);
+  }, []);
+
   const login = async (username, password) => {
     const data = await authService.login(username, password);
     setUser(data.user);

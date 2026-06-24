@@ -16,20 +16,22 @@ const corsOptions = {
       }
     }
 
-    // Allow requests with no origin (like mobile apps, curl, or server-to-server)
+    // Block requests with null origin in production (prevents file:// and sandboxed iframe attacks)
     if (!origin) {
+      if (process.env.NODE_ENV === 'production') {
+        return callback(new Error('Origin header required in production'), false);
+      }
       return callback(null, true);
     }
 
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      // In production, we are strict and return false to deny CORS headers.
-      // In development/test, we can return an error for better debugging.
+      // In production, deny without error exposure
       if (process.env.NODE_ENV === 'production') {
         callback(null, false);
       } else {
-        callback(new Error('Not allowed by CORS'), false);
+        callback(new Error(`Not allowed by CORS: ${origin}`), false);
       }
     }
   },
