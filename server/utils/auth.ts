@@ -13,6 +13,15 @@ const BCRYPT_COST_FACTOR = 12;
 const JWT_DEFAULT_EXPIRE = '15m';
 const JWT_REFRESH_EXPIRE_DAYS = 7;
 
+function getTokenLifetimeSeconds(token: string): number {
+  const decoded = jwt.decode(token) as JWTPayload | null;
+  if (decoded?.exp && decoded?.iat) {
+    return Math.max(decoded.exp - decoded.iat, 0);
+  }
+
+  return 0;
+}
+
 /**
  * Generate a pair of access and refresh tokens
  */
@@ -37,11 +46,12 @@ export function generateTokenPair(
   );
 
   const refreshToken = randomBytes(32).toString('hex');
+  const expiresIn = getTokenLifetimeSeconds(accessToken);
 
   return {
     accessToken,
     refreshToken,
-    expiresIn: 900, // 15 minutes in seconds
+    expiresIn,
   };
 }
 
@@ -114,13 +124,14 @@ export function setTokenCookies(
   refreshToken: string
 ): void {
   const isProduction = process.env.NODE_ENV === 'production';
+  const accessTokenMaxAge = getTokenExpiry(accessToken)?.getTime() ?? Date.now();
   const refreshMaxAge = JWT_REFRESH_EXPIRE_DAYS * 24 * 60 * 60 * 1000;
 
   res.cookie('access_token', accessToken, {
     httpOnly: true,
     secure: isProduction,
     sameSite: 'strict',
-    maxAge: 15 * 60 * 1000, // 15 minutes
+    maxAge: Math.max(accessTokenMaxAge - Date.now(), 0),
     path: '/',
   });
 
