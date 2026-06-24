@@ -43,6 +43,9 @@
     "node": "18.17.0"
   },
   "packageManager": "pnpm@8.9.0",
+  "jest": {
+    "testMatch": ["**/?(*.)+(spec|test).js"]
+  },
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "compression": "^1.7.4",

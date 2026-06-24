@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/redinc23/hathor-red/actions/workflows/ci-v2.yml/badge.svg)](https://github.com/redinc23/hathor-red/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-red.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-200%2B-brightgreen.svg)](https://github.com/redinc23/hathor-red/tree/main/server/tests)
+[![Tests](https://img.shields.io/badge/tests-22-brightgreen.svg)](https://github.com/redinc23/hathor-red/tree/main/server/tests)
 
 ### What's New in v2.0
 
@@ -16,7 +16,7 @@ Hathor Red has been transformed from a functional prototype into a **production-
 - 📹 **Video Chat** — WebRTC video calls inside listening rooms
 - 📈 **Observability** — OpenTelemetry, Prometheus metrics, Grafana dashboards
 - ☸️ **Kubernetes** — Helm chart with HPA, PDB, NetworkPolicy
-- 🧪 **200+ Tests** — Comprehensive test suite with 80% coverage
+- 🧪 **22 Tests** — Auth utilities, AI service, caching, and CORS
 
 ## Architecture
 
