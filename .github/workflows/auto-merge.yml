@@ -1,0 +1,98 @@
+name: Auto-Merge PRs
+
+on:
+  pull_request:
+    types: [opened, synchronize, labeled, reopened]
+  check_suite:
+    types: [completed]
+  workflow_run:
+    workflows: ["Quality Gate"]
+    types: [completed]
+
+permissions:
+  pull-requests: write
+  contents: write
+  checks: read
+
+jobs:
+  auto-merge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Auto-merge labeled PRs or AI agent PRs
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+
+            // Known AI agent usernames that can auto-merge
+            const AI_AGENTS = [
+              'github-actions[bot]',
+              'dependabot[bot]',
+              'copilot[bot]',
+              'cursor-ai[bot]',
+              'codex-agent[bot]',
+            ];
+
+            // Get open PRs targeting main
+            const { data: prs } = await github.rest.pulls.list({
+              owner, repo,
+              state: 'open',
+              base: 'main',
+              per_page: 20
+            });
+
+            for (const pr of prs) {
+              const labels = pr.labels.map(l => l.name);
+              const isAIAgent = AI_AGENTS.includes(pr.user.login);
+              const isAutoMergeLabeled = labels.includes('auto-merge');
+
+              if (!isAutoMergeLabeled && !isAIAgent) {
+                core.info(`Skipping PR #${pr.number} — not labeled auto-merge and not from AI agent`);
+                continue;
+              }
+
+              // Check CI status
+              const { data: checks } = await github.rest.checks.listForRef({
+                owner, repo,
+                ref: pr.head.sha,
+                per_page: 50
+              });
+
+              const runs = checks.check_runs;
+              const relevant = runs.filter(r => r.name !== 'auto-merge');
+              const allDone = relevant.every(r => r.status === 'completed');
+              const allPassed = relevant.every(r =>
+                r.conclusion === 'success' || r.conclusion === 'skipped' || r.conclusion === 'neutral'
+              );
+
+              if (!allDone) {
+                core.info(`PR #${pr.number}: CI still running, skipping`);
+                continue;
+              }
+
+              if (!allPassed) {
+                core.warning(`PR #${pr.number}: CI failed — not merging`);
+                await github.rest.issues.createComment({
+                  owner, repo,
+                  issue_number: pr.number,
+                  body: '❌ **Auto-merge skipped** — CI checks failed. Fix the failures and this will retry automatically.'
+                });
+                continue;
+              }
+
+              // All good — merge it
+              core.info(`Merging PR #${pr.number}: ${pr.title}`);
+              try {
+                await github.rest.pulls.merge({
+                  owner, repo,
+                  pull_number: pr.number,
+                  merge_method: 'squash',
+                  commit_title: `${pr.title} (#${pr.number})`,
+                  commit_message: pr.body || ''
+                });
+                core.info(`✅ Merged PR #${pr.number}`);
+              } catch (err) {
+                core.warning(`Could not merge PR #${pr.number}: ${err.message}`);
+              }
+            }

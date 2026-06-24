@@ -37,21 +37,6 @@ export const PlayerProvider = ({ children }) => {
     audio.playbackRate = playbackSpeed;
   }, [playbackSpeed, audio]);
 
-  useEffect(() => {
-    const handleEnded = () => {
-      if (repeatMode === 'one') {
-        audio.currentTime = 0;
-        audio.play();
-      } else if (queueIndex < queue.length - 1 || repeatMode === 'all') {
-        playNext();
-      } else {
-        setIsPlaying(false);
-        setProgress(0);
-      }
-    };
-    audio.addEventListener('ended', handleEnded);
-    return () => audio.removeEventListener('ended', handleEnded);
-  }, [queue, queueIndex, repeatMode, audio]);
 
   useEffect(() => {
     if (isPlaying) {
@@ -120,6 +105,22 @@ export const PlayerProvider = ({ children }) => {
     setIsPlaying(true);
     setTimeout(() => audio.play(), 100);
   }, [queue, queueIndex, isShuffled, loadSong, audio]);
+
+  useEffect(() => {
+    const handleEnded = () => {
+      if (repeatMode === 'one') {
+        audio.currentTime = 0;
+        audio.play();
+      } else if (queueIndex < queue.length - 1 || repeatMode === 'all') {
+        playNext();
+      } else {
+        setIsPlaying(false);
+        setProgress(0);
+      }
+    };
+    audio.addEventListener('ended', handleEnded);
+    return () => audio.removeEventListener('ended', handleEnded);
+  }, [queue, queueIndex, repeatMode, audio, playNext]);
 
   const playPrevious = useCallback(() => {
     if (queue.length === 0) return;
