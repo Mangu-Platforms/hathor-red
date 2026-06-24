@@ -89,10 +89,7 @@ This document summarizes the comprehensive revamp of Hathor Red from a functiona
 
 ### Migrations
 1. `001_add_artists_albums.sql`
-2. `002_add_oauth_refresh.sql`
-3. `003_add_vector_search.sql`
-4. `004_add_analytics.sql`
-5. `005_add_hls_transcoding.sql`
+2. `003_add_vector_search.sql`
 
 ## Architecture
 
