@@ -20,6 +20,14 @@ describe('Authentication Utilities', () => {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       expect(decoded.userId).toBe(userId);
       expect(decoded.username).toBe(username);
+      expect(decoded.iss).toBe('hathor-music');
+    });
+
+    it('should throw when JWT_SECRET is not set', () => {
+      const saved = process.env.JWT_SECRET;
+      delete process.env.JWT_SECRET;
+      expect(() => generateToken(1, 'testuser')).toThrow('JWT_SECRET environment variable is not set');
+      process.env.JWT_SECRET = saved;
     });
   });
 

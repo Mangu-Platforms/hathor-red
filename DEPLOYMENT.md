@@ -109,9 +109,11 @@ REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_PASSWORD=
 
-# JWT Configuration
-JWT_SECRET=your_super_secret_jwt_key_change_this_in_production
+# JWT Configuration — generate a secure secret:
+# node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+JWT_SECRET=
 JWT_EXPIRE=7d
+STREAM_TOKEN_EXPIRE=60s
 
 # CORS
 CLIENT_URL=http://localhost:3000
@@ -473,7 +475,8 @@ Similar steps:
 - [ ] SSL certificate is installed (for production)
 - [ ] Firewall rules allow necessary ports
 - [ ] Application starts without errors
-- [ ] API health check returns success
+- [ ] API health check returns success (includes `requestId` and dependency checks)
+- [ ] `JWT_SECRET` is set to a cryptographically random value (not empty)
 - [ ] Frontend loads correctly
 - [ ] Authentication works
 - [ ] File upload works

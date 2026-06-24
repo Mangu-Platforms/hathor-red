@@ -7,8 +7,9 @@
 
 **Features:**
 - User registration with email validation
-- Secure login with bcrypt password hashing
-- JWT tokens with configurable expiration
+- Secure login with bcrypt password hashing (cost factor 12)
+- JWT tokens with configurable expiration and issuer validation
+- Client-side token expiry checks with clock-skew buffer
 - User profiles with display name and avatar
 - Protected routes and API endpoints
 
@@ -368,8 +369,9 @@ socket.on('user-joined', handleUserJoin)
 ## 🔒 Security Features
 
 ### Authentication
-- Bcrypt password hashing (10 rounds)
-- JWT with expiration
+- Bcrypt password hashing (cost factor 12)
+- JWT with expiration and required `JWT_SECRET`
+- Client-side token expiry validation
 - Token-based API access
 - Secure WebSocket connections
 
@@ -377,13 +379,17 @@ socket.on('user-joined', handleUserJoin)
 - Role-based access (host vs participant)
 - Ownership verification
 - Private vs public resources
-- Request validation
+- Request validation (REST + Socket.io action allowlists)
 
 ### Data Protection
 - SQL injection prevention (parameterized queries)
 - XSS protection (input sanitization)
-- CORS configuration
-- Rate limiting ready
+- CORS with production null-origin blocking
+- Rate limiting (API, auth, streaming, health endpoints)
+- Path traversal protection on file streaming
+- Genre allowlist validation on song queries
+- Redis-backed song list caching with DB fallback
+- Request ID tracing (`X-Request-ID` header)
 - File upload validation
 
 ---

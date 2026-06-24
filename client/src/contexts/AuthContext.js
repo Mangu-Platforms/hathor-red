@@ -30,6 +30,13 @@ export const AuthProvider = ({ children }) => {
     };
 
     loadUser();
+
+    const handleAuthLogout = () => {
+      setUser(null);
+    };
+
+    window.addEventListener('auth:logout', handleAuthLogout);
+    return () => window.removeEventListener('auth:logout', handleAuthLogout);
   }, []);
 
   const login = async (username, password) => {
