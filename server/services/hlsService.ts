@@ -26,6 +26,12 @@ const QUALITY_CONFIGS: Record<QualityTier, { bitrate: string; codec: string; ext
   'lossless': { bitrate: '1411k', codec: 'flac', ext: 'flac' },
 };
 
+const CODEC_MAP: Record<string, string> = {
+  aac: 'mp4a.40.2',
+  libmp3lame: 'mp4a.40.34',
+  flac: 'fLaC',
+};
+
 /**
  * Transcode a song to HLS format for a specific quality tier
  */
@@ -149,7 +155,8 @@ export async function generateMasterManifest(songId: number): Promise<string | n
     const manifestExists = await getManifest(songId, tier as QualityTier);
     if (manifestExists) {
       const bandwidth = parseBitrate(config.bitrate);
-      variants.push(`#EXT-X-STREAM-INF:BANDWIDTH=${bandwidth},CODECS="mp4a.40.2"`);
+      const codec = CODEC_MAP[config.codec] || 'mp4a.40.2';
+      variants.push(`#EXT-X-STREAM-INF:BANDWIDTH=${bandwidth},CODECS="${codec}"`);
       variants.push(`/api/v1/songs/${songId}/manifest.m3u8?quality=${tier}`);
     }
   }
