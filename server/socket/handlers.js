@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const db = require('../config/database');
+const { logger } = require('../utils/logger');
 
 function sanitizeChatMessage(message) {
   return String(message || '')
@@ -84,24 +85,34 @@ const setupSocketHandlers = (io) => {
     });
 
     // Host controls playback
+    const VALID_ROOM_ACTIONS = ['play', 'pause', 'seek', 'change-song'];
     socket.on('room-control', async (data) => {
-      const { roomId, action, songId, position } = data;
-
       try {
+        const { roomId, action, songId, position } = data;
+
+        // Validate action against allowlist
+        if (!VALID_ROOM_ACTIONS.includes(action)) {
+          return socket.emit('error', { message: 'Invalid action. Allowed: ' + VALID_ROOM_ACTIONS.join(', ') });
+        }
+
+        // Validate roomId
+        const roomIdNum = parseInt(roomId, 10);
+        if (isNaN(roomIdNum) || roomIdNum < 1) {
+          return socket.emit('error', { message: 'Invalid room ID' });
+        }
+
         const roomResult = await db.query(
           'SELECT host_id FROM listening_rooms WHERE id = $1',
-          [roomId]
+          [roomIdNum]
         );
 
         if (roomResult.rows.length === 0) {
-          socket.emit('error', { message: 'Room not found' });
-          return;
+          return socket.emit('error', { message: 'Room not found' });
         }
 
         // Only host can control playback
         if (roomResult.rows[0].host_id !== socket.userId) {
-          socket.emit('error', { message: 'Only host can control playback' });
-          return;
+          return socket.emit('error', { message: 'Only host can control playback' });
         }
 
         let updateQuery = '';
@@ -110,35 +121,40 @@ const setupSocketHandlers = (io) => {
         switch (action) {
           case 'play':
             updateQuery = 'UPDATE listening_rooms SET is_playing = true, current_position = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2';
-            params = [position || 0, roomId];
+            params = [Math.max(0, parseInt(position, 10) || 0), roomIdNum];
             break;
           case 'pause':
             updateQuery = 'UPDATE listening_rooms SET is_playing = false, current_position = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2';
-            params = [position || 0, roomId];
+            params = [Math.max(0, parseInt(position, 10) || 0), roomIdNum];
             break;
           case 'seek':
             updateQuery = 'UPDATE listening_rooms SET current_position = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2';
-            params = [position, roomId];
+            params = [Math.max(0, parseInt(position, 10) || 0), roomIdNum];
             break;
-          case 'change-song':
+          case 'change-song': {
+            const songIdNum = parseInt(songId, 10);
+            if (isNaN(songIdNum) || songIdNum < 1) {
+              return socket.emit('error', { message: 'Invalid song ID' });
+            }
             updateQuery = 'UPDATE listening_rooms SET current_song_id = $1, current_position = 0, updated_at = CURRENT_TIMESTAMP WHERE id = $2';
-            params = [songId, roomId];
+            params = [songIdNum, roomIdNum];
             break;
+          }
         }
 
         if (updateQuery) {
           await db.query(updateQuery, params);
 
           // Broadcast to all users in the room
-          io.to(`room-${roomId}`).emit('room-update', {
+          io.to(`room-${roomIdNum}`).emit('room-update', {
             action,
-            songId,
-            position,
+            songId: songId ? parseInt(songId, 10) : null,
+            position: parseInt(position, 10) || 0,
             timestamp: Date.now()
           });
         }
       } catch (error) {
-        console.error('Room control error:', error);
+        logger.error('Room control error:', error);
         socket.emit('error', { message: 'Failed to control playback' });
       }
     });

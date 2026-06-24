@@ -382,9 +382,13 @@ socket.on('user-joined', handleUserJoin)
 ### Data Protection
 - SQL injection prevention (parameterized queries)
 - XSS protection (input sanitization)
-- CORS configuration
-- Rate limiting ready
-- File upload validation
+- CORS configuration with production null-origin blocking
+- Rate limiting on API, auth, streaming, and health endpoints
+- Request ID tracing (`X-Request-ID` header on all responses)
+- File upload validation and path traversal prevention
+- Genre allowlist validation on song queries
+- Client-side JWT expiry checks with graceful logout events
+- bcrypt password hashing (cost factor 12)
 
 ---
 

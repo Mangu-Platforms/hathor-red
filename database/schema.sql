@@ -103,3 +103,19 @@ CREATE INDEX IF NOT EXISTS idx_listening_history_user ON listening_history(user_
 CREATE INDEX IF NOT EXISTS idx_listening_history_song ON listening_history(song_id);
 CREATE INDEX IF NOT EXISTS idx_room_participants_room ON room_participants(room_id);
 CREATE INDEX IF NOT EXISTS idx_room_participants_user ON room_participants(user_id);
+
+-- Additional performance indexes
+CREATE INDEX IF NOT EXISTS idx_songs_genre ON songs(genre);
+CREATE INDEX IF NOT EXISTS idx_songs_artist ON songs(artist);
+CREATE INDEX IF NOT EXISTS idx_songs_created ON songs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_playlists_user ON playlists(user_id);
+CREATE INDEX IF NOT EXISTS idx_playlists_public ON playlists(is_public) WHERE is_public = true;
+CREATE INDEX IF NOT EXISTS idx_rooms_public ON listening_rooms(is_public) WHERE is_public = true;
+CREATE INDEX IF NOT EXISTS idx_rooms_host ON listening_rooms(host_id);
+CREATE INDEX IF NOT EXISTS idx_songs_year ON songs(year) WHERE year IS NOT NULL;
+
+-- Full-text search index (requires pg_trgm extension)
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX IF NOT EXISTS idx_songs_trgm ON songs USING gin(
+  (COALESCE(title, '') || ' ' || COALESCE(artist, '') || ' ' || COALESCE(album, '')) gin_trgm_ops
+);
