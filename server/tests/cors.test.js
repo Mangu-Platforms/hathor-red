@@ -30,7 +30,7 @@ describe('CORS Configuration', () => {
     delete process.env.CLIENT_URL;
     corsOptions.origin('http://malicious.com', (err, result) => {
       try {
-        expect(err.message).toBe('Not allowed by CORS');
+        expect(err.message).toBe('Not allowed by CORS: http://malicious.com');
         expect(result).toBe(false);
         done();
       } catch (error) {
@@ -95,13 +95,27 @@ describe('CORS Configuration', () => {
     });
   });
 
-  it('should allow requests with no origin (undefined)', (done) => {
-    process.env.NODE_ENV = 'production';
+  it('should allow requests with no origin in development', (done) => {
+    process.env.NODE_ENV = 'development';
     process.env.CLIENT_URL = 'https://myapp.com';
     corsOptions.origin(undefined, (err, result) => {
       try {
         expect(err).toBeNull();
         expect(result).toBe(true);
+        done();
+      } catch (error) {
+        done(error);
+      }
+    });
+  });
+
+  it('should deny requests with no origin in production', (done) => {
+    process.env.NODE_ENV = 'production';
+    process.env.CLIENT_URL = 'https://myapp.com';
+    corsOptions.origin(undefined, (err, result) => {
+      try {
+        expect(err.message).toBe('Origin header required in production');
+        expect(result).toBe(false);
         done();
       } catch (error) {
         done(error);
