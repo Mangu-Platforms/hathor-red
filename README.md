@@ -59,7 +59,7 @@ cp .env.example .env
 # Edit .env with your credentials
 
 # Run migrations
-npm run db:migrate
+psql -U postgres -d hathor_music -f database/schema.sql
 
 # Seed the database
 npm run db:setup
