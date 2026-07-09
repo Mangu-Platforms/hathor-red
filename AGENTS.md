@@ -58,8 +58,14 @@ This section is for future cloud agents. The dependency-refresh update script (`
 
 ### `.env` caveat (important)
 - The committed `.env` uses Docker-network hostnames (`DB_HOST=postgres`, `REDIS_HOST=redis`) and `NODE_ENV=production`, which do NOT work for local (non-Docker) dev in the VM.
-- Local dev uses an uncommitted `.env` derived from `.env.example` (localhost hosts) plus `DATABASE_SSL=false` (local Postgres has no SSL). This working `.env` is kept in the VM (not committed, per repo policy) and is preserved by the VM snapshot. If it is ever missing, recreate it: `cp .env.example .env && printf '\nDATABASE_SSL=false\n' >> .env`.
-- `DATABASE_SSL=false` is required because `config/database.js` enables SSL whenever `DATABASE_URL` is set.
+- Local dev uses an uncommitted `.env` derived from `.env.example` (localhost hosts) plus two required additions. This working `.env` is kept in the VM (not committed, per repo policy) and is preserved by the VM snapshot. If it is ever missing, recreate it:
+  ```
+  cp .env.example .env
+  printf '\nDATABASE_SSL=false\nCLIENT_URL=http://localhost:3000,http://localhost:5000\n' >> .env
+  ```
+- `DATABASE_SSL=false` is required because `config/database.js` enables SSL whenever `DATABASE_URL` is set (local Postgres has no SSL).
+- `CLIENT_URL` must include `http://localhost:5000` (in addition to `:3000`). The CRA dev proxy forwards API calls to the backend with `Origin: http://localhost:5000`, and `config/cors.js` rejects any origin not in `CLIENT_URL`; without it, browser login/register fails with a CORS error even though the API works via curl.
+- After editing `.env`, restart the backend (nodemon watches `.js`/`.json`, not `.env`): send `rs` to the nodemon process or restart `npm run server`.
 
 ### First-time DB data (only if the DB is empty/reset)
 - Apply schema: `PGPASSWORD=password psql -h localhost -U postgres -d hathor_music -f database/schema.sql`
