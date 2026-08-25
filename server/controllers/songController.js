@@ -1,6 +1,5 @@
 const fs = require('fs');
 const fsp = require('fs/promises');
-const path = require('path');
 const mime = require('mime-types');
 const db = require('../config/database');
 const { redisClient } = require('../config/redis');
@@ -11,22 +10,8 @@ const {
   MAX_PAGE_LIMIT,
   CACHE_TTL_SONGS,
   ALLOWED_GENRES,
-  UPLOAD_DIR,
 } = require('../config/constants');
-
-function resolveUploadPath(dbFilePath) {
-  const stripped = String(dbFilePath || '').replace(/^\/?uploads\//, '');
-  const resolved = path.resolve(UPLOAD_DIR, stripped);
-  const relative = path.relative(UPLOAD_DIR, resolved);
-
-  if (relative.startsWith('..') || relative.startsWith('/') || path.isAbsolute(relative)) {
-    throw new Error('Invalid file path: path traversal detected');
-  }
-  if (!resolved.startsWith(UPLOAD_DIR)) {
-    throw new Error('Invalid file path: outside upload directory');
-  }
-  return resolved;
-}
+const { resolveUploadPath } = require('../utils/uploadPath');
 
 const getSongs = async (req, res) => {
   try {
@@ -161,9 +146,23 @@ const getStreamUrl = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const songCheck = await db.query('SELECT id FROM songs WHERE id = $1', [id]);
+    const songCheck = await db.query('SELECT * FROM songs WHERE id = $1', [id]);
     if (songCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Song not found' });
+    }
+
+    // Early-access gate (Olympus M2): songs in an early-access window stream
+    // only for the uploader, buyers, and active fan-club members.
+    const song = songCheck.rows[0];
+    if (song.early_access_until) {
+      const commerceService = require('../services/commerce/commerceService');
+      const allowed = await commerceService.canAccessSong(req.user.userId, song);
+      if (!allowed) {
+        return res.status(403).json({
+          error: 'This track is in early access for fan-club members',
+          earlyAccessUntil: song.early_access_until,
+        });
+      }
     }
 
     const token = signStreamToken({

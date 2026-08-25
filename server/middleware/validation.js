@@ -108,6 +108,67 @@ const updateProfileValidation = [
   body('avatarUrl').optional().trim().isURL().withMessage('Invalid avatar URL'),
 ];
 
+// ── Olympus M2: commerce ────────────────────────────────────────────────────
+
+const MAX_PRICE_CENTS = 10000000; // $100,000 ceiling guards fat-finger listings
+
+const productValidation = [
+  body('title').trim().notEmpty().isLength({ max: 255 }).withMessage('Title is required (max 255 chars)'),
+  body('description').optional().trim().isLength({ max: 2000 }),
+  body('productType').optional().isIn(['track', 'album', 'merch']).withMessage('Invalid product type'),
+  body('songId').optional().isInt({ min: 1 }).withMessage('Invalid song ID'),
+  body('priceCents').isInt({ min: 0, max: MAX_PRICE_CENTS }).withMessage('Price must be 0-10000000 cents'),
+  body('minPriceCents').optional().isInt({ min: 0, max: MAX_PRICE_CENTS }).withMessage('Invalid minimum price'),
+  body('nameYourPrice').optional().isBoolean(),
+  body('currency').optional().matches(/^[A-Za-z]{3}$/).withMessage('Currency must be a 3-letter code'),
+];
+
+const productUpdateValidation = [
+  param('id').isInt({ min: 1 }).withMessage('Invalid ID parameter'),
+  body('title').optional().trim().notEmpty().isLength({ max: 255 }),
+  body('description').optional().trim().isLength({ max: 2000 }),
+  body('priceCents').optional().isInt({ min: 0, max: MAX_PRICE_CENTS }),
+  body('minPriceCents').optional().isInt({ min: 0, max: MAX_PRICE_CENTS }),
+  body('nameYourPrice').optional().isBoolean(),
+  body('active').optional().isBoolean(),
+];
+
+const checkoutValidation = [
+  body('productId').isInt({ min: 1 }).withMessage('Invalid product ID'),
+  body('amountCents').optional().isInt({ min: 0, max: MAX_PRICE_CENTS }).withMessage('Invalid amount'),
+  body('idempotencyKey')
+    .isString()
+    .isLength({ min: 8, max: 100 })
+    .withMessage('idempotencyKey must be 8-100 characters'),
+];
+
+const downloadTokenRequestValidation = [
+  body('songId').isInt({ min: 1 }).withMessage('Invalid song ID'),
+];
+
+const downloadTokenParamValidation = [
+  param('token').matches(/^[0-9a-f]{64}$/).withMessage('Invalid download token'),
+];
+
+const tierValidation = [
+  body('name').trim().notEmpty().isLength({ max: 100 }).withMessage('Tier name is required'),
+  body('description').optional().trim().isLength({ max: 2000 }),
+  body('priceCents').isInt({ min: 1, max: MAX_PRICE_CENTS }).withMessage('Tier price must be positive'),
+  body('perks').optional().isObject().withMessage('Perks must be an object'),
+];
+
+const subscribeValidation = [
+  body('tierId').isInt({ min: 1 }).withMessage('Invalid tier ID'),
+];
+
+const earlyAccessValidation = [
+  param('id').isInt({ min: 1 }).withMessage('Invalid ID parameter'),
+  body('until')
+    .optional({ nullable: true })
+    .isISO8601()
+    .withMessage('until must be an ISO 8601 timestamp or null'),
+];
+
 module.exports = {
   validate,
   registerValidation,
@@ -121,4 +182,12 @@ module.exports = {
   idParamValidation,
   hlsResourceValidation,
   updateProfileValidation,
+  productValidation,
+  productUpdateValidation,
+  checkoutValidation,
+  downloadTokenRequestValidation,
+  downloadTokenParamValidation,
+  tierValidation,
+  subscribeValidation,
+  earlyAccessValidation,
 };

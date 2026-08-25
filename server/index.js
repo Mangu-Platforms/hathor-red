@@ -23,6 +23,7 @@ const playbackRoutes = require('./routes/playback');
 const roomRoutes = require('./routes/rooms');
 const aiRoutes = require('./routes/ai');
 const mediaRoutes = require('./routes/media');
+const commerceRoutes = require('./routes/commerce');
 
 const colabAIService = require('./services/colabAIService');
 const features = require('./config/features');
@@ -117,6 +118,9 @@ app.use('/api/rooms', roomRoutes);
 app.use('/api/ai', aiRoutes);
 if (features.isMediaPipelineEnabled()) {
   app.use('/api/media', mediaRoutes);
+}
+if (features.isCommerceEnabled()) {
+  app.use('/api/commerce', commerceRoutes);
 }
 
 // Health check
