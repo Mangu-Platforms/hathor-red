@@ -26,6 +26,7 @@ const mediaRoutes = require('./routes/media');
 const commerceRoutes = require('./routes/commerce');
 const discoveryRoutes = require('./routes/discovery');
 const socialRoutes = require('./routes/social');
+const intelRoutes = require('./routes/intel');
 
 const colabAIService = require('./services/colabAIService');
 const features = require('./config/features');
@@ -130,6 +131,9 @@ if (features.isDiscoveryEnabled()) {
 if (features.isSocialEnabled()) {
   app.use('/api/social', socialRoutes);
 }
+if (features.isIntelEnabled()) {
+  app.use('/api/intel', intelRoutes);
+}
 
 // Health check
 app.get('/api/health', healthLimiter, async (req, res) => {
@@ -212,6 +216,10 @@ const startServer = async () => {
           const radarService = require('./services/discovery/radarService');
           jobWorker.register('embed-songs', embeddingService.processEmbedJob);
           jobWorker.register('radar-refresh', radarService.processRadarRefreshJob);
+        }
+        if (features.isIntelEnabled()) {
+          const analyticsService = require('./services/intel/analyticsService');
+          jobWorker.register('intel-rollup', analyticsService.processRollupJob);
         }
         await jobWorker.start({ intervalMs: parseInt(process.env.JOB_POLL_INTERVAL_MS, 10) || 15000 });
       } catch (workerErr) {

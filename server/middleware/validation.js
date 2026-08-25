@@ -178,6 +178,20 @@ const commentWindowValidation = [
   query('limit').optional().isInt({ min: 1, max: 500 }).withMessage('Limit must be 1-500'),
 ];
 
+// ── Olympus M5: intelligence ────────────────────────────────────────────────
+
+const eventsBatchValidation = [
+  body('events').isArray({ min: 1, max: 100 }).withMessage('events must be an array of 1-100 items'),
+  body('events.*.songId').isInt({ min: 1 }).withMessage('Each event needs a valid songId'),
+  body('events.*.type')
+    .isIn(['play', 'pause', 'seek', 'skip', 'complete', 'segment'])
+    .withMessage('Invalid event type'),
+  body('events.*.positionMs').optional().isInt({ min: 0 }).withMessage('positionMs must be non-negative'),
+  body('events.*.durationMs').optional().isInt({ min: 0 }).withMessage('durationMs must be non-negative'),
+  body('events.*.clientEventId').optional().isString().isLength({ max: 64 }),
+  body('source').optional().isIn(['web', 'mobile', 'desktop']).withMessage('Invalid source'),
+];
+
 // ── Olympus M3: discovery ───────────────────────────────────────────────────
 
 const discoverySearchValidation = [
@@ -224,4 +238,5 @@ module.exports = {
   reindexValidation,
   trackCommentValidation,
   commentWindowValidation,
+  eventsBatchValidation,
 };
