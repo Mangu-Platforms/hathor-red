@@ -34,10 +34,10 @@ at every commit, draft PR at the end. User (Max, @redinc23 repo) returns ~14h af
 - [x] M0 Sprint-0 stabilization (untrack .env, plan files, charter)  — Task #1
 - [x] M1 Pillar 1 Immersive Audio Engine — Task #2 (commit d68f2ca)
 - [x] M2 Pillar 3 Creator Commerce Suite — Task #3 (commit 5cf6d0d)
-- [ ] M3 Pillar 2 Cognitive Discovery — Task #4
-- [ ] M4 Pillar 4 Social Listening — Task #5
-- [ ] M5 Pillar 5 Artist Intelligence Hub — Task #6
-- [ ] M6 Security & compliance — Task #7
+- [x] M3 Pillar 2 Cognitive Discovery — Task #4 (644db1f)
+- [x] M4 Pillar 4 Social Listening — Task #5 (1257dae)
+- [x] M5 Pillar 5 Artist Intelligence Hub — Task #6 (fc99208)
+- [x] M6 Security & compliance — Task #7 (29d75b2)
 - [ ] M7 Client integration — Task #8
 - [ ] M8 Docs, OpenAPI, PR, adversarial review, questions — Task #9
 
@@ -88,6 +88,18 @@ polish → M5 drops geo heatmap detail. Record any descope as a DEC entry in the
   embeddingService deterministic feature-hash 256-dim; searchService blend
   cosine+trigram+freshness; radarService co-listen CF + content + freshness;
   /api/discovery routes; worker handlers embed-songs + radar-refresh).
+
+### C-004 (M3-M6 done, all server pillars complete)
+- 153/153 tests, eslint clean, all pushed. Migrations 004-009 + schema.sql mirror.
+- Server API surface now: /api/media, /api/commerce, /api/discovery, /api/social,
+  /api/intel, /api/privacy + upgraded sockets (sync-ping, reactions, rtc relay,
+  host handoff, presence) + early-access gate in getStreamUrl.
+- Worker handlers: transcode, embed-songs, radar-refresh, intel-rollup, gdpr-export.
+- Next action: M7 client (CRA in client/, NOT covered by root eslint/jest — verify
+  via `cd client && npm run build`). Survey: .plan/evidence/survey-client.md.
+  Planned: services (commerce/discovery/social/intel/privacy), PlayerContext
+  telemetry + loudness + preload, pages Store/Library/Radar/Search/Dashboard/
+  Settings, comment overlay in MusicPlayer, Sidebar+App routes.
 
 ## Open blockers
 

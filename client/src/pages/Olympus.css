@@ -1,0 +1,189 @@
+/* Shared styles for the Project Olympus pages (Store, Library, Radar,
+   Search, Artist Dashboard, Settings) — uses the App.css design tokens. */
+
+.oly-page { max-width: 1100px; }
+
+.oly-page h1 {
+  font-size: 1.8rem;
+  margin-bottom: 4px;
+}
+
+.oly-sub {
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+}
+
+.oly-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.oly-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.oly-card h3 { font-size: 1.05rem; }
+
+.oly-card .muted { color: var(--text-muted); font-size: 0.85rem; }
+
+.oly-price {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.oly-btn {
+  background: var(--accent-gradient);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 10px 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.oly-btn:hover { filter: brightness(1.1); }
+.oly-btn:disabled { opacity: 0.5; cursor: default; }
+
+.oly-btn-ghost {
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 9px 15px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.oly-btn-ghost:hover { background: var(--bg-hover); }
+
+.oly-input {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  padding: 10px 14px;
+  font-size: 0.95rem;
+  width: 100%;
+}
+
+.oly-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.oly-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+}
+
+.oly-table th, .oly-table td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+
+.oly-table th { color: var(--text-muted); font-weight: 500; }
+
+.oly-stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.oly-stat {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
+.oly-stat .value { font-size: 1.6rem; font-weight: 700; }
+.oly-stat .label { color: var(--text-muted); font-size: 0.8rem; margin-top: 4px; }
+
+.oly-reason {
+  display: inline-block;
+  background: var(--bg-tertiary);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin: 2px 4px 2px 0;
+}
+
+.oly-msg { padding: 12px 16px; border-radius: var(--radius-sm); margin: 12px 0; }
+.oly-msg.ok { background: rgba(74, 222, 128, 0.12); color: var(--success); }
+.oly-msg.err { background: rgba(248, 113, 113, 0.12); color: var(--error); }
+
+.oly-empty {
+  color: var(--text-muted);
+  padding: 40px 0;
+  text-align: center;
+}
+
+.oly-section { margin-top: 32px; }
+.oly-section h2 { font-size: 1.2rem; margin-bottom: 12px; }
+
+.oly-retention-bar {
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 80px;
+  margin-top: 8px;
+}
+
+.oly-retention-bar .bar {
+  flex: 1;
+  background: var(--accent);
+  opacity: 0.75;
+  border-radius: 1px 1px 0 0;
+  min-height: 1px;
+}
+
+.oly-retention-bar .bar.peak { background: var(--success); opacity: 1; }
+
+/* Track comments overlay (sits above the player bar) */
+.oly-comments {
+  position: fixed;
+  right: 24px;
+  bottom: calc(var(--player-height) + 16px);
+  width: 320px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  z-index: 40;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.oly-comments-list {
+  max-height: 200px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.oly-comment { font-size: 0.85rem; }
+.oly-comment .at { color: var(--accent); font-weight: 600; margin-right: 6px; }
+.oly-comment .who { color: var(--text-secondary); margin-right: 6px; }
+
+.oly-comments-toggle {
+  position: fixed;
+  right: 24px;
+  bottom: calc(var(--player-height) + 16px);
+  z-index: 40;
+}
