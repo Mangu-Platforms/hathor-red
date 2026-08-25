@@ -32,7 +32,7 @@ at every commit, draft PR at the end. User (Max, @redinc23 repo) returns ~14h af
 ## Milestone queue (Task tool ledger mirrors this)
 
 - [x] M0 Sprint-0 stabilization (untrack .env, plan files, charter)  — Task #1
-- [ ] M1 Pillar 1 Immersive Audio Engine — Task #2
+- [x] M1 Pillar 1 Immersive Audio Engine — Task #2 (commit d68f2ca)
 - [ ] M2 Pillar 3 Creator Commerce Suite — Task #3
 - [ ] M3 Pillar 2 Cognitive Discovery — Task #4
 - [ ] M4 Pillar 4 Social Listening — Task #5
@@ -61,6 +61,19 @@ polish → M5 drops geo heatmap detail. Record any descope as a DEC entry in the
   appended Olympus charter to CLAUDE.md.
 - Survey workflow (olympus-survey, run wf_fcfcf242-592) launched over client/server/db/ops.
 - Next action: commit M0 slice, read survey results, start M1 (media pipeline).
+
+### C-002 (M1 done)
+- Commit d68f2ca: media_assets/media_variants/jobs tables (migration 004), jobQueue
+  (SKIP LOCKED claim, backoff, dead-letter), worker (poll + Redis wake), transcode
+  service (ffmpeg detect, plan-only fallback, loudnorm, waveform approx), HLS
+  master/segment serving (token auth, path-safe), /api/media routes, upload wiring,
+  feature flags. 55/55 tests green, eslint clean (evidence C-001-tests.log pattern).
+- Key APIs for later milestones: jobQueue.enqueue/claimNext/complete/fail;
+  worker.register(type, fn); features.is*Enabled(); roles.isAdmin.
+- Naming decision: avoid schema_v2 reserved names (subscriptions, transcoded_tracks);
+  commerce uses artist_subscriptions etc.
+- Next action: M2 commerce (migration 005: products, purchases, user_library,
+  artist_subscription_tiers, artist_subscriptions, download_tokens, revenue_ledger).
 
 ## Open blockers
 
