@@ -59,6 +59,9 @@ module.exports = {
   // Valid room actions
   VALID_ROOM_ACTIONS: ['play', 'pause', 'seek', 'change-song'],
 
+  // Live reaction emoji whitelist (Olympus M4)
+  REACTION_EMOJIS: ['🔥', '❤️', '🎉', '😭', '🕺', '💯', '👏', '🐐'],
+
   // Cache TTLs (seconds)
   CACHE_TTL_SONGS: 300,
   CACHE_TTL_PLAYLISTS: 300,

@@ -25,6 +25,7 @@ const aiRoutes = require('./routes/ai');
 const mediaRoutes = require('./routes/media');
 const commerceRoutes = require('./routes/commerce');
 const discoveryRoutes = require('./routes/discovery');
+const socialRoutes = require('./routes/social');
 
 const colabAIService = require('./services/colabAIService');
 const features = require('./config/features');
@@ -125,6 +126,9 @@ if (features.isCommerceEnabled()) {
 }
 if (features.isDiscoveryEnabled()) {
   app.use('/api/discovery', discoveryRoutes);
+}
+if (features.isSocialEnabled()) {
+  app.use('/api/social', socialRoutes);
 }
 
 // Health check

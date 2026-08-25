@@ -161,6 +161,23 @@ const subscribeValidation = [
   body('tierId').isInt({ min: 1 }).withMessage('Invalid tier ID'),
 ];
 
+// ── Olympus M4: social ──────────────────────────────────────────────────────
+
+const MAX_TRACK_MS = 7200 * 1000; // mirrors the 2h duration ceiling
+
+const trackCommentValidation = [
+  param('id').isInt({ min: 1 }).withMessage('Invalid ID parameter'),
+  body('body').trim().notEmpty().isLength({ max: 500 }).withMessage('Comment is required (max 500 chars)'),
+  body('timestampMs').isInt({ min: 0, max: MAX_TRACK_MS }).withMessage('timestampMs must be within the track'),
+];
+
+const commentWindowValidation = [
+  param('id').isInt({ min: 1 }).withMessage('Invalid ID parameter'),
+  query('fromMs').optional().isInt({ min: 0 }).withMessage('fromMs must be non-negative'),
+  query('toMs').optional().isInt({ min: 0 }).withMessage('toMs must be non-negative'),
+  query('limit').optional().isInt({ min: 1, max: 500 }).withMessage('Limit must be 1-500'),
+];
+
 // ── Olympus M3: discovery ───────────────────────────────────────────────────
 
 const discoverySearchValidation = [
@@ -205,4 +222,6 @@ module.exports = {
   earlyAccessValidation,
   discoverySearchValidation,
   reindexValidation,
+  trackCommentValidation,
+  commentWindowValidation,
 };
