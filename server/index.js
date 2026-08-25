@@ -27,6 +27,7 @@ const commerceRoutes = require('./routes/commerce');
 const discoveryRoutes = require('./routes/discovery');
 const socialRoutes = require('./routes/social');
 const intelRoutes = require('./routes/intel');
+const privacyRoutes = require('./routes/privacy');
 
 const colabAIService = require('./services/colabAIService');
 const features = require('./config/features');
@@ -134,6 +135,9 @@ if (features.isSocialEnabled()) {
 if (features.isIntelEnabled()) {
   app.use('/api/intel', intelRoutes);
 }
+if (features.isPrivacyEnabled()) {
+  app.use('/api/privacy', privacyRoutes);
+}
 
 // Health check
 app.get('/api/health', healthLimiter, async (req, res) => {
@@ -220,6 +224,10 @@ const startServer = async () => {
         if (features.isIntelEnabled()) {
           const analyticsService = require('./services/intel/analyticsService');
           jobWorker.register('intel-rollup', analyticsService.processRollupJob);
+        }
+        if (features.isPrivacyEnabled()) {
+          const exportService = require('./services/privacy/exportService');
+          jobWorker.register('gdpr-export', exportService.processExportJob);
         }
         await jobWorker.start({ intervalMs: parseInt(process.env.JOB_POLL_INTERVAL_MS, 10) || 15000 });
       } catch (workerErr) {

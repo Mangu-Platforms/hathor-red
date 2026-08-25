@@ -1,6 +1,7 @@
 const db = require('../config/database');
 const { hashPassword, comparePassword, generateToken } = require('../utils/auth');
 const { logger } = require('../utils/logger');
+const auditService = require('../services/privacy/auditService');
 
 const sanitizeInput = (str) => {
   if (!str) return '';
@@ -68,6 +69,7 @@ const login = async (req, res) => {
     );
 
     if (result.rows.length === 0) {
+      await auditService.record({ action: 'login_failed', detail: { username: sanitizeInput(username) }, ip: req.ip });
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
@@ -75,12 +77,14 @@ const login = async (req, res) => {
     const isValidPassword = await comparePassword(password, user.password_hash);
 
     if (!isValidPassword) {
+      await auditService.record({ userId: user.id, action: 'login_failed', ip: req.ip });
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     const token = generateToken(user.id, user.username);
 
     logger.info({ action: 'user_login', userId: user.id, username: user.username });
+    await auditService.record({ userId: user.id, action: 'login_succeeded', ip: req.ip });
 
     res.json({
       message: 'Login successful',

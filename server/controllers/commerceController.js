@@ -8,6 +8,7 @@ const { logger } = require('../utils/logger');
 const { isAdmin } = require('../utils/roles');
 const { resolveUploadPath } = require('../utils/uploadPath');
 const commerceService = require('../services/commerce/commerceService');
+const auditService = require('../services/privacy/auditService');
 const { CommerceError } = commerceService;
 
 function handleError(res, error, context) {
@@ -62,6 +63,14 @@ const createProduct = async (req, res) => {
     );
 
     logger.info({ action: 'product_created', productId: result.rows[0].id, userId });
+    await auditService.record({
+      userId,
+      action: 'product_created',
+      targetType: 'product',
+      targetId: result.rows[0].id,
+      detail: { priceCents, nameYourPrice: Boolean(nameYourPrice) },
+      ip: req.ip,
+    });
     res.status(201).json({ product: result.rows[0] });
   } catch (error) {
     handleError(res, error, 'Create product error');
@@ -148,6 +157,17 @@ const checkoutProduct = async (req, res) => {
       amountCents,
       idempotencyKey,
     });
+
+    if (!result.replayed) {
+      await auditService.record({
+        userId: req.user.userId,
+        action: 'purchase_completed',
+        targetType: 'purchase',
+        targetId: result.purchase.id,
+        detail: { productId, amountCents: result.amountCents },
+        ip: req.ip,
+      });
+    }
 
     res.status(result.replayed ? 200 : 201).json({
       message: result.replayed ? 'Purchase already processed' : 'Purchase completed',

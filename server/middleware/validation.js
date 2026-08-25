@@ -178,6 +178,21 @@ const commentWindowValidation = [
   query('limit').optional().isInt({ min: 1, max: 500 }).withMessage('Limit must be 1-500'),
 ];
 
+// ── Olympus M6: privacy ─────────────────────────────────────────────────────
+
+// POST body is empty; chain keeps the auth → validation → validate contract.
+const exportRequestValidation = [
+  body('confirm').optional().isBoolean(),
+];
+
+const exportDownloadValidation = [
+  param('token').matches(/^[0-9a-f]{64}$/).withMessage('Invalid export token'),
+];
+
+const deletionRequestValidation = [
+  body('reason').optional().trim().isLength({ max: 1000 }),
+];
+
 // ── Olympus M5: intelligence ────────────────────────────────────────────────
 
 const eventsBatchValidation = [
@@ -239,4 +254,7 @@ module.exports = {
   trackCommentValidation,
   commentWindowValidation,
   eventsBatchValidation,
+  exportRequestValidation,
+  exportDownloadValidation,
+  deletionRequestValidation,
 };
