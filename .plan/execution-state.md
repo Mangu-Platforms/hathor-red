@@ -38,7 +38,7 @@ at every commit, draft PR at the end. User (Max, @redinc23 repo) returns ~14h af
 - [x] M4 Pillar 4 Social Listening — Task #5 (1257dae)
 - [x] M5 Pillar 5 Artist Intelligence Hub — Task #6 (fc99208)
 - [x] M6 Security & compliance — Task #7 (29d75b2)
-- [ ] M7 Client integration — Task #8
+- [x] M7 Client integration — Task #8 (a529acb)
 - [ ] M8 Docs, OpenAPI, PR, adversarial review, questions — Task #9
 
 Pace budget: ~1 milestone per 1–1.5h of active work. If M1–M5 are not done by the
@@ -100,6 +100,16 @@ polish → M5 drops geo heatmap detail. Record any descope as a DEC entry in the
   Planned: services (commerce/discovery/social/intel/privacy), PlayerContext
   telemetry + loudness + preload, pages Store/Library/Radar/Search/Dashboard/
   Settings, comment overlay in MusicPlayer, Sidebar+App routes.
+
+### C-005 (M7 done, M8 in progress)
+- Client integrated (commit a529acb): telemetry + loudness + preload in
+  PlayerContext, pages Store/Library/Radar/Search/ArtistDashboard/Settings,
+  TrackComments overlay, sidebar/routes. CRA build compiles with ZERO warnings.
+- M8 running: adversarial review workflow wf_a4e5760e-e2b (6 lenses + verify)
+  in background; docs written (runbook.md, questions-for-max.md, API.md
+  Olympus section). Repo has 0 open issues (manifesto's '35' is stale).
+- Next action: when review lands → fix confirmed findings → gates → push →
+  finalize PR #96 body → send_later check-in loop.
 
 ## Open blockers
 

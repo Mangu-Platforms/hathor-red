@@ -479,3 +479,89 @@ Common HTTP status codes:
 - `404` - Not Found
 - `409` - Conflict (duplicate entry)
 - `500` - Internal Server Error
+
+---
+
+# Project Olympus API (v3)
+
+All routes below require `Authorization: Bearer <token>` unless noted. Each
+group is feature-flagged (see `docs/olympus/runbook.md`).
+
+## Media Pipeline — `/api/media`
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/media/songs/:id/pipeline` | Asset + variant status, persisted ffmpeg commands (uploader/admin) |
+| GET | `/media/songs/:id/waveform` | Waveform peaks + loudness (LUFS, true peak) for the player |
+| GET | `/media/songs/:id/hls/master.m3u8` | HLS master playlist (stream token via `?t=` or Bearer); 404 body names the direct-stream fallback |
+| GET | `/media/songs/:id/hls/:variantKey/:file` | HLS media playlist / segment (whitelisted names only) |
+| POST | `/media/songs/:id/reprocess` | Re-queue transcoding (uploader/admin) → `202 {jobId}` |
+| GET | `/media/jobs/:id` | Job status (creator/admin) |
+
+## Commerce — `/api/commerce`
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/commerce/products?songId&artistId` | Browse active products |
+| POST | `/commerce/products` | Create product (own uploads only). Fixed or name-your-price with `minPriceCents` (0 allowed) |
+| PUT | `/commerce/products/:id` | Update price/copy/active (owner/admin) |
+| POST | `/commerce/checkout` | `{productId, amountCents?, idempotencyKey}` → charge, library grant, one-time download token. Replays return the original purchase |
+| GET | `/commerce/library` | Owned tracks |
+| POST | `/commerce/download-token` | Mint a fresh one-time download token for an owned song |
+| GET | `/commerce/download/:token` | Redeem token (single-use, 7-day expiry) → original file. No JWT — the token is the credential |
+| POST | `/commerce/tiers` | Create a fan-club tier (`perks` JSON, e.g. `{"earlyAccess": true}`) |
+| GET | `/commerce/artists/:id/tiers` | An artist's active tiers |
+| POST | `/commerce/subscribe` | `{tierId}` → charge first period, activate membership (one active per fan+artist) |
+| POST | `/commerce/subscriptions/:id/cancel` | Cancel at period end |
+| GET | `/commerce/subscriptions` | My memberships |
+| GET | `/commerce/revenue` | My artist-share summary + recent entries (`?artistId` for admin) |
+| PUT | `/commerce/songs/:id/early-access` | `{until}` ISO timestamp or null — gate streaming to fan-club members until then |
+
+Money is integer cents everywhere; split is artist 80 / platform 20.
+
+## Discovery — `/api/discovery`
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/discovery/search?q=&limit=` | Semantic search: intent (genres/bpm/moods) + embedding + text + freshness blend, with per-result reasons |
+| GET | `/discovery/radar?refresh=` | Mangu Radar personal mix (co-listening CF + taste centroid + freshness), cached |
+| GET | `/discovery/similar/:id` | Embedding neighbors of a song |
+| POST | `/discovery/reindex` | Admin: queue the embedding backfill |
+
+## Social — `/api/social`
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/social/songs/:id/comments?fromMs&toMs&limit` | Time-synced comments in a window |
+| POST | `/social/songs/:id/comments` | `{body, timestampMs}` — drop a comment at a moment |
+| DELETE | `/social/comments/:id` | Author/admin |
+
+### Socket events added (Olympus M4)
+
+`sync-ping`/`sync-pong` (clock offset), `request-room-state`, `room-reaction`
+(whitelisted emoji), `rtc-offer`/`rtc-answer`/`rtc-ice` (co-presence-checked
+signaling relay), `host-changed` (automatic host handoff). `room-state` and
+`room-update` now carry `positionMs` + `serverTimeMs` for drift correction;
+`user-joined`/`user-left` carry the presence roster.
+
+## Artist Intelligence — `/api/intel`
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/intel/events` | Batched player telemetry (≤100; types play/pause/seek/skip/complete/segment; `clientEventId` dedup) → `202 {accepted, rejected, deduplicated}` |
+| GET | `/intel/overview?days=` | Plays, completes, skips, unique listeners, listen time, rates |
+| GET | `/intel/top-tracks?days=&limit=` | Top tracks with skip rates |
+| GET | `/intel/songs/:id/retention` | 10s-bucket retention curve, peak segment, skip hotspots (uploader/admin) |
+| GET | `/intel/geography?days=` | Streams by country (CDN header attribution) |
+| GET | `/intel/revenue-by-track` | Artist-share cents per song |
+
+## Privacy — `/api/privacy`
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/privacy/export` | Queue a GDPR export (72h SLA) → `202` |
+| GET | `/privacy/export` | Latest export status + download URL when ready |
+| GET | `/privacy/export/download/:token` | Download the JSON artifact (token is the credential, 72h validity) |
+| POST | `/privacy/deletion-request` | Record an account deletion request |
+| DELETE | `/privacy/deletion-request` | Cancel a pending request |
+| GET | `/privacy/audit` | Your own audit trail |
