@@ -93,6 +93,16 @@ const idParamValidation = [
   param('id').isInt({ min: 1 }).withMessage('Invalid ID parameter'),
 ];
 
+const hlsResourceValidation = [
+  param('id').isInt({ min: 1 }).withMessage('Invalid ID parameter'),
+  param('variantKey')
+    .matches(/^[a-z0-9-]+$/i)
+    .withMessage('Invalid variant key'),
+  param('file')
+    .matches(/^(index\.m3u8|segment_\d{4}\.ts)$/)
+    .withMessage('Invalid HLS resource name'),
+];
+
 const updateProfileValidation = [
   body('displayName').optional().trim().isLength({ min: 1, max: 100 }),
   body('avatarUrl').optional().trim().isURL().withMessage('Invalid avatar URL'),
@@ -109,5 +119,6 @@ module.exports = {
   recordListeningValidation,
   roomValidation,
   idParamValidation,
+  hlsResourceValidation,
   updateProfileValidation,
 };

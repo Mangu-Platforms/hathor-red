@@ -117,11 +117,39 @@ const uploadSong = async (req, res) => {
       [title, artist, album || null, parseInt(duration, 10), filePath, genre || null, year ? parseInt(year, 10) : null, req.user.userId]
     );
 
-    logger.info({ action: 'song_uploaded', songId: result.rows[0].id, userId: req.user.userId });
+    const song = result.rows[0];
+    logger.info({ action: 'song_uploaded', songId: song.id, userId: req.user.userId });
+
+    // Olympus media pipeline: create the asset and queue transcoding.
+    // Pipeline failure must never fail the upload (degradation doctrine) —
+    // the original file still direct-streams.
+    let pipeline = null;
+    try {
+      const assetResult = await db.query(
+        `INSERT INTO media_assets (song_id, uploaded_by, original_path, original_filename, mime_type, status)
+         VALUES ($1, $2, $3, $4, $5, 'pending')
+         ON CONFLICT (song_id) DO NOTHING
+         RETURNING id`,
+        [song.id, req.user.userId, filePath, req.file.originalname || null, req.file.mimetype || null]
+      );
+      if (assetResult.rows.length > 0) {
+        const jobQueue = require('../services/jobs/jobQueue');
+        const job = await jobQueue.enqueue(
+          'transcode',
+          { assetId: assetResult.rows[0].id },
+          { createdBy: req.user.userId }
+        );
+        pipeline = { assetId: assetResult.rows[0].id, jobId: job.id, status: 'queued' };
+      }
+    } catch (pipelineErr) {
+      logger.warn(`Media pipeline enqueue failed (upload still succeeded): ${pipelineErr.message}`);
+      pipeline = { status: 'unavailable' };
+    }
 
     res.status(201).json({
       message: 'Song uploaded successfully',
-      song: result.rows[0],
+      song,
+      pipeline,
     });
   } catch (error) {
     logger.error('Upload song error:', error);

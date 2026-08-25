@@ -22,8 +22,12 @@ const playlistRoutes = require('./routes/playlists');
 const playbackRoutes = require('./routes/playback');
 const roomRoutes = require('./routes/rooms');
 const aiRoutes = require('./routes/ai');
+const mediaRoutes = require('./routes/media');
 
 const colabAIService = require('./services/colabAIService');
+const features = require('./config/features');
+const jobWorker = require('./services/jobs/worker');
+const transcodeService = require('./services/media/transcodeService');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -111,6 +115,9 @@ app.use('/api/playlists', playlistRoutes);
 app.use('/api/playback', playbackRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/ai', aiRoutes);
+if (features.isMediaPipelineEnabled()) {
+  app.use('/api/media', mediaRoutes);
+}
 
 // Health check
 app.get('/api/health', healthLimiter, async (req, res) => {
@@ -182,6 +189,17 @@ const startServer = async () => {
 
     const aiInitialized = await colabAIService.initialize();
     logger.info(aiInitialized ? 'Colab AI Service initialized' : 'Colab AI Service running in fallback mode');
+
+    if (features.isWorkerEnabled()) {
+      try {
+        if (features.isMediaPipelineEnabled()) {
+          jobWorker.register('transcode', transcodeService.processTranscodeJob);
+        }
+        await jobWorker.start({ intervalMs: parseInt(process.env.JOB_POLL_INTERVAL_MS, 10) || 15000 });
+      } catch (workerErr) {
+        logger.warn(`Job worker failed to start (API still serving): ${workerErr.message}`);
+      }
+    }
 
     server.listen(PORT, () => {
       logger.info(`Hathor server running on port ${PORT} (${process.env.NODE_ENV || 'development'})`);
