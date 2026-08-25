@@ -1,4 +1,4 @@
-const { body, param, validationResult } = require('express-validator');
+const { body, param, query, validationResult } = require('express-validator');
 const { ALLOWED_GENRES } = require('../config/constants');
 
 const validate = (req, res, next) => {
@@ -161,6 +161,19 @@ const subscribeValidation = [
   body('tierId').isInt({ min: 1 }).withMessage('Invalid tier ID'),
 ];
 
+// ── Olympus M3: discovery ───────────────────────────────────────────────────
+
+const discoverySearchValidation = [
+  query('q').trim().notEmpty().isLength({ max: 200 }).withMessage('Search query is required (max 200 chars)'),
+  query('limit').optional().isInt({ min: 1, max: 50 }).withMessage('Limit must be 1-50'),
+];
+
+// POST body is empty; the chain exists so the route keeps the
+// auth → validation → validate → controller contract.
+const reindexValidation = [
+  body('confirm').optional().isBoolean(),
+];
+
 const earlyAccessValidation = [
   param('id').isInt({ min: 1 }).withMessage('Invalid ID parameter'),
   body('until')
@@ -190,4 +203,6 @@ module.exports = {
   tierValidation,
   subscribeValidation,
   earlyAccessValidation,
+  discoverySearchValidation,
+  reindexValidation,
 };

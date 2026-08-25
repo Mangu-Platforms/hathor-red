@@ -343,3 +343,27 @@ CREATE TABLE IF NOT EXISTS revenue_ledger (
 
 CREATE INDEX IF NOT EXISTS idx_revenue_ledger_artist ON revenue_ledger(artist_user_id, created_at DESC);
 
+
+-- ── Project Olympus M3: cognitive discovery ─────────────────────────────────
+-- (mirrored in database/migrations/006_add_discovery.sql)
+
+
+CREATE TABLE IF NOT EXISTS song_embeddings_local (
+    id SERIAL PRIMARY KEY,
+    song_id INTEGER NOT NULL REFERENCES songs(id) ON DELETE CASCADE,
+    embedding JSONB NOT NULL,            -- array of 256 floats, L2-normalized
+    model VARCHAR(50) NOT NULL DEFAULT 'mangu-feature-hash-v1',
+    dims INTEGER NOT NULL DEFAULT 256,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(song_id)
+);
+
+-- Durable fallback for the per-user Mangu Radar mix (Redis is the hot cache).
+CREATE TABLE IF NOT EXISTS user_radar (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    tracks JSONB NOT NULL,               -- [{songId, score, reasons:[...]}, ...]
+    generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id)
+);
+

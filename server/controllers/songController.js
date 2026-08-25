@@ -124,6 +124,8 @@ const uploadSong = async (req, res) => {
           { assetId: assetResult.rows[0].id },
           { createdBy: req.user.userId }
         );
+        // Embed the new song so discovery picks it up on the next tick.
+        await jobQueue.enqueue('embed-songs', { songId: song.id }, { createdBy: req.user.userId });
         pipeline = { assetId: assetResult.rows[0].id, jobId: job.id, status: 'queued' };
       }
     } catch (pipelineErr) {

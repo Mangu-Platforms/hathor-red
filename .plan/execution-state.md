@@ -33,7 +33,7 @@ at every commit, draft PR at the end. User (Max, @redinc23 repo) returns ~14h af
 
 - [x] M0 Sprint-0 stabilization (untrack .env, plan files, charter)  — Task #1
 - [x] M1 Pillar 1 Immersive Audio Engine — Task #2 (commit d68f2ca)
-- [ ] M2 Pillar 3 Creator Commerce Suite — Task #3
+- [x] M2 Pillar 3 Creator Commerce Suite — Task #3 (commit 5cf6d0d)
 - [ ] M3 Pillar 2 Cognitive Discovery — Task #4
 - [ ] M4 Pillar 4 Social Listening — Task #5
 - [ ] M5 Pillar 5 Artist Intelligence Hub — Task #6
@@ -74,6 +74,20 @@ polish → M5 drops geo heatmap detail. Record any descope as a DEC entry in the
   commerce uses artist_subscriptions etc.
 - Next action: M2 commerce (migration 005: products, purchases, user_library,
   artist_subscription_tiers, artist_subscriptions, download_tokens, revenue_ledger).
+
+### C-003 (M2 done)
+- Commit 5cf6d0d pushed. Commerce: products/purchases/user_library/download_tokens/
+  artist_subscription_tiers/artist_subscriptions/revenue_ledger (migration 005),
+  paymentProvider (mock default, Stripe REST via STRIPE_SECRET_KEY), checkout with
+  idempotency + 80/20 ledger + library grant + one-time download tokens (atomic
+  conditional UPDATE), fan clubs + early-access gate in getStreamUrl,
+  resolveUploadPath shared util. 80/80 tests, eslint clean.
+- Property sweep caught real bug: split() truncated fractional cents via parseInt —
+  fixed with Number() + isInteger guard.
+- Next action: M3 discovery (migration 006: song_embeddings_local, user_radar;
+  embeddingService deterministic feature-hash 256-dim; searchService blend
+  cosine+trigram+freshness; radarService co-listen CF + content + freshness;
+  /api/discovery routes; worker handlers embed-songs + radar-refresh).
 
 ## Open blockers
 
