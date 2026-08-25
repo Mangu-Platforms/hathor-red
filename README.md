@@ -127,6 +127,31 @@ Key variables (see `.env.example` for full list):
 | `FEATURE_OAUTH` | Social login | `true` |
 | `FEATURE_ANALYTICS` | Event tracking | `true` |
 
+## Project Olympus (v3)
+
+The Olympus build turns Hathor Red into the Mangu direct-to-fan commerce +
+streaming platform, implemented as a modular monolith with extraction seams:
+
+- **Immersive Audio Engine** — upload → durable job queue → ffmpeg transcode
+  (opus/aac/mp3/flac/HLS) with plan-only fallback, loudness (BS.1770) +
+  waveform analysis. `/api/media`
+- **Creator Commerce** — direct sales (fixed & name-your-price), permanent
+  library, one-time lossless downloads, fan-club tiers with early access,
+  80/20 artist-favoring revenue ledger. `/api/commerce`
+- **Cognitive Discovery** — credential-free semantic search + Mangu Radar
+  personal mixes (collaborative + content + freshness). `/api/discovery`
+- **Social Listening** — drift-corrected room sync, time-synced track
+  comments, presence, reactions, host handoff, WebRTC signaling. `/api/social`
+- **Artist Intelligence** — play/skip/segment telemetry, retention curves,
+  geography, revenue attribution. `/api/intel`
+- **Privacy** — GDPR export/deletion, audit trail. `/api/privacy`
+
+Docs: [`docs/olympus/program-plan.md`](docs/olympus/program-plan.md) ·
+[`docs/olympus/runbook.md`](docs/olympus/runbook.md) ·
+[API reference](API.md). The live flags are `FEATURE_MEDIA_PIPELINE`,
+`FEATURE_COMMERCE`, `FEATURE_DISCOVERY`, `FEATURE_SOCIAL`, `FEATURE_INTEL`,
+`FEATURE_PRIVACY`, `FEATURE_WORKER` (the table above predates Olympus).
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
