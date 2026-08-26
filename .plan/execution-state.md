@@ -145,6 +145,17 @@ polish → M5 drops geo heatmap detail. Record any descope as a DEC entry in the
 - Awaiting CI on 1c085dd (scan + docker build + quality-gate on Node 20).
   Check-in trig_01YGzz8BdVjBATT4St5Pwoyt at 04:22Z verifies + re-arms.
 
+### C-009 (stale npm lockfiles removed)
+- scan on 4d09cef was still red because Trivy also scans package-lock.json +
+  client/package-lock.json — stale npm lockfiles pinning the whole pre-fix
+  CRA tree (nth-check/svgo/node-forge/rollup/underscore...). Nothing consumes
+  them (no npm ci anywhere; pnpm everywhere). Removed in 9ca127f.
+- Head now: 55b9bbc hardening + 4d09cef dep remediation + 1c085dd Node 20 +
+  9ca127f lockfile cleanup. Expected all-green: Lint/Tests/Type Check/Build
+  verified locally under CI conditions; scan surface = remediated pnpm-lock
+  only; docker build = Node 20.
+- Check-in trig_01YGzz8BdVjBATT4St5Pwoyt (04:22Z) verifies CI on 9ca127f.
+
 ## Open blockers
 
 (none)
