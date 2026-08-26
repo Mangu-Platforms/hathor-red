@@ -164,6 +164,18 @@ polish → M5 drops geo heatmap detail. Record any descope as a DEC entry in the
 - Resting state: green + mergeable, waiting on reviewer. Check-in
   trig_01YGzz8BdVjBATT4St5Pwoyt (04:22Z) re-arms silently until merged/closed.
 
+### C-011 (MISSION COMPLETE — both PRs merged)
+- PR #97 (Olympus hardening: 31 review fixes + 84-CVE remediation + Node 20 +
+  CI repairs) MERGED by @redinc23 at 2026-08-26T06:56:17Z with all 15 checks
+  green. PR #96 (full build) merged earlier at 03:05Z.
+- Everything Olympus now lives in main: the five pillars, privacy layer,
+  client integration, hardening, dependency remediation, Node 20 toolchain,
+  and the first-ever green Type Check + Security Scan.
+- Check-in loop STOPPED (nothing left to watch). Session subscriptions closed.
+- Owner actions outstanding (docs/olympus/questions-for-max.md): rotate
+  JWT_SECRET + purge .env history; ratify decisions 3-8; next milestones:
+  Stripe Connect payouts, ffmpeg worker, purge worker, coverage ratchet.
+
 ## Open blockers
 
 (none)
