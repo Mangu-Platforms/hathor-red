@@ -39,7 +39,7 @@ at every commit, draft PR at the end. User (Max, @redinc23 repo) returns ~14h af
 - [x] M5 Pillar 5 Artist Intelligence Hub — Task #6 (fc99208)
 - [x] M6 Security & compliance — Task #7 (29d75b2)
 - [x] M7 Client integration — Task #8 (a529acb)
-- [ ] M8 Docs, OpenAPI, PR, adversarial review, questions — Task #9
+- [x] M8 Docs, OpenAPI, PR, adversarial review, questions — Task #9 (55b9bbc)
 
 Pace budget: ~1 milestone per 1–1.5h of active work. If M1–M5 are not done by the
 time M8 must start (leave ≥1.5h for review+PR+docs), descope in this order:
@@ -110,6 +110,21 @@ polish → M5 drops geo heatmap detail. Record any descope as a DEC entry in the
   Olympus section). Repo has 0 open issues (manifesto's '35' is stale).
 - Next action: when review lands → fix confirmed findings → gates → push →
   finalize PR #96 body → send_later check-in loop.
+
+### C-006 (BUILD COMPLETE — PR #96 merged by Max, hardening PR #97 open)
+- PR #96 (full Olympus build, M0-M8) was taken out of draft and MERGED by
+  @redinc23 at 2026-08-26T03:05Z. Branch fast-forwarded to merged main.
+- Adversarial review (wf_a4e5760e-e2b, 6 lenses + independent verification)
+  confirmed 31 findings; ALL fixed in commit 55b9bbc → PR #97 (draft).
+  Findings ledger: .plan/evidence/review-confirmed.md.
+- CI: both red checks were PRE-EXISTING on main and are fixed in #97:
+  Type Check (unwired TS shadowing JS in tsc resolution → server/_reference/)
+  and scan (trivy-action 0.28.0 tag orphaned by v-prefix re-tag → SHA pin).
+  Build went green earlier via the M7 warning fixes.
+- Gates at 55b9bbc: 173/173 jest, eslint clean, tsc --noEmit clean, client
+  CI=true build clean.
+- Watching PR #97 (subscribed). Next: drive #97 to green/merge; check-in
+  scheduled via send_later.
 
 ## Open blockers
 
