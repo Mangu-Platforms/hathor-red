@@ -136,6 +136,15 @@ polish → M5 drops geo heatmap detail. Record any descope as a DEC entry in the
 - PR #97 body updated with the full story. Awaiting CI on 4d09cef; check-in
   trig_01YGzz8BdVjBATT4St5Pwoyt fires 04:22Z to verify green + re-arm.
 
+### C-008 (Node 20 migration)
+- docker-image `build` failed on 4d09cef: serialize-javascript@7 (RCE-patched,
+  no 6.x backport) needs global WebCrypto = Node >= 19; image was node:18
+  (EOL). Commit 1c085dd migrates Dockerfile/.devcontainer/workflow pins/
+  engines/volta/.nvmrc to Node 20 LTS. All local gates green on the new tree.
+- Stale-head scan failures (55b9bbc/4fec408) superseded by 4d09cef — no action.
+- Awaiting CI on 1c085dd (scan + docker build + quality-gate on Node 20).
+  Check-in trig_01YGzz8BdVjBATT4St5Pwoyt at 04:22Z verifies + re-arms.
+
 ## Open blockers
 
 (none)
