@@ -156,6 +156,14 @@ polish → M5 drops geo heatmap detail. Record any descope as a DEC entry in the
   only; docker build = Node 20.
 - Check-in trig_01YGzz8BdVjBATT4St5Pwoyt (04:22Z) verifies CI on 9ca127f.
 
+### C-010 (PR #97 ALL GREEN — waiting on review)
+- All 15 checks green on head d588e5a at 03:32Z: Lint x2, Type Check x2
+  (first green ever), Tests x2, Build x2, docker build, scan x2 (first green
+  ever), CodeQL + Analyze x3. PR marked ready for review; CODEOWNERS requires
+  @redinc23 approval to merge.
+- Resting state: green + mergeable, waiting on reviewer. Check-in
+  trig_01YGzz8BdVjBATT4St5Pwoyt (04:22Z) re-arms silently until merged/closed.
+
 ## Open blockers
 
 (none)
