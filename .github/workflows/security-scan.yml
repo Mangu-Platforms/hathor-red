@@ -16,10 +16,10 @@ jobs:
         with:
           version: 8.9.0
 
-      - name: Setup Node.js 18.17.0
+      - name: Setup Node.js 20
         uses: actions/setup-node@v4
         with:
-          node-version: '18.17.0'
+          node-version: '20'
           cache: 'pnpm'
 
       - name: Install dependencies
