@@ -189,12 +189,27 @@ const streamSong = async (req, res) => {
       return res.status(401).json({ error: 'Invalid stream token for song' });
     }
 
-    const result = await db.query('SELECT file_path FROM songs WHERE id = $1', [id]);
+    const result = await db.query('SELECT * FROM songs WHERE id = $1', [id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Song not found' });
     }
 
-    const filePath = resolveUploadPath(result.rows[0].file_path);
+    // Early-access gate at the point of serving (not just token minting):
+    // streamAuth's Bearer branch reaches here without a stream token, and a
+    // token minted before the window was set must not bypass the gate either.
+    const song = result.rows[0];
+    if (song.early_access_until) {
+      const commerceService = require('../services/commerce/commerceService');
+      const allowed = await commerceService.canAccessSong(req.user.userId, song);
+      if (!allowed) {
+        return res.status(403).json({
+          error: 'This track is in early access for fan-club members',
+          earlyAccessUntil: song.early_access_until,
+        });
+      }
+    }
+
+    const filePath = resolveUploadPath(song.file_path);
 
     let stat;
     try {

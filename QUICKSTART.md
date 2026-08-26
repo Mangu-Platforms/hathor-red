@@ -28,7 +28,7 @@ Visit http://localhost:3000 after the servers start.
 ## Prerequisites Check
 
 Before starting, ensure you have:
-- ✅ Node.js 18+ installed: `node --version`
+- ✅ Node.js 20+ installed: `node --version`
 - ✅ PostgreSQL 13+ installed: `psql --version`
 - ✅ Redis 6+ installed: `redis-cli --version`
 

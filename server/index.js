@@ -99,8 +99,17 @@ app.use('/api/songs', (req, res, next) => {
   return apiLimiter(req, res, next);
 });
 
+// HLS playback fetches a playlist + many segments per minute — routed to the
+// high-ceiling stream limiter so listening can't exhaust the shared API bucket.
+app.use('/api/media', (req, res, next) => {
+  if (req.path.includes('/hls/')) {
+    return streamLimiter(req, res, next);
+  }
+  return apiLimiter(req, res, next);
+});
+
 app.use('/api/', (req, res, next) => {
-  if (req.path.startsWith('/songs/')) return next();
+  if (req.path.startsWith('/songs/') || req.path.startsWith('/media/')) return next();
   return apiLimiter(req, res, next);
 });
 
@@ -224,6 +233,10 @@ const startServer = async () => {
         if (features.isIntelEnabled()) {
           const analyticsService = require('./services/intel/analyticsService');
           jobWorker.register('intel-rollup', analyticsService.processRollupJob);
+        }
+        if (features.isCommerceEnabled()) {
+          const commerceService = require('./services/commerce/commerceService');
+          jobWorker.register('subs-expire', commerceService.processSubscriptionExpiryJob);
         }
         if (features.isPrivacyEnabled()) {
           const exportService = require('./services/privacy/exportService');

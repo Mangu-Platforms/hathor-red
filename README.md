@@ -38,7 +38,7 @@ Hathor Red has been transformed from a functional prototype into a **production-
 ## Quick Start
 
 ### Prerequisites
-- Node.js 18+
+- Node.js 20+
 - PostgreSQL 15+ with pgvector extension
 - Redis 7+
 - FFmpeg (optional, for HLS streaming)

@@ -36,8 +36,10 @@ function buildHarness() {
   return io;
 }
 
+let socketSeq = 0;
 function connectSocket(io, { userId, username }) {
   const socket = {
+    id: `sock-${++socketSeq}`,
     userId,
     username,
     handlers: {},
@@ -79,7 +81,7 @@ const ROOM = {
 
 function mockRoomJoinQueries(room = ROOM, participants = 0) {
   db.query.mockImplementation((sql) => {
-    if (sql.includes('SELECT * FROM listening_rooms')) return Promise.resolve({ rows: [room] });
+    if (sql.includes('FROM listening_rooms WHERE id')) return Promise.resolve({ rows: [room] });
     if (sql.includes('COUNT(*)')) return Promise.resolve({ rows: [{ count: String(participants) }] });
     return Promise.resolve({ rows: [] });
   });
@@ -89,6 +91,8 @@ describe('socket handlers (Olympus M4)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     process.env.JWT_SECRET = 'test-secret-value';
+    // Presence/host maps are module-level; isolate every test.
+    setupSocketHandlers.resetStateForTests();
   });
 
   it('authenticates the handshake JWT with the hathor-music issuer', () => {
@@ -218,5 +222,96 @@ describe('socket handlers (Olympus M4)', () => {
 
     const delivered = io.roomEmits.find((e) => e.event === 'chat-message');
     expect(delivered.payload.message).toBe('&lt;b&gt;hi&lt;/b&gt;');
+  });
+
+  it('drops chat from sockets that never joined the room', async () => {
+    const io = buildHarness();
+    mockRoomJoinQueries();
+    const outsider = connectSocket(io, { userId: 9, username: 'lurker' });
+
+    await outsider.handlers['room-chat']({ roomId: 42, message: 'sneaky' });
+
+    expect(io.roomEmits.some((e) => e.event === 'chat-message')).toBe(false);
+  });
+
+  it('rate limits chat floods per socket', async () => {
+    const io = buildHarness();
+    mockRoomJoinQueries();
+    const socket = connectSocket(io, { userId: 2, username: 'ana' });
+    await socket.handlers['join-room'](42);
+
+    for (let i = 0; i < 6; i += 1) {
+      await socket.handlers['room-chat']({ roomId: 42, message: `msg ${i}` });
+    }
+
+    const delivered = io.roomEmits.filter((e) => e.event === 'chat-message');
+    expect(delivered.length).toBe(3); // 3 per rolling second
+    expect(socket.emits.some((e) => e.event === 'error' && e.payload.message === 'Slow down')).toBe(true);
+  });
+
+  it('ignores leave-room for rooms the socket never joined', async () => {
+    const io = buildHarness();
+    mockRoomJoinQueries();
+    const outsider = connectSocket(io, { userId: 9, username: 'lurker' });
+
+    await outsider.handlers['leave-room'](42);
+
+    expect(io.roomEmits.some((e) => e.event === 'host-changed')).toBe(false);
+    expect(outsider.targetedEmits.some((e) => e.event === 'user-left')).toBe(false);
+    expect(db.query.mock.calls.some(([sql]) => sql.includes('DELETE FROM room_participants'))).toBe(false);
+  });
+
+  it('withholds room-state snapshots from non-members', async () => {
+    const io = buildHarness();
+    mockRoomJoinQueries();
+    const outsider = connectSocket(io, { userId: 9, username: 'lurker' });
+
+    await outsider.handlers['request-room-state'](42);
+
+    expect(outsider.emits.some((e) => e.event === 'room-state')).toBe(false);
+  });
+
+  it('departs the previous room when a socket joins another', async () => {
+    const io = buildHarness();
+    const roomA = { ...ROOM, id: 42 };
+    const roomB = { ...ROOM, id: 43 };
+    db.query.mockImplementation((sql, params) => {
+      if (sql.includes('FROM listening_rooms WHERE id')) {
+        return Promise.resolve({ rows: [params[0] === 42 ? roomA : roomB] });
+      }
+      if (sql.includes('COUNT(*)')) return Promise.resolve({ rows: [{ count: '0' }] });
+      return Promise.resolve({ rows: [] });
+    });
+
+    const socket = connectSocket(io, { userId: 2, username: 'ana' });
+    await socket.handlers['join-room'](42);
+    await socket.handlers['join-room'](43);
+
+    expect(socket.currentRoom).toBe(43);
+    // The old room's participant row was cleaned up — no ghost membership.
+    const cleanup = db.query.mock.calls.find(([sql, params]) =>
+      sql.includes('DELETE FROM room_participants') && params[0] === 42);
+    expect(cleanup).toBeTruthy();
+
+    // …and the old room no longer receives this socket's chat.
+    await socket.handlers['room-chat']({ roomId: 42, message: 'ghost?' });
+    expect(io.roomEmits.some((e) => e.event === 'chat-message' && e.room === 'room-42')).toBe(false);
+  });
+
+  it('keeps a multi-tab user present until the last socket leaves', async () => {
+    const io = buildHarness();
+    mockRoomJoinQueries();
+
+    const tab1 = connectSocket(io, { userId: 2, username: 'ana' });
+    await tab1.handlers['join-room'](42);
+    const tab2 = connectSocket(io, { userId: 2, username: 'ana' });
+    await tab2.handlers['join-room'](42);
+
+    await tab1.handlers['leave-room'](42);
+    // First tab leaving must not announce or delete the participant row.
+    expect(db.query.mock.calls.some(([sql]) => sql.includes('DELETE FROM room_participants'))).toBe(false);
+
+    await tab2.handlers['leave-room'](42);
+    expect(db.query.mock.calls.some(([sql]) => sql.includes('DELETE FROM room_participants'))).toBe(true);
   });
 });

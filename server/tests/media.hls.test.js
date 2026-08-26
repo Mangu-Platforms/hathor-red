@@ -1,5 +1,5 @@
 const path = require('path');
-const { buildMasterManifest, resolveHlsPath } = require('../services/media/hlsService');
+const { buildMasterManifest, resolveHlsPath, appendTokenToPlaylist } = require('../services/media/hlsService');
 const { UPLOAD_DIR } = require('../config/constants');
 
 describe('hlsService', () => {
@@ -53,6 +53,31 @@ describe('hlsService', () => {
     it('rejects malicious variant keys', () => {
       expect(() => resolveHlsPath(7, '../7/hls/x', 'index.m3u8')).toThrow();
       expect(() => resolveHlsPath(7, 'a/b', 'index.m3u8')).toThrow();
+    });
+  });
+
+  describe('appendTokenToPlaylist', () => {
+    const playlist = [
+      '#EXTM3U',
+      '#EXT-X-TARGETDURATION:6',
+      '#EXTINF:6.0,',
+      'segment_0000.ts',
+      '#EXTINF:6.0,',
+      'segment_0001.ts',
+      '#EXT-X-ENDLIST',
+    ].join('\n');
+
+    it('appends the stream token to every segment URI so playback completes', () => {
+      const rewritten = appendTokenToPlaylist(playlist, 'tok en');
+      expect(rewritten).toContain('segment_0000.ts?t=tok%20en');
+      expect(rewritten).toContain('segment_0001.ts?t=tok%20en');
+      // directives untouched
+      expect(rewritten).toContain('#EXT-X-TARGETDURATION:6');
+      expect(rewritten).not.toContain('#EXTM3U?t=');
+    });
+
+    it('is a no-op without a token (Bearer-authenticated clients)', () => {
+      expect(appendTokenToPlaylist(playlist, undefined)).toBe(playlist);
     });
   });
 });

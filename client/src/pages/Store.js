@@ -11,19 +11,27 @@ const ProductCard = ({ product, onBought }) => {
   const [buying, setBuying] = useState(false);
   const [customAmount, setCustomAmount] = useState('');
   const [message, setMessage] = useState(null);
+  // One idempotency key per purchase ATTEMPT, not per click: a retry after a
+  // network error reuses the key so the server replays instead of re-charging.
+  const idemKey = React.useRef(null);
 
   const buy = async () => {
     setBuying(true);
     setMessage(null);
+    if (!idemKey.current) idemKey.current = newIdempotencyKey();
     try {
       const amountCents = product.name_your_price && customAmount !== ''
         ? Math.round(parseFloat(customAmount) * 100)
         : undefined;
-      const result = await commerceService.checkout(product.id, amountCents, newIdempotencyKey());
+      const result = await commerceService.checkout(product.id, amountCents, idemKey.current);
+      idemKey.current = null; // next purchase is a new attempt
       setMessage({ ok: true, text: result.downloadToken ? 'Purchased! Download ready in your Library.' : 'Purchased!' });
       if (onBought) onBought(result);
     } catch (err) {
-      setMessage({ ok: false, text: err.response?.data?.error || 'Purchase failed' });
+      // A definitive server response (e.g. 402 decline) ends the attempt; a
+      // network failure keeps the key so the retry hits the replay path.
+      if (err.response) idemKey.current = null;
+      setMessage({ ok: false, text: err.response?.data?.error || 'Purchase failed — retry is safe' });
     } finally {
       setBuying(false);
     }

@@ -19,11 +19,21 @@
 /**
  * Estimated playback position of a room in milliseconds at `nowMs`.
  * Paused rooms sit exactly at current_position; playing rooms advance by the
- * wall-clock time since the row was last updated.
+ * elapsed time since the row was last updated.
+ *
+ * Preferred elapsed source is `room.elapsed_ms`, computed by Postgres itself
+ * (EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - updated_at)) * 1000) — comparing
+ * the DB clock against itself is immune to app/DB timezone or clock skew.
+ * The wall-clock subtraction is only the fallback for rows fetched without it.
  */
 function estimatePositionMs(room, nowMs = Date.now()) {
   const baseMs = Math.max(0, (parseInt(room.current_position, 10) || 0) * 1000);
   if (!room.is_playing) return baseMs;
+
+  if (room.elapsed_ms !== undefined && room.elapsed_ms !== null) {
+    const elapsedDb = parseInt(room.elapsed_ms, 10);
+    if (!Number.isNaN(elapsedDb)) return baseMs + Math.max(0, elapsedDb);
+  }
 
   const updatedAtMs = new Date(room.updated_at).getTime();
   if (Number.isNaN(updatedAtMs)) return baseMs;

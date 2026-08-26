@@ -19,7 +19,9 @@ async function overview(artistUserId, { days = 30 } = {}) {
        COUNT(*) FILTER (WHERE e.event_type = 'complete') AS completes,
        COUNT(*) FILTER (WHERE e.event_type = 'skip') AS skips,
        COUNT(DISTINCT e.user_id) AS unique_listeners,
-       COALESCE(SUM(e.duration_ms) FILTER (WHERE e.event_type IN ('segment', 'complete')), 0) AS total_listen_ms
+       -- segments alone: each heartbeat covers 10s of real listening; adding
+       -- 'complete' (which carries the full track duration) double-counts
+       COALESCE(SUM(e.duration_ms) FILTER (WHERE e.event_type = 'segment'), 0) AS total_listen_ms
      FROM listening_events e
      JOIN songs s ON s.id = e.song_id
      WHERE s.uploaded_by = $1
@@ -219,7 +221,7 @@ async function processRollupJob(payload = {}) {
             COUNT(*) FILTER (WHERE e.event_type = 'complete'),
             COUNT(*) FILTER (WHERE e.event_type = 'skip'),
             COUNT(DISTINCT e.user_id),
-            COALESCE(SUM(e.duration_ms) FILTER (WHERE e.event_type IN ('segment', 'complete')), 0)
+            COALESCE(SUM(e.duration_ms) FILTER (WHERE e.event_type = 'segment'), 0)
      FROM listening_events e
      WHERE e.created_at >= $1::date AND e.created_at < $1::date + INTERVAL '1 day'
      GROUP BY e.song_id

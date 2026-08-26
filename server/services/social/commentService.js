@@ -3,8 +3,10 @@
  * anchored to a millisecond offset in a song. The player fetches windows as
  * playback progresses and pops each comment at its moment.
  *
- * Redis sorted sets (comments:<songId>, scored by timestamp_ms) are the hot
- * window cache; Postgres is the source of truth. Every Redis touch is
+ * Caching: whole window results are cached under a per-song VERSION-stamped
+ * key (comments:<songId>:v<N>:<window>), and every write bumps the version —
+ * so a cached window is always complete for its version, never a partial
+ * shard. Postgres is the source of truth; every Redis touch is
  * fallback-wrapped per the repo doctrine.
  */
 
@@ -12,7 +14,7 @@ const db = require('../../config/database');
 const { redisClient } = require('../../config/redis');
 const { logger } = require('../../utils/logger');
 
-const COMMENT_CACHE_TTL = 1800;
+const WINDOW_CACHE_TTL = 300;
 const MAX_COMMENT_LENGTH = 500;
 
 function sanitizeCommentBody(body) {
@@ -26,17 +28,20 @@ function sanitizeCommentBody(body) {
     .slice(0, MAX_COMMENT_LENGTH);
 }
 
-function cacheKey(songId) {
-  return `comments:${songId}`;
+function versionKey(songId) {
+  return `comments:${songId}:ver`;
 }
 
-async function cacheComment(songId, comment) {
+async function currentVersion(songId) {
+  const raw = await redisClient.get(versionKey(songId));
+  return parseInt(raw, 10) || 0;
+}
+
+async function bumpVersion(songId) {
   try {
-    const key = cacheKey(songId);
-    await redisClient.zAdd(key, [{ score: comment.timestamp_ms, value: JSON.stringify(comment) }]);
-    await redisClient.expire(key, COMMENT_CACHE_TTL);
+    await redisClient.incr(versionKey(songId));
   } catch (err) {
-    logger.warn(`Comment cache write failed (DB is source of truth): ${err.message}`);
+    logger.warn(`Comment cache version bump failed (windows expire by TTL): ${err.message}`);
   }
 }
 
@@ -77,24 +82,27 @@ async function addComment({ songId, userId, body, timestampMs }) {
     display_name: userResult.rows[0]?.display_name || null,
   };
 
-  await cacheComment(songId, enriched);
+  await bumpVersion(songId);
   return enriched;
 }
 
 /**
- * Fetch comments in a [fromMs, toMs] window. Tries the Redis sorted set
- * first; falls back to (and refills from) Postgres.
+ * Fetch comments in a [fromMs, toMs] window. Serves a version-stamped cached
+ * window when present; otherwise reads Postgres and caches the full result.
  */
 async function getCommentsWindow({ songId, fromMs = 0, toMs = null, limit = 100 }) {
-  const upper = toMs === null ? Number.MAX_SAFE_INTEGER : toMs;
+  const boundedLimit = Math.min(limit, 500);
+  let cacheKey = null;
 
   try {
-    const cached = await redisClient.zRangeByScore(cacheKey(songId), fromMs, upper, { LIMIT: { offset: 0, count: limit } });
-    if (cached && cached.length > 0) {
-      return { comments: cached.map((c) => JSON.parse(c)), source: 'cache' };
+    const version = await currentVersion(songId);
+    cacheKey = `comments:${songId}:v${version}:${fromMs}:${toMs === null ? 'end' : toMs}:${boundedLimit}`;
+    const cached = await redisClient.get(cacheKey);
+    if (cached) {
+      return { comments: JSON.parse(cached), source: 'cache' };
     }
   } catch {
-    // fall through to DB
+    cacheKey = null; // Redis down — serve from DB, skip the cache write
   }
 
   const params = [songId, fromMs];
@@ -107,14 +115,17 @@ async function getCommentsWindow({ songId, fromMs = 0, toMs = null, limit = 100 
     params.push(toMs);
     query += ` AND c.timestamp_ms <= $${params.length}`;
   }
-  params.push(Math.min(limit, 500));
+  params.push(boundedLimit);
   query += ` ORDER BY c.timestamp_ms ASC LIMIT $${params.length}`;
 
   const result = await db.query(query, params);
 
-  // Best-effort refill of the hot window.
-  for (const row of result.rows) {
-    await cacheComment(songId, row);
+  if (cacheKey) {
+    try {
+      await redisClient.setEx(cacheKey, WINDOW_CACHE_TTL, JSON.stringify(result.rows));
+    } catch {
+      // cache write is best-effort
+    }
   }
 
   return { comments: result.rows, source: 'db' };
@@ -125,12 +136,7 @@ async function deleteComment({ commentId }) {
   const result = await db.query('DELETE FROM track_comments WHERE id = $1 RETURNING song_id', [commentId]);
   if (result.rows.length === 0) return false;
 
-  try {
-    // Cheap invalidation: drop the whole song's cached set.
-    await redisClient.del(cacheKey(result.rows[0].song_id));
-  } catch {
-    // cache will expire on its own
-  }
+  await bumpVersion(result.rows[0].song_id);
   return true;
 }
 

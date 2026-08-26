@@ -62,21 +62,33 @@ describe('jobQueue', () => {
   });
 
   describe('claimNext', () => {
-    it('claims atomically with FOR UPDATE SKIP LOCKED', async () => {
-      db.query.mockResolvedValueOnce({ rows: [{ id: 5, job_type: 'transcode' }] });
+    it('parks exhausted crash-orphans, then claims atomically with SKIP LOCKED', async () => {
+      db.query
+        .mockResolvedValueOnce({ rows: [] }) // stale-orphan parking sweep
+        .mockResolvedValueOnce({ rows: [{ id: 5, job_type: 'transcode' }] });
 
       const job = await jobQueue.claimNext(['transcode']);
 
       expect(job.id).toBe(5);
-      const [sql, params] = db.query.mock.calls[0];
+      const [sweepSql] = db.query.mock.calls[0];
+      expect(sweepSql).toContain(`status = 'dead'`);
+      expect(sweepSql).toContain('attempts >= max_attempts');
+
+      const [sql, params] = db.query.mock.calls[1];
       expect(sql).toContain('FOR UPDATE SKIP LOCKED');
       expect(sql).toContain(`status = 'queued'`);
+      // Visibility timeout: running jobs orphaned by a crashed worker become
+      // reclaimable, bounded by remaining attempts.
+      expect(sql).toContain(`status = 'running'`);
+      expect(sql).toContain('attempts < max_attempts');
       expect(sql).toContain('job_type = ANY($1)');
       expect(params[0]).toEqual(['transcode']);
     });
 
     it('returns null when the queue is empty', async () => {
-      db.query.mockResolvedValueOnce({ rows: [] });
+      db.query
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] });
       expect(await jobQueue.claimNext()).toBeNull();
     });
   });

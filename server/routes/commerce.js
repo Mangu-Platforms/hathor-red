@@ -6,6 +6,7 @@ const {
   validate,
   idParamValidation,
   productValidation,
+  productListValidation,
   productUpdateValidation,
   checkoutValidation,
   downloadTokenRequestValidation,
@@ -16,7 +17,7 @@ const {
 } = require('../middleware/validation');
 
 // Products
-router.get('/products', authMiddleware, commerceController.listProducts);
+router.get('/products', authMiddleware, productListValidation, validate, commerceController.listProducts);
 router.post('/products', authMiddleware, productValidation, validate, commerceController.createProduct);
 router.put('/products/:id', authMiddleware, productUpdateValidation, validate, commerceController.updateProduct);
 
