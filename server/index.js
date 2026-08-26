@@ -22,8 +22,17 @@ const playlistRoutes = require('./routes/playlists');
 const playbackRoutes = require('./routes/playback');
 const roomRoutes = require('./routes/rooms');
 const aiRoutes = require('./routes/ai');
+const mediaRoutes = require('./routes/media');
+const commerceRoutes = require('./routes/commerce');
+const discoveryRoutes = require('./routes/discovery');
+const socialRoutes = require('./routes/social');
+const intelRoutes = require('./routes/intel');
+const privacyRoutes = require('./routes/privacy');
 
 const colabAIService = require('./services/colabAIService');
+const features = require('./config/features');
+const jobWorker = require('./services/jobs/worker');
+const transcodeService = require('./services/media/transcodeService');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -111,6 +120,24 @@ app.use('/api/playlists', playlistRoutes);
 app.use('/api/playback', playbackRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/ai', aiRoutes);
+if (features.isMediaPipelineEnabled()) {
+  app.use('/api/media', mediaRoutes);
+}
+if (features.isCommerceEnabled()) {
+  app.use('/api/commerce', commerceRoutes);
+}
+if (features.isDiscoveryEnabled()) {
+  app.use('/api/discovery', discoveryRoutes);
+}
+if (features.isSocialEnabled()) {
+  app.use('/api/social', socialRoutes);
+}
+if (features.isIntelEnabled()) {
+  app.use('/api/intel', intelRoutes);
+}
+if (features.isPrivacyEnabled()) {
+  app.use('/api/privacy', privacyRoutes);
+}
 
 // Health check
 app.get('/api/health', healthLimiter, async (req, res) => {
@@ -182,6 +209,31 @@ const startServer = async () => {
 
     const aiInitialized = await colabAIService.initialize();
     logger.info(aiInitialized ? 'Colab AI Service initialized' : 'Colab AI Service running in fallback mode');
+
+    if (features.isWorkerEnabled()) {
+      try {
+        if (features.isMediaPipelineEnabled()) {
+          jobWorker.register('transcode', transcodeService.processTranscodeJob);
+        }
+        if (features.isDiscoveryEnabled()) {
+          const embeddingService = require('./services/discovery/embeddingService');
+          const radarService = require('./services/discovery/radarService');
+          jobWorker.register('embed-songs', embeddingService.processEmbedJob);
+          jobWorker.register('radar-refresh', radarService.processRadarRefreshJob);
+        }
+        if (features.isIntelEnabled()) {
+          const analyticsService = require('./services/intel/analyticsService');
+          jobWorker.register('intel-rollup', analyticsService.processRollupJob);
+        }
+        if (features.isPrivacyEnabled()) {
+          const exportService = require('./services/privacy/exportService');
+          jobWorker.register('gdpr-export', exportService.processExportJob);
+        }
+        await jobWorker.start({ intervalMs: parseInt(process.env.JOB_POLL_INTERVAL_MS, 10) || 15000 });
+      } catch (workerErr) {
+        logger.warn(`Job worker failed to start (API still serving): ${workerErr.message}`);
+      }
+    }
 
     server.listen(PORT, () => {
       logger.info(`Hathor server running on port ${PORT} (${process.env.NODE_ENV || 'development'})`);

@@ -132,3 +132,33 @@ Production secrets are injected by the deployment platform (Railway / Render / C
 It runs in **fallback mode** when `COLAB_API_KEY` and `COLAB_PROJECT_ID` are not set.
 Fallback mode returns structured mock responses; it does not throw.
 Never remove the fallback — the platform must work without a live AI backend.
+
+---
+
+## Project Olympus (appended 2026-08-25)
+
+The Olympus build (branch `claude/project-olympus-mangu-lt4ejb`) grows this repo into
+the Mangu Music Ecosystem: five pillars (audio engine, discovery, commerce, social,
+artist intelligence) implemented as a **modular monolith with extraction seams** —
+domain modules under `server/services/<domain>/`, a Postgres-backed job queue with
+optional Redis wake channel, and provider abstractions (payments, embeddings,
+transcode) that run in deterministic fallback mode without external credentials,
+following the `colabAIService` pattern.
+
+Charter and state for agents:
+
+- Program plan / requirements / traceability: `docs/olympus/program-plan.md`
+- Execution state (resume here mid-build): `.plan/execution-state.md`
+- Evidence & decisions ledger: `.plan/research-ledger.md`
+
+Olympus-specific rules (in addition to everything above):
+
+1. New server code is CommonJS `.js` wired into `server/index.js`. The pre-existing
+   `.ts` files under `server/` are unwired reference material — do not import them.
+2. Money is integer cents everywhere. Revenue split: artist 80 / platform 20,
+   remainder cent goes to the platform.
+3. New tables: append to `database/schema.sql` AND add a numbered migration
+   (`database/migrations/004+`). Additive DDL only.
+4. Every external integration needs a fallback mode and hermetic tests
+   (mock `../config/database` and `../config/redis`; never require live services).
+5. Pillar routes are gated by `FEATURE_*` env flags (see `server/config/features.js`).

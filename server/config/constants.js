@@ -59,10 +59,24 @@ module.exports = {
   // Valid room actions
   VALID_ROOM_ACTIONS: ['play', 'pause', 'seek', 'change-song'],
 
+  // Live reaction emoji whitelist (Olympus M4)
+  REACTION_EMOJIS: ['🔥', '❤️', '🎉', '😭', '🕺', '💯', '👏', '🐐'],
+
   // Cache TTLs (seconds)
   CACHE_TTL_SONGS: 300,
   CACHE_TTL_PLAYLISTS: 300,
   CACHE_TTL_ROOMS: 60,
+
+  // Media pipeline (Olympus M1)
+  WAVEFORM_BUCKETS: 512,
+  MEDIA_VARIANT_SPECS: [
+    { key: 'opus-160', format: 'opus', bitrateKbps: 160, extension: 'opus' },
+    { key: 'aac-256', format: 'aac', bitrateKbps: 256, extension: 'm4a' },
+    { key: 'mp3-320', format: 'mp3', bitrateKbps: 320, extension: 'mp3' },
+    { key: 'flac', format: 'flac', bitrateKbps: null, extension: 'flac' },
+    { key: 'hls-high', format: 'hls', bitrateKbps: 256, extension: 'm3u8' },
+    { key: 'hls-standard', format: 'hls', bitrateKbps: 128, extension: 'm3u8' },
+  ],
 
   // Audio quality tiers
   AUDIO_QUALITY: {

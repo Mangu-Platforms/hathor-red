@@ -9,7 +9,7 @@ const ListeningRoom = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { loadSong, togglePlay, isPlaying, currentSong, setQueueAndPlay } = usePlayer();
+  const { loadSong, togglePlay, isPlaying, currentSong } = usePlayer();
 
   const [room, setRoom] = useState(null);
   const [participants, setParticipants] = useState([]);

@@ -1,4 +1,4 @@
-const { body, param, validationResult } = require('express-validator');
+const { body, param, query, validationResult } = require('express-validator');
 const { ALLOWED_GENRES } = require('../config/constants');
 
 const validate = (req, res, next) => {
@@ -93,9 +93,139 @@ const idParamValidation = [
   param('id').isInt({ min: 1 }).withMessage('Invalid ID parameter'),
 ];
 
+const hlsResourceValidation = [
+  param('id').isInt({ min: 1 }).withMessage('Invalid ID parameter'),
+  param('variantKey')
+    .matches(/^[a-z0-9-]+$/i)
+    .withMessage('Invalid variant key'),
+  param('file')
+    .matches(/^(index\.m3u8|segment_\d{4}\.ts)$/)
+    .withMessage('Invalid HLS resource name'),
+];
+
 const updateProfileValidation = [
   body('displayName').optional().trim().isLength({ min: 1, max: 100 }),
   body('avatarUrl').optional().trim().isURL().withMessage('Invalid avatar URL'),
+];
+
+// ── Olympus M2: commerce ────────────────────────────────────────────────────
+
+const MAX_PRICE_CENTS = 10000000; // $100,000 ceiling guards fat-finger listings
+
+const productValidation = [
+  body('title').trim().notEmpty().isLength({ max: 255 }).withMessage('Title is required (max 255 chars)'),
+  body('description').optional().trim().isLength({ max: 2000 }),
+  body('productType').optional().isIn(['track', 'album', 'merch']).withMessage('Invalid product type'),
+  body('songId').optional().isInt({ min: 1 }).withMessage('Invalid song ID'),
+  body('priceCents').isInt({ min: 0, max: MAX_PRICE_CENTS }).withMessage('Price must be 0-10000000 cents'),
+  body('minPriceCents').optional().isInt({ min: 0, max: MAX_PRICE_CENTS }).withMessage('Invalid minimum price'),
+  body('nameYourPrice').optional().isBoolean(),
+  body('currency').optional().matches(/^[A-Za-z]{3}$/).withMessage('Currency must be a 3-letter code'),
+];
+
+const productUpdateValidation = [
+  param('id').isInt({ min: 1 }).withMessage('Invalid ID parameter'),
+  body('title').optional().trim().notEmpty().isLength({ max: 255 }),
+  body('description').optional().trim().isLength({ max: 2000 }),
+  body('priceCents').optional().isInt({ min: 0, max: MAX_PRICE_CENTS }),
+  body('minPriceCents').optional().isInt({ min: 0, max: MAX_PRICE_CENTS }),
+  body('nameYourPrice').optional().isBoolean(),
+  body('active').optional().isBoolean(),
+];
+
+const checkoutValidation = [
+  body('productId').isInt({ min: 1 }).withMessage('Invalid product ID'),
+  body('amountCents').optional().isInt({ min: 0, max: MAX_PRICE_CENTS }).withMessage('Invalid amount'),
+  body('idempotencyKey')
+    .isString()
+    .isLength({ min: 8, max: 100 })
+    .withMessage('idempotencyKey must be 8-100 characters'),
+];
+
+const downloadTokenRequestValidation = [
+  body('songId').isInt({ min: 1 }).withMessage('Invalid song ID'),
+];
+
+const downloadTokenParamValidation = [
+  param('token').matches(/^[0-9a-f]{64}$/).withMessage('Invalid download token'),
+];
+
+const tierValidation = [
+  body('name').trim().notEmpty().isLength({ max: 100 }).withMessage('Tier name is required'),
+  body('description').optional().trim().isLength({ max: 2000 }),
+  body('priceCents').isInt({ min: 1, max: MAX_PRICE_CENTS }).withMessage('Tier price must be positive'),
+  body('perks').optional().isObject().withMessage('Perks must be an object'),
+];
+
+const subscribeValidation = [
+  body('tierId').isInt({ min: 1 }).withMessage('Invalid tier ID'),
+];
+
+// ── Olympus M4: social ──────────────────────────────────────────────────────
+
+const MAX_TRACK_MS = 7200 * 1000; // mirrors the 2h duration ceiling
+
+const trackCommentValidation = [
+  param('id').isInt({ min: 1 }).withMessage('Invalid ID parameter'),
+  body('body').trim().notEmpty().isLength({ max: 500 }).withMessage('Comment is required (max 500 chars)'),
+  body('timestampMs').isInt({ min: 0, max: MAX_TRACK_MS }).withMessage('timestampMs must be within the track'),
+];
+
+const commentWindowValidation = [
+  param('id').isInt({ min: 1 }).withMessage('Invalid ID parameter'),
+  query('fromMs').optional().isInt({ min: 0 }).withMessage('fromMs must be non-negative'),
+  query('toMs').optional().isInt({ min: 0 }).withMessage('toMs must be non-negative'),
+  query('limit').optional().isInt({ min: 1, max: 500 }).withMessage('Limit must be 1-500'),
+];
+
+// ── Olympus M6: privacy ─────────────────────────────────────────────────────
+
+// POST body is empty; chain keeps the auth → validation → validate contract.
+const exportRequestValidation = [
+  body('confirm').optional().isBoolean(),
+];
+
+const exportDownloadValidation = [
+  param('token').matches(/^[0-9a-f]{64}$/).withMessage('Invalid export token'),
+];
+
+const deletionRequestValidation = [
+  body('reason').optional().trim().isLength({ max: 1000 }),
+];
+
+// ── Olympus M5: intelligence ────────────────────────────────────────────────
+
+const eventsBatchValidation = [
+  body('events').isArray({ min: 1, max: 100 }).withMessage('events must be an array of 1-100 items'),
+  body('events.*.songId').isInt({ min: 1 }).withMessage('Each event needs a valid songId'),
+  body('events.*.type')
+    .isIn(['play', 'pause', 'seek', 'skip', 'complete', 'segment'])
+    .withMessage('Invalid event type'),
+  body('events.*.positionMs').optional().isInt({ min: 0 }).withMessage('positionMs must be non-negative'),
+  body('events.*.durationMs').optional().isInt({ min: 0 }).withMessage('durationMs must be non-negative'),
+  body('events.*.clientEventId').optional().isString().isLength({ max: 64 }),
+  body('source').optional().isIn(['web', 'mobile', 'desktop']).withMessage('Invalid source'),
+];
+
+// ── Olympus M3: discovery ───────────────────────────────────────────────────
+
+const discoverySearchValidation = [
+  query('q').trim().notEmpty().isLength({ max: 200 }).withMessage('Search query is required (max 200 chars)'),
+  query('limit').optional().isInt({ min: 1, max: 50 }).withMessage('Limit must be 1-50'),
+];
+
+// POST body is empty; the chain exists so the route keeps the
+// auth → validation → validate → controller contract.
+const reindexValidation = [
+  body('confirm').optional().isBoolean(),
+];
+
+const earlyAccessValidation = [
+  param('id').isInt({ min: 1 }).withMessage('Invalid ID parameter'),
+  body('until')
+    .optional({ nullable: true })
+    .isISO8601()
+    .withMessage('until must be an ISO 8601 timestamp or null'),
 ];
 
 module.exports = {
@@ -109,5 +239,22 @@ module.exports = {
   recordListeningValidation,
   roomValidation,
   idParamValidation,
+  hlsResourceValidation,
   updateProfileValidation,
+  productValidation,
+  productUpdateValidation,
+  checkoutValidation,
+  downloadTokenRequestValidation,
+  downloadTokenParamValidation,
+  tierValidation,
+  subscribeValidation,
+  earlyAccessValidation,
+  discoverySearchValidation,
+  reindexValidation,
+  trackCommentValidation,
+  commentWindowValidation,
+  eventsBatchValidation,
+  exportRequestValidation,
+  exportDownloadValidation,
+  deletionRequestValidation,
 };
