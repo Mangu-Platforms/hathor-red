@@ -126,6 +126,16 @@ polish → M5 drops geo heatmap detail. Record any descope as a DEC entry in the
 - Watching PR #97 (subscribed). Next: drive #97 to green/merge; check-in
   scheduled via send_later.
 
+### C-007 (dependency remediation, PR #97 driving to green)
+- Scan check ran for the FIRST time on 55b9bbc (SHA pin worked) and reported
+  the pre-existing backlog: 84 CVEs (2 CRIT websocket-driver + shell-quote,
+  39 HIGH incl. ws/engine.io/socket.io-parser/multer). Commit 4d09cef fixes
+  all 84 via direct bumps + pnpm.overrides (each within consumer major line),
+  lockfile regenerated. Gates green: 173/173 jest, eslint, tsc, require graph
+  under uuid11/multer2.2, client CI=true build.
+- PR #97 body updated with the full story. Awaiting CI on 4d09cef; check-in
+  trig_01YGzz8BdVjBATT4St5Pwoyt fires 04:22Z to verify green + re-arm.
+
 ## Open blockers
 
 (none)
