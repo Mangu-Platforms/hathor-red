@@ -7,10 +7,17 @@ const { buildRoomStatePayload } = require('../services/social/syncService');
 const activeUsers = new Map();
 const roomHosts = new Map();
 
-// In-memory presence per room: roomId -> Map<userId, { username, joinedAt }>.
-// Single-instance state; a Redis-backed presence set is the multi-instance
-// extraction seam (same shape, different store).
+// In-memory presence per room: roomId -> Map<userId, { username, joinedAt,
+// sockets:Set<socketId> }>. Socket-refcounted so a user with two tabs stays
+// present until the LAST connection leaves. Single-instance state; a
+// Redis-backed presence set is the multi-instance extraction seam.
 const roomPresence = new Map();
+
+// Rooms are fetched with a DB-computed elapsed so sync math never depends on
+// app/DB clock or timezone agreement (see services/social/syncService.js).
+const ROOM_SELECT = `SELECT *,
+  (EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - updated_at)) * 1000)::bigint AS elapsed_ms
+  FROM listening_rooms WHERE id = $1`;
 
 function presenceRoster(roomId) {
   const members = roomPresence.get(roomId);
@@ -22,16 +29,44 @@ function presenceRoster(roomId) {
   }));
 }
 
-function addPresence(roomId, userId, username) {
+function addPresence(roomId, userId, username, socketId) {
   if (!roomPresence.has(roomId)) roomPresence.set(roomId, new Map());
-  roomPresence.get(roomId).set(userId, { username, joinedAt: Date.now() });
+  const members = roomPresence.get(roomId);
+  const existing = members.get(userId);
+  if (existing) {
+    existing.sockets.add(socketId);
+    return;
+  }
+  members.set(userId, { username, joinedAt: Date.now(), sockets: new Set([socketId]) });
 }
 
-function removePresence(roomId, userId) {
+/** Returns true when this was the user's LAST socket in the room. */
+function removePresence(roomId, userId, socketId) {
   const members = roomPresence.get(roomId);
-  if (!members) return;
+  if (!members) return true;
+  const entry = members.get(userId);
+  if (!entry) return true;
+  entry.sockets.delete(socketId);
+  if (entry.sockets.size > 0) return false;
   members.delete(userId);
   if (members.size === 0) roomPresence.delete(roomId);
+  return true;
+}
+
+// Lightweight per-socket event throttle: `max` events per rolling second.
+// Protects fan-out (chat/reactions to up to 100 clients) and per-event DB
+// writes from a hostile or broken client; REST routes have express-rate-limit,
+// sockets get this.
+function allowEvent(socket, eventKey, max) {
+  if (!socket._eventBuckets) socket._eventBuckets = new Map();
+  const now = Date.now();
+  const bucket = socket._eventBuckets.get(eventKey);
+  if (!bucket || now - bucket.windowStart >= 1000) {
+    socket._eventBuckets.set(eventKey, { windowStart: now, count: 1 });
+    return true;
+  }
+  bucket.count += 1;
+  return bucket.count <= max;
 }
 
 /**
@@ -48,11 +83,14 @@ async function handleHostHandoff(io, roomId, leavingUserId) {
     if (roomResult.rows.length === 0 || roomResult.rows[0].host_id !== leavingUserId) return;
   }
 
-  const roster = presenceRoster(roomId)
-    .filter((m) => m.userId !== leavingUserId)
-    .sort((a, b) => a.joinedAt - b.joinedAt);
+  const pickCandidate = () => {
+    const roster = presenceRoster(roomId)
+      .filter((m) => m.userId !== leavingUserId)
+      .sort((a, b) => a.joinedAt - b.joinedAt);
+    return roster.length > 0 ? roster[0].userId : null;
+  };
 
-  let newHostId = roster.length > 0 ? roster[0].userId : null;
+  let newHostId = pickCandidate();
   if (newHostId === null) {
     const participants = await db.query(
       `SELECT user_id FROM room_participants
@@ -61,6 +99,11 @@ async function handleHostHandoff(io, roomId, leavingUserId) {
       [roomId, leavingUserId]
     );
     newHostId = participants.rows.length > 0 ? participants.rows[0].user_id : null;
+  } else {
+    // The candidate may itself have left during our awaits — re-pick from the
+    // live presence map (synchronous read) right before committing.
+    const recheck = pickCandidate();
+    if (recheck !== null) newHostId = recheck;
   }
 
   if (newHostId === null) {
@@ -74,7 +117,7 @@ async function handleHostHandoff(io, roomId, leavingUserId) {
   );
   roomHosts.set(roomId, newHostId);
 
-  const newHost = roster.find((m) => m.userId === newHostId);
+  const newHost = presenceRoster(roomId).find((m) => m.userId === newHostId);
   io.to(`room-${roomId}`).emit('host-changed', {
     roomId,
     newHostId,
@@ -85,7 +128,11 @@ async function handleHostHandoff(io, roomId, leavingUserId) {
 }
 
 async function departRoom(io, socket, roomId, { announce = true } = {}) {
-  removePresence(roomId, socket.userId);
+  const lastSocket = removePresence(roomId, socket.userId, socket.id);
+  if (!lastSocket) {
+    // Another tab of the same user is still in the room — nothing to announce.
+    return;
+  }
   try {
     await db.query('DELETE FROM room_participants WHERE room_id = $1 AND user_id = $2', [roomId, socket.userId]);
   } catch (err) {
@@ -147,7 +194,16 @@ const setupSocketHandlers = (io) => {
           return socket.emit('error', { message: 'Invalid room ID' });
         }
 
-        const roomResult = await db.query('SELECT * FROM listening_rooms WHERE id = $1', [roomIdNum]);
+        // A socket lives in at most one room: joining a new one departs the
+        // old one first, so no presence/subscription ghost is left behind.
+        if (socket.currentRoom && socket.currentRoom !== roomIdNum) {
+          const previousRoom = socket.currentRoom;
+          socket.leave(`room-${previousRoom}`);
+          socket.currentRoom = null;
+          await departRoom(io, socket, previousRoom);
+        }
+
+        const roomResult = await db.query(ROOM_SELECT, [roomIdNum]);
         if (roomResult.rows.length === 0) {
           return socket.emit('error', { message: 'Room not found' });
         }
@@ -169,8 +225,13 @@ const setupSocketHandlers = (io) => {
 
         socket.join(`room-${roomIdNum}`);
         socket.currentRoom = roomIdNum;
-        roomHosts.set(roomIdNum, room.host_id);
-        addPresence(roomIdNum, socket.userId, socket.username);
+        // Seed the host cache only when cold: a concurrent handoff may have
+        // updated it while our reads above were in flight, and the handoff's
+        // value is fresher than our row snapshot.
+        if (!roomHosts.has(roomIdNum)) {
+          roomHosts.set(roomIdNum, room.host_id);
+        }
+        addPresence(roomIdNum, socket.userId, socket.username, socket.id);
 
         socket.to(`room-${roomIdNum}`).emit('user-joined', {
           userId: socket.userId,
@@ -196,9 +257,13 @@ const setupSocketHandlers = (io) => {
       try {
         const roomIdNum = parseInt(roomId, 10);
         if (isNaN(roomIdNum) || roomIdNum < 1) return;
+        // Only a room this socket actually joined can be left — otherwise any
+        // client could fabricate user-left announcements and trigger handoffs
+        // in rooms it never entered.
+        if (socket.currentRoom !== roomIdNum) return;
         socket.leave(`room-${roomIdNum}`);
-        await departRoom(io, socket, roomIdNum);
         socket.currentRoom = null;
+        await departRoom(io, socket, roomIdNum);
       } catch (error) {
         logger.error('Leave room socket error:', error);
       }
@@ -207,18 +272,22 @@ const setupSocketHandlers = (io) => {
     // NTP-style clock sync: reply instantly with both timestamps so the
     // client can estimate its offset (see services/social/syncService.js).
     socket.on('sync-ping', (data) => {
+      if (!allowEvent(socket, 'sync-ping', 4)) return;
       socket.emit('sync-pong', {
         clientTime: data?.clientTime ?? null,
         serverTime: Date.now(),
       });
     });
 
-    // Fresh sync snapshot on demand (e.g. after tab refocus).
+    // Fresh sync snapshot on demand (e.g. after tab refocus). Members only —
+    // room state, hostId, and the roster are for people in the room.
     socket.on('request-room-state', async (roomId) => {
       try {
         const roomIdNum = parseInt(roomId, 10);
         if (isNaN(roomIdNum) || roomIdNum < 1) return;
-        const roomResult = await db.query('SELECT * FROM listening_rooms WHERE id = $1', [roomIdNum]);
+        if (socket.currentRoom !== roomIdNum) return;
+        if (!allowEvent(socket, 'room-state', 4)) return;
+        const roomResult = await db.query(ROOM_SELECT, [roomIdNum]);
         if (roomResult.rows.length === 0) return;
         socket.emit('room-state', {
           ...buildRoomStatePayload(roomResult.rows[0]),
@@ -240,6 +309,7 @@ const setupSocketHandlers = (io) => {
           return socket.emit('error', { message: 'Unsupported reaction' });
         }
         if (socket.currentRoom !== roomIdNum) return;
+        if (!allowEvent(socket, 'reaction', 6)) return;
         io.to(`room-${roomIdNum}`).emit('room-reaction', {
           userId: socket.userId,
           username: socket.username,
@@ -262,6 +332,7 @@ const setupSocketHandlers = (io) => {
         const targetId = parseInt(targetUserId, 10);
         if (isNaN(roomIdNum) || isNaN(targetId)) return;
         if (socket.currentRoom !== roomIdNum) return;
+        if (!allowEvent(socket, 'rtc', 30)) return;
         const members = roomPresence.get(roomIdNum);
         if (!members || !members.has(targetId)) return;
         socket.to(`user-${targetId}`).emit(eventName, {
@@ -356,6 +427,11 @@ const setupSocketHandlers = (io) => {
         const { roomId, message } = data;
         const roomIdNum = parseInt(roomId, 10);
         if (isNaN(roomIdNum) || roomIdNum < 1) return;
+        // Members only — same guard the reaction and RTC handlers enforce.
+        if (socket.currentRoom !== roomIdNum) return;
+        if (!allowEvent(socket, 'chat', 3)) {
+          return socket.emit('error', { message: 'Slow down' });
+        }
         const sanitizedMessage = sanitizeChatMessage(message);
         if (!sanitizedMessage) return;
 
@@ -409,8 +485,10 @@ const setupSocketHandlers = (io) => {
     });
 
     socket.on('typing', (data) => {
-      const { roomId } = data;
-      socket.to(`room-${roomId}`).emit('user-typing', {
+      const roomIdNum = parseInt(data?.roomId, 10);
+      if (isNaN(roomIdNum) || socket.currentRoom !== roomIdNum) return;
+      if (!allowEvent(socket, 'typing', 5)) return;
+      socket.to(`room-${roomIdNum}`).emit('user-typing', {
         userId: socket.userId,
         username: socket.username,
       });
@@ -428,6 +506,13 @@ const setupSocketHandlers = (io) => {
       }
     });
   });
+};
+
+/** Test hook: clear module-level presence/host/user state between suites. */
+setupSocketHandlers.resetStateForTests = () => {
+  activeUsers.clear();
+  roomHosts.clear();
+  roomPresence.clear();
 };
 
 module.exports = setupSocketHandlers;

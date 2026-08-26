@@ -57,11 +57,28 @@ async function enqueue(jobType, payload = {}, options = {}) {
   return result.rows[0];
 }
 
+// A job stuck in 'running' longer than this is presumed orphaned by a worker
+// crash and becomes reclaimable (visibility timeout).
+const STALE_RUNNING_MINUTES = 15;
+
 /**
  * Atomically claim the next runnable job of the given types (or any type when
- * omitted). Returns the claimed row or null.
+ * omitted). Also reclaims jobs orphaned in 'running' by a crashed worker once
+ * the visibility timeout passes; orphans that already burned max_attempts are
+ * parked as 'dead'. Returns the claimed row or null.
  */
 async function claimNext(jobTypes = null) {
+  // Park crash-orphans that have no attempts left, so they surface for ops
+  // instead of being reclaimed forever.
+  await db.query(
+    `UPDATE jobs SET status = 'dead',
+       last_error = COALESCE(last_error, 'worker lost (stale running, attempts exhausted)'),
+       finished_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+     WHERE status = 'running'
+       AND started_at < CURRENT_TIMESTAMP - INTERVAL '${STALE_RUNNING_MINUTES} minutes'
+       AND attempts >= max_attempts`
+  );
+
   const params = [];
   let typeFilter = '';
   if (Array.isArray(jobTypes) && jobTypes.length > 0) {
@@ -77,7 +94,9 @@ async function claimNext(jobTypes = null) {
        updated_at = CURRENT_TIMESTAMP
      WHERE id IN (
        SELECT id FROM jobs
-       WHERE status = 'queued' AND run_at <= CURRENT_TIMESTAMP ${typeFilter}
+       WHERE ((status = 'queued' AND run_at <= CURRENT_TIMESTAMP)
+           OR (status = 'running' AND started_at < CURRENT_TIMESTAMP - INTERVAL '${STALE_RUNNING_MINUTES} minutes'))
+         AND attempts < max_attempts ${typeFilter}
        ORDER BY priority DESC, run_at ASC
        LIMIT 1
        FOR UPDATE SKIP LOCKED

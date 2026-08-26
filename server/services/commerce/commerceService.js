@@ -55,9 +55,9 @@ function resolveChargeAmount(product, requestedCents) {
   return price;
 }
 
-async function writeLedgerEntries({ purchaseId = null, subscriptionId = null, artistUserId, amountCents, currency }) {
+async function writeLedgerEntries({ purchaseId = null, subscriptionId = null, artistUserId, amountCents, currency }, executor = db) {
   const shares = split(amountCents);
-  await db.query(
+  await executor.query(
     `INSERT INTO revenue_ledger (purchase_id, subscription_id, artist_user_id, entry_type, amount_cents, currency)
      VALUES ($1, $2, $3, 'artist_share', $4, $6),
             ($1, $2, $3, 'platform_share', $5, $6)`,
@@ -66,8 +66,8 @@ async function writeLedgerEntries({ purchaseId = null, subscriptionId = null, ar
   return shares;
 }
 
-async function grantLibraryEntitlement({ userId, songId, purchaseId }) {
-  await db.query(
+async function grantLibraryEntitlement({ userId, songId, purchaseId }, executor = db) {
+  await executor.query(
     `INSERT INTO user_library (user_id, song_id, purchase_id)
      VALUES ($1, $2, $3)
      ON CONFLICT (user_id, song_id) DO NOTHING`,
@@ -75,15 +75,116 @@ async function grantLibraryEntitlement({ userId, songId, purchaseId }) {
   );
 }
 
-async function issueDownloadToken({ userId, songId, purchaseId = null }) {
+async function issueDownloadToken({ userId, songId, purchaseId = null }, executor = db) {
   const token = crypto.randomBytes(32).toString('hex');
-  const result = await db.query(
+  const result = await executor.query(
     `INSERT INTO download_tokens (token, user_id, song_id, purchase_id, expires_at)
      VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP + ($5 || ' hours')::interval)
      RETURNING token, expires_at`,
     [token, userId, songId, purchaseId, String(DOWNLOAD_TOKEN_TTL_HOURS)]
   );
   return result.rows[0];
+}
+
+/**
+ * Post-charge finalization: completed-UPDATE, 80/20 ledger, library grant and
+ * download token run in ONE transaction, so a mid-sequence failure rolls back
+ * to a resumable 'pending' purchase instead of a charged-but-ungranted one.
+ * With this invariant, status 'completed' always implies ledger + entitlement.
+ */
+async function finalizePurchase({ purchase, product, chargeCents, providerRef, buyerUserId }) {
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    await client.query(
+      `UPDATE purchases SET status = 'completed', provider_ref = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+      [purchase.id, providerRef]
+    );
+
+    const shares = await writeLedgerEntries({
+      purchaseId: purchase.id,
+      artistUserId: product.artist_user_id,
+      amountCents: chargeCents,
+      currency: product.currency,
+    }, client);
+
+    let downloadToken = null;
+    if (product.song_id) {
+      await grantLibraryEntitlement(
+        { userId: buyerUserId, songId: product.song_id, purchaseId: purchase.id },
+        client
+      );
+      downloadToken = await issueDownloadToken(
+        { userId: buyerUserId, songId: product.song_id, purchaseId: purchase.id },
+        client
+      );
+    }
+
+    await client.query('COMMIT');
+    return { shares, downloadToken };
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      // connection-level failure; the purchase stays 'pending' and resumable
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Charge (unless free) and finalize a pending purchase. The provider
+ * idempotency key is derived from the purchase id, so resuming a crashed or
+ * retried purchase can never double-charge.
+ */
+async function chargeAndFinalize({ purchase, product, buyerUserId }) {
+  const chargeCents = parseInt(purchase.amount_cents, 10);
+  const provider = getProvider();
+
+  let outcome = { ok: true, providerRef: null };
+  if (chargeCents > 0) {
+    outcome = await provider.createCharge({
+      amountCents: chargeCents,
+      currency: product.currency,
+      idempotencyKey: `purchase:${purchase.id}`,
+      description: `Mangu purchase: ${product.title}`,
+    });
+  }
+
+  if (!outcome.ok) {
+    await db.query(
+      `UPDATE purchases SET status = 'failed', provider_ref = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+      [purchase.id, outcome.providerRef]
+    );
+    throw new CommerceError(402, `Payment failed: ${outcome.error || 'declined'}`);
+  }
+
+  const { shares, downloadToken } = await finalizePurchase({
+    purchase,
+    product,
+    chargeCents,
+    providerRef: outcome.providerRef,
+    buyerUserId,
+  });
+
+  logger.info({
+    action: 'purchase_completed',
+    purchaseId: purchase.id,
+    productId: product.id,
+    buyerUserId,
+    amountCents: chargeCents,
+    artistCents: shares.artistCents,
+  });
+
+  return {
+    purchase: { ...purchase, status: 'completed', provider_ref: outcome.providerRef },
+    amountCents: chargeCents,
+    shares,
+    downloadToken,
+  };
 }
 
 /**
@@ -105,6 +206,34 @@ async function redeemDownloadToken(token) {
  * Checkout: validate price rules, charge via the active provider, grant the
  * entitlement, write the 80/20 ledger. Idempotent per (buyer, idempotencyKey).
  */
+async function loadProduct(productId) {
+  const productResult = await db.query(
+    'SELECT * FROM products WHERE id = $1 AND active = TRUE',
+    [productId]
+  );
+  return productResult.rows[0] || null;
+}
+
+/**
+ * Replay handling: a 'completed' purchase short-circuits (finalization is
+ * transactional, so completed implies ledger + entitlement). A 'pending' or
+ * 'failed' purchase RESUMES — same provider idempotency key, so a crashed
+ * charge is recovered and a declined one re-returns its decline — instead of
+ * being reported as a success it never was.
+ */
+async function resumeOrReplay(existingPurchase, buyerUserId) {
+  if (existingPurchase.status === 'completed') {
+    return { purchase: existingPurchase, replayed: true };
+  }
+
+  const product = await loadProduct(existingPurchase.product_id);
+  if (!product) {
+    throw new CommerceError(409, 'Original product is no longer available; contact support');
+  }
+  const result = await chargeAndFinalize({ purchase: existingPurchase, product, buyerUserId });
+  return { ...result, replayed: true, resumed: true };
+}
+
 async function checkout({ buyerUserId, productId, amountCents, idempotencyKey }) {
   if (!idempotencyKey || typeof idempotencyKey !== 'string') {
     throw new CommerceError(400, 'idempotencyKey is required');
@@ -115,14 +244,10 @@ async function checkout({ buyerUserId, productId, amountCents, idempotencyKey })
     [buyerUserId, idempotencyKey]
   );
   if (existing.rows.length > 0) {
-    return { purchase: existing.rows[0], replayed: true };
+    return resumeOrReplay(existing.rows[0], buyerUserId);
   }
 
-  const productResult = await db.query(
-    'SELECT * FROM products WHERE id = $1 AND active = TRUE',
-    [productId]
-  );
-  const product = productResult.rows[0];
+  const product = await loadProduct(productId);
   if (!product) throw new CommerceError(404, 'Product not found or inactive');
   if (product.artist_user_id === buyerUserId) {
     throw new CommerceError(400, 'You cannot buy your own product');
@@ -144,67 +269,11 @@ async function checkout({ buyerUserId, productId, amountCents, idempotencyKey })
       'SELECT * FROM purchases WHERE buyer_user_id = $1 AND idempotency_key = $2',
       [buyerUserId, idempotencyKey]
     );
-    return { purchase: raced.rows[0], replayed: true };
-  }
-  const purchase = inserted.rows[0];
-
-  // Zero-amount checkouts (free / name-your-price $0) skip the charge call.
-  let outcome = { ok: true, providerRef: null };
-  if (charge > 0) {
-    outcome = await provider.createCharge({
-      amountCents: charge,
-      currency: product.currency,
-      idempotencyKey: `purchase:${purchase.id}`,
-      description: `Mangu purchase: ${product.title}`,
-    });
+    return resumeOrReplay(raced.rows[0], buyerUserId);
   }
 
-  if (!outcome.ok) {
-    await db.query(
-      `UPDATE purchases SET status = 'failed', provider_ref = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
-      [purchase.id, outcome.providerRef]
-    );
-    throw new CommerceError(402, `Payment failed: ${outcome.error || 'declined'}`);
-  }
-
-  await db.query(
-    `UPDATE purchases SET status = 'completed', provider_ref = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
-    [purchase.id, outcome.providerRef]
-  );
-
-  const shares = await writeLedgerEntries({
-    purchaseId: purchase.id,
-    artistUserId: product.artist_user_id,
-    amountCents: charge,
-    currency: product.currency,
-  });
-
-  let downloadToken = null;
-  if (product.song_id) {
-    await grantLibraryEntitlement({ userId: buyerUserId, songId: product.song_id, purchaseId: purchase.id });
-    downloadToken = await issueDownloadToken({
-      userId: buyerUserId,
-      songId: product.song_id,
-      purchaseId: purchase.id,
-    });
-  }
-
-  logger.info({
-    action: 'purchase_completed',
-    purchaseId: purchase.id,
-    productId,
-    buyerUserId,
-    amountCents: charge,
-    artistCents: shares.artistCents,
-  });
-
-  return {
-    purchase: { ...purchase, status: 'completed', provider_ref: outcome.providerRef },
-    amountCents: charge,
-    shares,
-    downloadToken,
-    replayed: false,
-  };
+  const result = await chargeAndFinalize({ purchase: inserted.rows[0], product, buyerUserId });
+  return { ...result, replayed: false };
 }
 
 /** Subscribe a fan to an artist tier; charges the first period immediately. */
@@ -228,27 +297,21 @@ async function subscribe({ fanUserId, tierId }) {
     throw new CommerceError(409, 'Already subscribed to this artist');
   }
 
+  // Claim the uniqueness-guarded row BEFORE charging: a concurrent duplicate
+  // loses at the partial unique index with no money moved. provider_ref stays
+  // NULL until the charge lands, so a crash in the window leaves an
+  // inspectable unpaid row rather than an orphaned charge.
   const provider = getProvider();
-  const outcome = await provider.createCharge({
-    amountCents: parseInt(tier.price_cents, 10),
-    currency: tier.currency,
-    idempotencyKey: `sub:${fanUserId}:${tierId}:first`,
-    description: `Mangu fan club: ${tier.name}`,
-  });
-  if (!outcome.ok) {
-    throw new CommerceError(402, `Payment failed: ${outcome.error || 'declined'}`);
-  }
-
   let subscription;
   try {
     const inserted = await db.query(
       `INSERT INTO artist_subscriptions
          (tier_id, fan_user_id, artist_user_id, status, provider, provider_ref,
           current_period_start, current_period_end)
-       VALUES ($1, $2, $3, 'active', $4, $5, CURRENT_TIMESTAMP,
-               CURRENT_TIMESTAMP + ($6 || ' days')::interval)
+       VALUES ($1, $2, $3, 'active', $4, NULL, CURRENT_TIMESTAMP,
+               CURRENT_TIMESTAMP + ($5 || ' days')::interval)
        RETURNING *`,
-      [tierId, fanUserId, tier.artist_user_id, provider.name, outcome.providerRef, String(SUBSCRIPTION_PERIOD_DAYS)]
+      [tierId, fanUserId, tier.artist_user_id, provider.name, String(SUBSCRIPTION_PERIOD_DAYS)]
     );
     subscription = inserted.rows[0];
   } catch (err) {
@@ -259,6 +322,23 @@ async function subscribe({ fanUserId, tierId }) {
     throw err;
   }
 
+  const outcome = await provider.createCharge({
+    amountCents: parseInt(tier.price_cents, 10),
+    currency: tier.currency,
+    idempotencyKey: `sub:${subscription.id}:first`,
+    description: `Mangu fan club: ${tier.name}`,
+  });
+  if (!outcome.ok) {
+    // Declined: remove the claim so the fan can retry cleanly.
+    await db.query('DELETE FROM artist_subscriptions WHERE id = $1', [subscription.id]);
+    throw new CommerceError(402, `Payment failed: ${outcome.error || 'declined'}`);
+  }
+
+  await db.query(
+    `UPDATE artist_subscriptions SET provider_ref = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+    [subscription.id, outcome.providerRef]
+  );
+
   await writeLedgerEntries({
     subscriptionId: subscription.id,
     artistUserId: tier.artist_user_id,
@@ -267,7 +347,25 @@ async function subscribe({ fanUserId, tierId }) {
   });
 
   logger.info({ action: 'subscription_created', subscriptionId: subscription.id, tierId, fanUserId });
-  return { subscription, tier };
+  return { subscription: { ...subscription, provider_ref: outcome.providerRef }, tier };
+}
+
+/**
+ * Job handler 'subs-expire': parks active memberships whose paid period ended
+ * more than a grace day ago as 'past_due' (renewal billing is the Stripe
+ * Connect milestone). Perks already stop at current_period_end via
+ * getFanClubPerks; this keeps the status column honest.
+ */
+async function processSubscriptionExpiryJob() {
+  const result = await db.query(
+    `UPDATE artist_subscriptions
+     SET status = 'past_due', updated_at = CURRENT_TIMESTAMP
+     WHERE status = 'active'
+       AND current_period_end IS NOT NULL
+       AND current_period_end < CURRENT_TIMESTAMP - INTERVAL '1 day'
+     RETURNING id`
+  );
+  return { expired: result.rows.length };
 }
 
 async function cancelSubscription({ fanUserId, subscriptionId }) {
@@ -357,4 +455,5 @@ module.exports = {
   issueDownloadToken,
   grantLibraryEntitlement,
   revenueSummary,
+  processSubscriptionExpiryJob,
 };

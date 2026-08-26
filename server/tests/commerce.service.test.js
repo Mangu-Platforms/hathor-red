@@ -1,4 +1,12 @@
-jest.mock('../config/database', () => ({ query: jest.fn() }));
+jest.mock('../config/database', () => {
+  const query = jest.fn();
+  // Transactional finalization runs on a dedicated client; sharing the same
+  // jest.fn keeps the SQL-dispatch mocks working across both paths.
+  return {
+    query,
+    pool: { connect: jest.fn(async () => ({ query, release: jest.fn() })) },
+  };
+});
 jest.mock('../config/redis', () => ({
   redisClient: { isReady: false },
   getRedisClient: jest.fn(() => null),
@@ -76,7 +84,7 @@ describe('checkout', () => {
     return calls;
   }
 
-  it('completes a purchase: charge, 80/20 ledger, library grant, download token', async () => {
+  it('completes a purchase: charge, then transactional ledger + grant + token', async () => {
     const calls = mockCheckoutDb();
 
     const result = await commerceService.checkout({
@@ -90,15 +98,23 @@ describe('checkout', () => {
     expect(result.shares).toEqual({ artistCents: 800, platformCents: 200 });
     expect(result.downloadToken.token).toHaveLength(64);
 
-    const ledger = calls.find(([sql]) => sql.includes('INSERT INTO revenue_ledger'));
-    expect(ledger).toBeTruthy();
-    expect(ledger[1]).toEqual(expect.arrayContaining([800, 200, 'USD']));
+    // Finalization is atomic: completed-UPDATE, ledger, grant, token inside
+    // one BEGIN…COMMIT on a dedicated client.
+    const beginIdx = calls.findIndex(([sql]) => sql === 'BEGIN');
+    const commitIdx = calls.findIndex(([sql]) => sql === 'COMMIT');
+    expect(beginIdx).toBeGreaterThan(-1);
+    expect(commitIdx).toBeGreaterThan(beginIdx);
+
+    const ledgerIdx = calls.findIndex(([sql]) => sql.includes('INSERT INTO revenue_ledger'));
+    expect(ledgerIdx).toBeGreaterThan(beginIdx);
+    expect(ledgerIdx).toBeLessThan(commitIdx);
+    expect(calls[ledgerIdx][1]).toEqual(expect.arrayContaining([800, 200, 'USD']));
 
     const grant = calls.find(([sql]) => sql.includes('INSERT INTO user_library'));
     expect(grant[1]).toEqual([1, 42, 501]);
   });
 
-  it('replays idempotently instead of double-charging', async () => {
+  it('short-circuits the replay only for completed purchases', async () => {
     mockCheckoutDb({ existingPurchase: [{ id: 500, status: 'completed' }] });
 
     const result = await commerceService.checkout({
@@ -110,6 +126,25 @@ describe('checkout', () => {
     expect(result.replayed).toBe(true);
     expect(result.purchase.id).toBe(500);
     expect(db.query.mock.calls.some(([sql]) => sql.includes('INSERT INTO purchases'))).toBe(false);
+  });
+
+  it('resumes a crashed pending purchase with the same provider key', async () => {
+    const calls = mockCheckoutDb({
+      existingPurchase: [{ id: 500, product_id: 10, status: 'pending', amount_cents: 1000 }],
+    });
+
+    const result = await commerceService.checkout({
+      buyerUserId: 1,
+      productId: 10,
+      idempotencyKey: 'key-12345678',
+    });
+
+    expect(result.replayed).toBe(true);
+    expect(result.resumed).toBe(true);
+    expect(result.purchase.status).toBe('completed');
+    // Recovery finalized transactionally, ledger written exactly once.
+    expect(calls.filter(([sql]) => sql.includes('INSERT INTO revenue_ledger'))).toHaveLength(1);
+    expect(calls.some(([sql]) => sql === 'COMMIT')).toBe(true);
   });
 
   it('marks the purchase failed on a decline and surfaces 402', async () => {
@@ -223,25 +258,55 @@ describe('subscribe', () => {
     perks: { earlyAccess: true },
   };
 
-  it('charges the first period and writes the 80/20 ledger', async () => {
+  function mockSubscribeDb(tierRow) {
     const calls = [];
     db.query.mockImplementation((sql, params) => {
       calls.push([sql, params]);
-      if (sql.includes('FROM artist_subscription_tiers')) return Promise.resolve({ rows: [tier] });
+      if (sql.includes('FROM artist_subscription_tiers')) return Promise.resolve({ rows: [tierRow] });
       if (sql.includes(`status = 'active'`) && sql.includes('SELECT id FROM artist_subscriptions')) {
         return Promise.resolve({ rows: [] });
       }
       if (sql.includes('INSERT INTO artist_subscriptions')) {
-        return Promise.resolve({ rows: [{ id: 88, tier_id: 3, fan_user_id: 1, status: 'active' }] });
+        return Promise.resolve({ rows: [{ id: 88, tier_id: tierRow.id, fan_user_id: 1, status: 'active' }] });
       }
       return Promise.resolve({ rows: [] });
     });
+    return calls;
+  }
+
+  it('claims the membership row BEFORE charging, then writes the 80/20 ledger', async () => {
+    const calls = mockSubscribeDb(tier);
 
     const result = await commerceService.subscribe({ fanUserId: 1, tierId: 3 });
 
     expect(result.subscription.id).toBe(88);
+    // Insert-first ordering: a concurrent duplicate loses at the unique index
+    // with no money moved.
+    const insertIdx = calls.findIndex(([sql]) => sql.includes('INSERT INTO artist_subscriptions'));
+    const refUpdateIdx = calls.findIndex(([sql]) => sql.includes('SET provider_ref'));
+    expect(insertIdx).toBeGreaterThan(-1);
+    expect(refUpdateIdx).toBeGreaterThan(insertIdx);
+
     const ledger = calls.find(([sql]) => sql.includes('INSERT INTO revenue_ledger'));
     expect(ledger[1]).toEqual(expect.arrayContaining([799, 200]));
+  });
+
+  it('removes the claimed row when the charge declines (no unpaid membership)', async () => {
+    const declineTier = { ...tier, price_cents: MOCK_DECLINE_CENTS };
+    const calls = mockSubscribeDb(declineTier);
+
+    await expect(commerceService.subscribe({ fanUserId: 1, tierId: 3 })).rejects.toMatchObject({ status: 402 });
+
+    const del = calls.find(([sql]) => sql.includes('DELETE FROM artist_subscriptions'));
+    expect(del[1]).toEqual([88]);
+    expect(calls.some(([sql]) => sql.includes('INSERT INTO revenue_ledger'))).toBe(false);
+  });
+
+  it('parks expired active memberships as past_due (subs-expire job)', async () => {
+    db.query.mockResolvedValueOnce({ rows: [{ id: 1 }, { id: 2 }] });
+    const result = await commerceService.processSubscriptionExpiryJob();
+    expect(result).toEqual({ expired: 2 });
+    expect(db.query.mock.calls[0][0]).toContain(`SET status = 'past_due'`);
   });
 
   it('rejects double-subscribing to the same artist', async () => {

@@ -31,6 +31,24 @@ describe('syncService', () => {
       const room = { current_position: '45', is_playing: false };
       expect(estimatePositionMs(room, now)).toBe(45000);
     });
+
+    it('prefers the DB-computed elapsed_ms over wall-clock subtraction', () => {
+      // updated_at deliberately skewed: with elapsed_ms present it is ignored,
+      // so app/DB timezone or clock disagreement cannot corrupt the position.
+      const room = {
+        current_position: 30,
+        is_playing: true,
+        elapsed_ms: '4000',
+        updated_at: new Date(now - 3600000).toISOString(),
+      };
+      expect(estimatePositionMs(room, now)).toBe(34000);
+
+      const paused = { ...room, is_playing: false };
+      expect(estimatePositionMs(paused, now)).toBe(30000);
+
+      const negativeSkew = { ...room, elapsed_ms: '-200' };
+      expect(estimatePositionMs(negativeSkew, now)).toBe(30000);
+    });
   });
 
   describe('estimateClockOffset', () => {

@@ -116,26 +116,31 @@ const productValidation = [
   body('title').trim().notEmpty().isLength({ max: 255 }).withMessage('Title is required (max 255 chars)'),
   body('description').optional().trim().isLength({ max: 2000 }),
   body('productType').optional().isIn(['track', 'album', 'merch']).withMessage('Invalid product type'),
-  body('songId').optional().isInt({ min: 1 }).withMessage('Invalid song ID'),
-  body('priceCents').isInt({ min: 0, max: MAX_PRICE_CENTS }).withMessage('Price must be 0-10000000 cents'),
-  body('minPriceCents').optional().isInt({ min: 0, max: MAX_PRICE_CENTS }).withMessage('Invalid minimum price'),
+  body('songId').optional().isInt({ min: 1 }).toInt().withMessage('Invalid song ID'),
+  body('priceCents').isInt({ min: 0, max: MAX_PRICE_CENTS }).toInt().withMessage('Price must be 0-10000000 cents'),
+  body('minPriceCents').optional().isInt({ min: 0, max: MAX_PRICE_CENTS }).toInt().withMessage('Invalid minimum price'),
   body('nameYourPrice').optional().isBoolean(),
   body('currency').optional().matches(/^[A-Za-z]{3}$/).withMessage('Currency must be a 3-letter code'),
+];
+
+const productListValidation = [
+  query('songId').optional().isInt({ min: 1 }).toInt().withMessage('Invalid song ID'),
+  query('artistId').optional().isInt({ min: 1 }).toInt().withMessage('Invalid artist ID'),
 ];
 
 const productUpdateValidation = [
   param('id').isInt({ min: 1 }).withMessage('Invalid ID parameter'),
   body('title').optional().trim().notEmpty().isLength({ max: 255 }),
   body('description').optional().trim().isLength({ max: 2000 }),
-  body('priceCents').optional().isInt({ min: 0, max: MAX_PRICE_CENTS }),
-  body('minPriceCents').optional().isInt({ min: 0, max: MAX_PRICE_CENTS }),
+  body('priceCents').optional().isInt({ min: 0, max: MAX_PRICE_CENTS }).toInt(),
+  body('minPriceCents').optional().isInt({ min: 0, max: MAX_PRICE_CENTS }).toInt(),
   body('nameYourPrice').optional().isBoolean(),
   body('active').optional().isBoolean(),
 ];
 
 const checkoutValidation = [
-  body('productId').isInt({ min: 1 }).withMessage('Invalid product ID'),
-  body('amountCents').optional().isInt({ min: 0, max: MAX_PRICE_CENTS }).withMessage('Invalid amount'),
+  body('productId').isInt({ min: 1 }).toInt().withMessage('Invalid product ID'),
+  body('amountCents').optional().isInt({ min: 0, max: MAX_PRICE_CENTS }).toInt().withMessage('Invalid amount'),
   body('idempotencyKey')
     .isString()
     .isLength({ min: 8, max: 100 })
@@ -143,7 +148,7 @@ const checkoutValidation = [
 ];
 
 const downloadTokenRequestValidation = [
-  body('songId').isInt({ min: 1 }).withMessage('Invalid song ID'),
+  body('songId').isInt({ min: 1 }).toInt().withMessage('Invalid song ID'),
 ];
 
 const downloadTokenParamValidation = [
@@ -153,12 +158,12 @@ const downloadTokenParamValidation = [
 const tierValidation = [
   body('name').trim().notEmpty().isLength({ max: 100 }).withMessage('Tier name is required'),
   body('description').optional().trim().isLength({ max: 2000 }),
-  body('priceCents').isInt({ min: 1, max: MAX_PRICE_CENTS }).withMessage('Tier price must be positive'),
+  body('priceCents').isInt({ min: 1, max: MAX_PRICE_CENTS }).toInt().withMessage('Tier price must be positive'),
   body('perks').optional().isObject().withMessage('Perks must be an object'),
 ];
 
 const subscribeValidation = [
-  body('tierId').isInt({ min: 1 }).withMessage('Invalid tier ID'),
+  body('tierId').isInt({ min: 1 }).toInt().withMessage('Invalid tier ID'),
 ];
 
 // ── Olympus M4: social ──────────────────────────────────────────────────────
@@ -168,7 +173,7 @@ const MAX_TRACK_MS = 7200 * 1000; // mirrors the 2h duration ceiling
 const trackCommentValidation = [
   param('id').isInt({ min: 1 }).withMessage('Invalid ID parameter'),
   body('body').trim().notEmpty().isLength({ max: 500 }).withMessage('Comment is required (max 500 chars)'),
-  body('timestampMs').isInt({ min: 0, max: MAX_TRACK_MS }).withMessage('timestampMs must be within the track'),
+  body('timestampMs').isInt({ min: 0, max: MAX_TRACK_MS }).toInt().withMessage('timestampMs must be within the track'),
 ];
 
 const commentWindowValidation = [
@@ -242,6 +247,7 @@ module.exports = {
   hlsResourceValidation,
   updateProfileValidation,
   productValidation,
+  productListValidation,
   productUpdateValidation,
   checkoutValidation,
   downloadTokenRequestValidation,

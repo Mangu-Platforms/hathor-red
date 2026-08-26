@@ -66,18 +66,37 @@ function buildStripeProvider(secretKey) {
     name: 'stripe',
 
     async createCharge({ amountCents, currency = 'USD', idempotencyKey, description = '' }) {
-      const result = await stripeRequest(
-        '/payment_intents',
-        {
-          amount: String(amountCents),
-          currency: currency.toLowerCase(),
-          description,
-          'automatic_payment_methods[enabled]': 'true',
-          confirm: 'false',
-        },
-        idempotencyKey
-      );
+      // A server-side charge can only complete when a payment method exists.
+      // In STRIPE_TEST_MODE we confirm with Stripe's test card; otherwise we
+      // create the PaymentIntent but report ok:false — an unconfirmed intent
+      // is NOT collected money, and pretending otherwise would fabricate
+      // revenue. Wiring Stripe Checkout/Elements client confirmation is the
+      // production milestone (see docs/olympus/questions-for-max.md).
+      const testMode = String(process.env.STRIPE_TEST_MODE).toLowerCase() === 'true';
+      const params = {
+        amount: String(amountCents),
+        currency: currency.toLowerCase(),
+        description,
+      };
+      if (testMode) {
+        params.payment_method = 'pm_card_visa';
+        params.confirm = 'true';
+        params['automatic_payment_methods[enabled]'] = 'true';
+        params['automatic_payment_methods[allow_redirects]'] = 'never';
+      } else {
+        params['automatic_payment_methods[enabled]'] = 'true';
+        params.confirm = 'false';
+      }
+
+      const result = await stripeRequest('/payment_intents', params, idempotencyKey);
       if (!result.ok) return { ok: false, providerRef: null, error: result.error };
+      if (result.json.status !== 'succeeded') {
+        return {
+          ok: false,
+          providerRef: result.json.id,
+          error: `Stripe PaymentIntent ${result.json.status} — client-side confirmation flow required`,
+        };
+      }
       return { ok: true, providerRef: result.json.id };
     },
 

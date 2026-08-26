@@ -11,5 +11,5 @@
     "jsx": "react-jsx"
   },
   "include": ["server/**/*.js", "client/src/**/*.js", "database/**/*.js"],
-  "exclude": ["node_modules", "client/build", "packages"]
+  "exclude": ["node_modules", "client/build", "packages", "server/_reference"]
 }

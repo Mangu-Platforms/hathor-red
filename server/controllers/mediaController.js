@@ -5,7 +5,7 @@ const { redisClient } = require('../config/redis');
 const { logger } = require('../utils/logger');
 const { isAdmin } = require('../utils/roles');
 const jobQueue = require('../services/jobs/jobQueue');
-const { buildMasterManifest, resolveHlsPath } = require('../services/media/hlsService');
+const { buildMasterManifest, resolveHlsPath, appendTokenToPlaylist } = require('../services/media/hlsService');
 
 const WAVEFORM_CACHE_TTL = 3600;
 
@@ -128,6 +128,33 @@ function streamTokenMatchesSong(req, songId) {
 }
 
 /**
+ * Early-access gate for HLS serving (mirrors songController.streamSong):
+ * checked on every request — Bearer JWTs reach these routes without a stream
+ * token, so token-mint-time gating alone is bypassable. Returns true when the
+ * response has been sent (denied / not found).
+ */
+async function deniedByEarlyAccess(req, res, songId) {
+  const songResult = await db.query('SELECT * FROM songs WHERE id = $1', [songId]);
+  if (songResult.rows.length === 0) {
+    res.status(404).json({ error: 'Song not found' });
+    return true;
+  }
+  const song = songResult.rows[0];
+  if (!song.early_access_until) return false;
+
+  const commerceService = require('../services/commerce/commerceService');
+  const allowed = await commerceService.canAccessSong(req.user.userId, song);
+  if (!allowed) {
+    res.status(403).json({
+      error: 'This track is in early access for fan-club members',
+      earlyAccessUntil: song.early_access_until,
+    });
+    return true;
+  }
+  return false;
+}
+
+/**
  * GET /api/media/songs/:id/hls/master.m3u8 — master playlist over ready HLS
  * variants. streamAuth (short-lived token in ?t= or Bearer). 404 body names
  * the direct-stream fallback so clients degrade in one hop.
@@ -138,6 +165,7 @@ const getHlsMaster = async (req, res) => {
     if (!streamTokenMatchesSong(req, songId)) {
       return res.status(401).json({ error: 'Invalid stream token for song' });
     }
+    if (await deniedByEarlyAccess(req, res, songId)) return;
 
     const asset = await loadAssetForSong(songId);
     const variants = asset ? await loadVariants(asset.id) : [];
@@ -172,6 +200,7 @@ const getHlsResource = async (req, res) => {
     if (!streamTokenMatchesSong(req, songId)) {
       return res.status(401).json({ error: 'Invalid stream token for song' });
     }
+    if (await deniedByEarlyAccess(req, res, songId)) return;
 
     const asset = await loadAssetForSong(songId);
     if (!asset) return res.status(404).json({ error: 'HLS not available' });
@@ -191,6 +220,22 @@ const getHlsResource = async (req, res) => {
       return res.status(400).json({ error: 'Invalid HLS resource path' });
     }
 
+    // Media playlists are rewritten so segment URIs carry the ?t= token —
+    // otherwise a standard HLS client that authenticated via ?t= would fetch
+    // segments bare and 401. Segments themselves stream from disk untouched.
+    if (file.endsWith('.m3u8')) {
+      let playlistText;
+      try {
+        playlistText = await fsp.readFile(resolved, 'utf8');
+      } catch {
+        return res.status(404).json({ error: 'HLS resource missing' });
+      }
+      playlistText = appendTokenToPlaylist(playlistText, req.query?.t);
+      res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+      res.setHeader('Cache-Control', 'private, max-age=60');
+      return res.send(playlistText);
+    }
+
     let stat;
     try {
       stat = await fsp.stat(resolved);
@@ -198,7 +243,7 @@ const getHlsResource = async (req, res) => {
       return res.status(404).json({ error: 'HLS resource missing' });
     }
 
-    res.setHeader('Content-Type', file.endsWith('.m3u8') ? 'application/vnd.apple.mpegurl' : 'video/mp2t');
+    res.setHeader('Content-Type', 'video/mp2t');
     res.setHeader('Content-Length', stat.size);
     res.setHeader('Cache-Control', 'private, max-age=3600');
 

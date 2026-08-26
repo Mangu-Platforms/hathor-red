@@ -58,9 +58,24 @@ function resolveHlsPath(assetId, variantKey, fileName) {
   return resolved;
 }
 
+/**
+ * Rewrite a media playlist so every segment URI carries the stream token —
+ * standard HLS clients authenticate the playlist via ?t= and then fetch
+ * segments with the exact URIs listed, so the token must ride along. Pure.
+ */
+function appendTokenToPlaylist(playlistText, token) {
+  if (!token) return playlistText;
+  const suffix = `?t=${encodeURIComponent(token)}`;
+  return String(playlistText)
+    .split('\n')
+    .map((line) => (line.trim() !== '' && !line.startsWith('#') ? `${line.trim()}${suffix}` : line))
+    .join('\n');
+}
+
 module.exports = {
   HLS_CODECS,
   HLS_FILE_PATTERN,
   buildMasterManifest,
   resolveHlsPath,
+  appendTokenToPlaylist,
 };
