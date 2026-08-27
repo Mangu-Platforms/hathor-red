@@ -8,6 +8,17 @@ const PlayerContext = createContext();
 // ITU-R BS.1770 loudness normalization target (Spotify/YouTube ballpark).
 const TARGET_LUFS = -14;
 
+function fisherYatesShuffle(length) {
+  const order = Array.from({ length }, (_, i) => i);
+  for (let i = length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = order[i];
+    order[i] = order[j];
+    order[j] = tmp;
+  }
+  return order;
+}
+
 export const usePlayer = () => {
   const context = useContext(PlayerContext);
   if (!context) throw new Error('usePlayer must be used within a PlayerProvider');
@@ -19,12 +30,12 @@ export const PlayerProvider = ({ children }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(1);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
-  const [pitchShift, setPitchShift] = useState(0);
-  const [stemsConfig, setStemsConfig] = useState({ vocals: true, drums: true, bass: true, other: true });
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [queue, setQueue] = useState([]);
   const [queueIndex, setQueueIndex] = useState(0);
+  const [shuffleOrder, setShuffleOrder] = useState([]);
+  const [shufflePos, setShufflePos] = useState(0);
   const [isShuffled, setIsShuffled] = useState(false);
   const [repeatMode, setRepeatMode] = useState('none');
   const [audioSrc, setAudioSrc] = useState(null);
@@ -35,11 +46,11 @@ export const PlayerProvider = ({ children }) => {
   const preloadRef = useRef(null);
   const progressInterval = useRef(null);
   const lastSegmentRef = useRef(-1);
+  // Avoid overlapping play() calls while a load is in flight
+  const playGeneration = useRef(0);
 
   const audio = audioRef.current;
 
-  // Effective volume = user volume × loudness-normalization gain, so quiet
-  // masters come up and hot masters come down toward the same target.
   useEffect(() => {
     audio.volume = Math.max(0, Math.min(1, volume * loudnessGain));
   }, [volume, loudnessGain, audio]);
@@ -54,7 +65,6 @@ export const PlayerProvider = ({ children }) => {
         setProgress(audio.currentTime);
         setDuration(audio.duration || 0);
 
-        // 10-second listening heartbeats feed the retention curve (ANA-02).
         const segment = Math.floor(audio.currentTime / 10);
         if (segment !== lastSegmentRef.current && currentSong) {
           lastSegmentRef.current = segment;
@@ -82,8 +92,6 @@ export const PlayerProvider = ({ children }) => {
     }
   }, []);
 
-  // Prefetch the next queue entry so track changes start from a warm buffer
-  // (gapless-adjacent; true crossfade needs Web Audio and is a next step).
   const preloadNext = useCallback(async (songs, index) => {
     try {
       if (!songs || songs.length < 2) return;
@@ -99,8 +107,10 @@ export const PlayerProvider = ({ children }) => {
   }, []);
 
   const loadSong = useCallback(async (song) => {
+    const gen = ++playGeneration.current;
     try {
       const { url } = await musicService.getStreamUrl(song.id);
+      if (gen !== playGeneration.current) return; // superseded
       setAudioSrc(url);
       audio.src = url;
       setCurrentSong(song);
@@ -113,18 +123,21 @@ export const PlayerProvider = ({ children }) => {
       await musicService.recordListening(song.id, 0);
     } catch (err) {
       console.error('Failed to load song:', err);
+      throw err;
     }
   }, [audio, applyLoudness]);
 
   const play = useCallback(async () => {
-    if (!audio.src && currentSong) {
-      await loadSong(currentSong);
-    }
     try {
+      if (!audio.src && currentSong) {
+        await loadSong(currentSong);
+      }
       await audio.play();
       setIsPlaying(true);
     } catch (err) {
+      // Autoplay policy or aborted load — leave paused
       console.error('Play error:', err);
+      setIsPlaying(false);
     }
   }, [audio, currentSong, loadSong]);
 
@@ -140,38 +153,64 @@ export const PlayerProvider = ({ children }) => {
   }, [isPlaying, pause, play]);
 
   const seek = useCallback((time) => {
-    audio.currentTime = time;
-    setProgress(time);
-    if (currentSong) recordEvent('seek', currentSong, time);
+    const d = audio.duration;
+    if (!Number.isFinite(time) || time < 0) return;
+    if (!Number.isFinite(d) || d <= 0) return;
+    const clamped = Math.min(time, d);
+    audio.currentTime = clamped;
+    setProgress(clamped);
+    if (currentSong) recordEvent('seek', currentSong, clamped);
   }, [audio, currentSong]);
 
-  const playNext = useCallback(() => {
+  const resolveNextIndex = useCallback(() => {
+    if (queue.length === 0) return null;
+    if (isShuffled && shuffleOrder.length === queue.length) {
+      const nextPos = (shufflePos + 1) % shuffleOrder.length;
+      return { index: shuffleOrder[nextPos], shufflePos: nextPos };
+    }
+    return { index: (queueIndex + 1) % queue.length, shufflePos };
+  }, [queue, queueIndex, isShuffled, shuffleOrder, shufflePos]);
+
+  const playNext = useCallback(async () => {
     if (queue.length === 0) return;
     if (currentSong && audio.currentTime > 0 && audio.currentTime < (audio.duration || Infinity) - 1) {
       recordEvent('skip', currentSong, audio.currentTime);
     }
-    let nextIndex;
-    if (isShuffled) {
-      nextIndex = Math.floor(Math.random() * queue.length);
-    } else {
-      nextIndex = (queueIndex + 1) % queue.length;
+    const next = resolveNextIndex();
+    if (next == null) return;
+    setQueueIndex(next.index);
+    if (isShuffled) setShufflePos(next.shufflePos);
+    try {
+      await loadSong(queue[next.index]);
+      await audio.play();
+      setIsPlaying(true);
+      preloadNext(queue, next.index);
+    } catch (err) {
+      setIsPlaying(false);
     }
-    setQueueIndex(nextIndex);
-    loadSong(queue[nextIndex]);
-    setIsPlaying(true);
-    setTimeout(() => audio.play(), 100);
-    preloadNext(queue, nextIndex);
-  }, [queue, queueIndex, isShuffled, loadSong, audio, currentSong, preloadNext]);
+  }, [queue, resolveNextIndex, isShuffled, loadSong, audio, currentSong, preloadNext]);
 
-  const playPrevious = useCallback(() => {
+  const playPrevious = useCallback(async () => {
     if (queue.length === 0) return;
-    const prevIndex = queueIndex > 0 ? queueIndex - 1 : queue.length - 1;
+    let prevIndex;
+    let nextShufflePos = shufflePos;
+    if (isShuffled && shuffleOrder.length === queue.length) {
+      nextShufflePos = shufflePos > 0 ? shufflePos - 1 : shuffleOrder.length - 1;
+      prevIndex = shuffleOrder[nextShufflePos];
+      setShufflePos(nextShufflePos);
+    } else {
+      prevIndex = queueIndex > 0 ? queueIndex - 1 : queue.length - 1;
+    }
     setQueueIndex(prevIndex);
-    loadSong(queue[prevIndex]);
-    setIsPlaying(true);
-    setTimeout(() => audio.play(), 100);
-    preloadNext(queue, prevIndex);
-  }, [queue, queueIndex, loadSong, audio, preloadNext]);
+    try {
+      await loadSong(queue[prevIndex]);
+      await audio.play();
+      setIsPlaying(true);
+      preloadNext(queue, prevIndex);
+    } catch (err) {
+      setIsPlaying(false);
+    }
+  }, [queue, queueIndex, isShuffled, shuffleOrder, shufflePos, loadSong, audio, preloadNext]);
 
   useEffect(() => {
     const handleEnded = () => {
@@ -182,8 +221,8 @@ export const PlayerProvider = ({ children }) => {
       }
       if (repeatMode === 'one') {
         audio.currentTime = 0;
-        audio.play();
-      } else if (queueIndex < queue.length - 1 || repeatMode === 'all') {
+        audio.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+      } else if (queueIndex < queue.length - 1 || repeatMode === 'all' || isShuffled) {
         playNext();
       } else {
         setIsPlaying(false);
@@ -193,20 +232,48 @@ export const PlayerProvider = ({ children }) => {
     };
     audio.addEventListener('ended', handleEnded);
     return () => audio.removeEventListener('ended', handleEnded);
-  }, [queue, queueIndex, repeatMode, audio, currentSong, duration, playNext]);
+  }, [queue, queueIndex, repeatMode, audio, currentSong, duration, playNext, isShuffled]);
 
-  const setQueueAndPlay = useCallback((songs, startIndex = 0) => {
+  const setQueueAndPlay = useCallback(async (songs, startIndex = 0) => {
+    if (!songs || songs.length === 0) return;
+    const safeStart = Math.max(0, Math.min(startIndex, songs.length - 1));
     setQueue(songs);
-    setQueueIndex(startIndex);
-    loadSong(songs[startIndex]);
-    setIsPlaying(true);
-    setTimeout(() => audio.play(), 100);
-    preloadNext(songs, startIndex);
+    setQueueIndex(safeStart);
+    const order = fisherYatesShuffle(songs.length);
+    // Put start index first in shuffle path when user enables shuffle later
+    setShuffleOrder(order);
+    const posInOrder = order.indexOf(safeStart);
+    setShufflePos(posInOrder >= 0 ? posInOrder : 0);
+    try {
+      await loadSong(songs[safeStart]);
+      await audio.play();
+      setIsPlaying(true);
+      preloadNext(songs, safeStart);
+    } catch (err) {
+      setIsPlaying(false);
+    }
   }, [loadSong, audio, preloadNext]);
 
-  const toggleStem = useCallback((stem) => {
-    setStemsConfig(prev => ({ ...prev, [stem]: !prev[stem] }));
-  }, []);
+  const toggleShuffle = useCallback(() => {
+    setIsShuffled((prev) => {
+      const next = !prev;
+      if (next && queue.length > 0) {
+        const order = fisherYatesShuffle(queue.length);
+        // Keep current track as current position in the permutation
+        const at = order.indexOf(queueIndex);
+        if (at > 0) {
+          const tmp = order[0];
+          order[0] = order[at];
+          order[at] = tmp;
+        } else if (at < 0) {
+          order[0] = queueIndex;
+        }
+        setShuffleOrder(order);
+        setShufflePos(0);
+      }
+      return next;
+    });
+  }, [queue, queueIndex]);
 
   const formatTime = (seconds) => {
     if (!seconds || isNaN(seconds)) return '0:00';
@@ -216,13 +283,13 @@ export const PlayerProvider = ({ children }) => {
   };
 
   const value = {
-    currentSong, isPlaying, volume, playbackSpeed, pitchShift, stemsConfig,
+    currentSong, isPlaying, volume, playbackSpeed,
     progress, duration, queue, queueIndex, isShuffled, repeatMode, audioSrc,
     loudnessGain, waveform,
     play, pause, togglePlay, seek, playNext, playPrevious,
     setQueueAndPlay, loadSong,
-    setVolume, setPlaybackSpeed, setPitchShift,
-    toggleStem, toggleShuffle: () => setIsShuffled(!isShuffled),
+    setVolume, setPlaybackSpeed,
+    toggleShuffle,
     cycleRepeat: () => setRepeatMode(prev => prev === 'none' ? 'all' : prev === 'all' ? 'one' : 'none'),
     formatTime,
   };

@@ -1,165 +1,83 @@
-# Hathor Red Music Platform v2.0
+# Hathor Red
 
-## Next-Generation Music Streaming with AI, Social Rooms & Professional Audio Tools
+Music streaming SPA with listening rooms, AI helpers, and Project Olympus pillars.
 
-[![CI](https://github.com/redinc23/hathor-red/actions/workflows/ci-v2.yml/badge.svg)](https://github.com/redinc23/hathor-red/actions)
+[![CI](https://github.com/Mangu-Platforms/hathor-red/actions/workflows/main.yml/badge.svg)](https://github.com/Mangu-Platforms/hathor-red/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-red.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-22-brightgreen.svg)](https://github.com/redinc23/hathor-red/tree/main/server/tests)
 
-### What's New in v2.0
+**Repo:** [Mangu-Platforms/hathor-red](https://github.com/Mangu-Platforms/hathor-red)
 
-Hathor Red has been transformed from a functional prototype into a **production-grade music streaming platform**:
+## What ships today
 
-- 🤖 **AI-Powered** — OpenAI GPT-4o for natural language playlists, semantic search with pgvector embeddings
-- 🎵 **HLS Streaming** — Adaptive bitrate from 64k to lossless with FFmpeg transcoding
-- 🔐 **OAuth2** — Google & Spotify login with JWT refresh token rotation
-- 📹 **Video Chat** — WebRTC video calls inside listening rooms
-- 📈 **Observability** — OpenTelemetry, Prometheus metrics, Grafana dashboards
-- ☸️ **Kubernetes** — Helm chart with HPA, PDB, NetworkPolicy
-- 🧪 **22 Tests** — Auth utilities, AI service, caching, and CORS
+- React 18 SPA (`client/`) + Node 20 Express (`server/`)
+- PostgreSQL + Redis + Socket.io
+- Email/password auth (JWT). **No OAuth in the live routes.**
+- Signed stream URLs (`/api/songs/:id/stream-url` → `/stream?t=…`) for HTML5 `<audio>`
+- Playlists, rooms (basic), AI chat/recommendations when OpenAI is configured (fallback otherwise)
+- Project Olympus route modules behind env flags (media, commerce, discovery, social, intel, privacy, worker)
 
-## Architecture
+## What does **not** ship yet (do not expect in UI)
 
-```
-┌──────────────────────────────────────────────────────┐
-│                  Hathor Red v2.0                     │
-├──────────┬──────────┬──────────┬─────────────────────┤
-│  Auth    │  Songs   │  Rooms   │  AI Services        │
-│  JWT+OA  │  HLS+St  │  Video   │  GPT-4o+Vecto       │
-├──────────┴──────────┴──────────┴─────────────────────┤
-│              API Layer (/api/v1/)                     │
-├──────────────────────────────────────────────────────┤
-│  OpenTelemetry  │  Feature Flags  │  Error Handler    │
-├──────────────────────────────────────────────────────┤
-│  PostgreSQL 15  │  pgvector  │  Redis 7  │  Socket.io │
-└──────────────────────────────────────────────────────┘
-```
+- HLS adaptive playback in the player (transcode/HLS code exists; player uses progressive stream)
+- OAuth (Google/Spotify) — only password auth is mounted
+- WebRTC video in rooms
+- Stem separation / pitch shift (UI controls removed until implemented)
+- Podcast product (nav page is an honest coming-soon shell)
 
-## Quick Start
+## Stack
 
-### Prerequisites
-- Node.js 20+
-- PostgreSQL 15+ with pgvector extension
-- Redis 7+
-- FFmpeg (optional, for HLS streaming)
-- Demucs (optional, for stem separation)
+| Layer | Choice |
+|-------|--------|
+| Client | React 18 SPA |
+| Server | Express on Node 20 |
+| DB | PostgreSQL (+ pgvector when discovery is on) |
+| Cache | Redis |
+| Realtime | Socket.io |
+| Package manager | pnpm |
 
-### Installation
+No Next.js. No Python app as the product backend. `server/_reference` is reference-only.
+
+## Quick start
 
 ```bash
-# Clone
-git clone https://github.com/redinc23/hathor-red.git
+git clone https://github.com/Mangu-Platforms/hathor-red.git
 cd hathor-red
-
-# Install dependencies
 pnpm install
-
-# Set up environment
 cp .env.example .env
-# Edit .env with your credentials
+# set DATABASE_URL, REDIS_URL, JWT_SECRET
 
-# Run migrations
-psql -U postgres -d hathor_music -f database/schema.sql
+# schema + seed (see database/)
+psql "$DATABASE_URL" -f database/schema.sql
+node database/seed.js
 
-# Seed the database
-npm run db:setup
-
-# Start development
-npm run dev
+pnpm dev   # or npm run dev if scripts use npm
 ```
 
-### Run Tests
+Client talks to the API; stream playback uses short-lived signed query tokens so `<audio src>` works without Authorization headers.
 
-```bash
-# Run all tests
-npm test
+## Feature flags (server)
 
-# With coverage
-npm run test:coverage
+Olympus pillars (default ON; set `false` to disable mounting):
 
-# Watch mode
-npm run test:watch
-```
+| Flag | Gates |
+|------|--------|
+| `FEATURE_MEDIA_PIPELINE` | `/api/media` |
+| `FEATURE_COMMERCE` | `/api/commerce` |
+| `FEATURE_DISCOVERY` | `/api/discovery` |
+| `FEATURE_SOCIAL` | `/api/social` |
+| `FEATURE_INTEL` | `/api/intel` |
+| `FEATURE_PRIVACY` | `/api/privacy` |
+| `FEATURE_WORKER` | in-process job worker |
 
-## API Documentation
+Legacy names in `.env.example` (`FEATURE_OAUTH`, `FEATURE_HLS_STREAMING`, etc.) are **not** wired to route mounting in `server/index.js`.
 
-- **Swagger UI**: http://localhost:5000/api/docs
-- **ReDoc**: http://localhost:5000/api/docs/redoc
-- **OpenAPI Spec**: http://localhost:5000/api/docs/openapi.yaml
+## Docs
 
-## Deployment
-
-### Docker
-```bash
-docker build -f Dockerfile.v2 -t hathor-music .
-docker-compose -f docker-compose.prod.yml up -d
-```
-
-### Kubernetes
-```bash
-helm install hathor ./k8s/hathor-chart -f k8s/hathor-chart/values-prod.yaml
-```
-
-### Railway/Render
-See `DEPLOY.md` for platform-specific instructions.
-
-## Environment Variables
-
-Key variables (see `.env.example` for full list):
-
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `DATABASE_URL` | PostgreSQL connection string | Yes |
-| `REDIS_URL` | Redis connection string | Yes |
-| `JWT_SECRET` | JWT signing secret | Yes |
-| `OPENAI_API_KEY` | OpenAI API key | For AI features |
-| `GOOGLE_CLIENT_ID` | Google OAuth client ID | For OAuth |
-| `FFMPEG_PATH` | FFmpeg binary path | For HLS |
-
-## Feature Flags
-
-| Flag | Description | Default |
-|------|-------------|---------|
-| `FEATURE_HLS_STREAMING` | HLS adaptive streaming | `true` |
-| `FEATURE_LLM_PLAYLIST` | AI playlist generation | `true` |
-| `FEATURE_VECTOR_SEARCH` | Semantic search | `true` |
-| `FEATURE_WEBRTC_VIDEO` | Video chat in rooms | `true` |
-| `FEATURE_OAUTH` | Social login | `true` |
-| `FEATURE_ANALYTICS` | Event tracking | `true` |
-
-## Project Olympus (v3)
-
-The Olympus build turns Hathor Red into the Mangu direct-to-fan commerce +
-streaming platform, implemented as a modular monolith with extraction seams:
-
-- **Immersive Audio Engine** — upload → durable job queue → ffmpeg transcode
-  (opus/aac/mp3/flac/HLS) with plan-only fallback, loudness (BS.1770) +
-  waveform analysis. `/api/media`
-- **Creator Commerce** — direct sales (fixed & name-your-price), permanent
-  library, one-time lossless downloads, fan-club tiers with early access,
-  80/20 artist-favoring revenue ledger. `/api/commerce`
-- **Cognitive Discovery** — credential-free semantic search + Mangu Radar
-  personal mixes (collaborative + content + freshness). `/api/discovery`
-- **Social Listening** — drift-corrected room sync, time-synced track
-  comments, presence, reactions, host handoff, WebRTC signaling. `/api/social`
-- **Artist Intelligence** — play/skip/segment telemetry, retention curves,
-  geography, revenue attribution. `/api/intel`
-- **Privacy** — GDPR export/deletion, audit trail. `/api/privacy`
-
-Docs: [`docs/olympus/program-plan.md`](docs/olympus/program-plan.md) ·
-[`docs/olympus/runbook.md`](docs/olympus/runbook.md) ·
-[API reference](API.md). The live flags are `FEATURE_MEDIA_PIPELINE`,
-`FEATURE_COMMERCE`, `FEATURE_DISCOVERY`, `FEATURE_SOCIAL`, `FEATURE_INTEL`,
-`FEATURE_PRIVACY`, `FEATURE_WORKER` (the table above predates Olympus).
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+- [API.md](API.md)
+- [WHAT_SHIPS.md](WHAT_SHIPS.md) — live capability snapshot
+- [BUGS.md](BUGS.md) — known issues (may lag code)
+- Olympus: [docs/olympus/program-plan.md](docs/olympus/program-plan.md)
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file.
-
----
-
-Built with passion for the future of music. 🎵
+MIT

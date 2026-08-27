@@ -18,8 +18,8 @@ module.exports = {
   AI_CACHE_TTL_MS: 5 * 60 * 1000,
   AI_MAX_CACHE_SIZE: 100,
 
-  // Streaming
-  STREAM_TOKEN_EXPIRE: '60s',
+  // Streaming — token must outlive typical track length; refresh via stream-url on track change
+  STREAM_TOKEN_EXPIRE: '4h',
   STREAM_MAX_FILE_SIZE: 50 * 1024 * 1024,
 
   // Playback
