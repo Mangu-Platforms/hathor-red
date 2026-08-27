@@ -24,6 +24,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Playlist detail**: loads `GET /playlists/:id`, shows tracks via SongList, Play All queues songs
 - **Home My Playlists tab**: playlist cards are `Link`s to `/playlists/:id` (same detail route as sidebar entry)
 - **Create playlist on `/playlists`**: New playlist form (name, optional description, public flag) via `POST /playlists`; navigates to detail on success
+- **Delete playlist**: owner-only Delete on list cards and detail page; confirms then `DELETE /playlists/:id`; list removes card; detail navigates back to `/playlists`
 - **Rooms**: disconnect/leave cleans `room_participants` (refcounted multi-tab); host handoff; **host song picker** (lists catalog, emits `change-song`); listener count prefers live socket roster when present
 - **Rooms list**: polls `GET /rooms` every 15s so DB `listener_count` stays fresher on the list page
 - Sidebar **Settings** label (was mislabeled Privacy)
@@ -36,18 +37,18 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## This run changed
 
-- **dose-5.5**: `/playlists` page has New playlist form (name, description, public) calling existing `POST /playlists`; success navigates to playlist detail
+- **dose-5.6**: Owner-only delete playlist on `/playlists` cards and playlist detail (confirm + existing `DELETE /playlists/:id`)
 
 ## Does not ship (honest)
 
 - OAuth, HLS in the React player, WebRTC video, Demucs stems, pitch-shift DSP
 - Drag-reorder / remove-from-queue in the panel (list + jump only)
 - Avatar upload / email change from Settings (API supports avatarUrl only; no file picker yet)
-- Delete playlist UI on the Playlists page (API exists)
+- Remove-song-from-playlist UI (API exists; route for song remove may need mount check)
 - Rooms list still uses DB participant count (not in-memory socket roster); live roster only inside the room view
 - Live LLM responses when Colab/OpenAI is not configured (rule-based fallback only)
 - Commerce/discovery/store UX when `FEATURE_COMMERCE` / `FEATURE_DISCOVERY` are off (pages stay in nav; empty state explains)
 
 ## Next item
 
-Dose 5 continued: optional delete-playlist control on list/detail; gate or soft-label nav items when FEATURE_* flags off if still noisy.
+Dose 5 continued: gate or soft-label nav items when FEATURE_* flags off if still noisy; optional remove-track-from-playlist on detail.

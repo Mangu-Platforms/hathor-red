@@ -1,9 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { musicService } from '../services/music';
+import { useAuth } from '../contexts/AuthContext';
 
 const Playlists = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [playlists, setPlaylists] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -13,6 +15,7 @@ const Playlists = () => {
   const [isPublic, setIsPublic] = useState(true);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
   const loadPlaylists = useCallback(() => {
     setLoading(true);
@@ -48,6 +51,27 @@ const Playlists = () => {
       cancelled = true;
     };
   }, []);
+
+  const isOwner = (pl) =>
+    user &&
+    (String(pl.user_id) === String(user.id) || String(pl.user_id) === String(user.userId));
+
+  const handleDelete = async (e, pl) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!pl?.id || deletingId) return;
+    const ok = window.confirm(`Delete playlist "${pl.name}"? This cannot be undone.`);
+    if (!ok) return;
+    setDeletingId(pl.id);
+    try {
+      await musicService.deletePlaylist(pl.id);
+      setPlaylists((prev) => prev.filter((p) => p.id !== pl.id));
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to delete playlist');
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const handleCreate = async (e) => {
     e.preventDefault();
@@ -195,28 +219,52 @@ const Playlists = () => {
       ) : (
         <div className="playlist-grid">
           {playlists.map((pl) => (
-            <Link
-              key={pl.id}
-              to={`/playlists/${pl.id}`}
-              className="playlist-card"
-              style={{ textDecoration: 'none', color: 'inherit' }}
-            >
-              <div className="playlist-card-cover">
-                {pl.cover_url ? (
-                  <img src={pl.cover_url} alt="" />
-                ) : (
-                  <div className="playlist-cover-placeholder">{pl.name?.[0] || '?'}</div>
-                )}
-              </div>
-              <div className="playlist-card-info">
-                <h4>{pl.name}</h4>
-                <p>
-                  {pl.description ||
-                    (pl.is_ai_generated ? 'AI Generated' : 'Custom Playlist')}
-                </p>
-                {pl.is_public && <span className="public-badge">Public</span>}
-              </div>
-            </Link>
+            <div key={pl.id} className="playlist-card" style={{ position: 'relative' }}>
+              <Link
+                to={`/playlists/${pl.id}`}
+                style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
+              >
+                <div className="playlist-card-cover">
+                  {pl.cover_url ? (
+                    <img src={pl.cover_url} alt="" />
+                  ) : (
+                    <div className="playlist-cover-placeholder">{pl.name?.[0] || '?'}</div>
+                  )}
+                </div>
+                <div className="playlist-card-info">
+                  <h4>{pl.name}</h4>
+                  <p>
+                    {pl.description ||
+                      (pl.is_ai_generated ? 'AI Generated' : 'Custom Playlist')}
+                  </p>
+                  {pl.is_public && <span className="public-badge">Public</span>}
+                </div>
+              </Link>
+              {isOwner(pl) && (
+                <button
+                  type="button"
+                  title="Delete playlist"
+                  onClick={(e) => handleDelete(e, pl)}
+                  disabled={deletingId === pl.id}
+                  style={{
+                    position: 'absolute',
+                    top: 8,
+                    right: 8,
+                    padding: '4px 8px',
+                    borderRadius: 6,
+                    border: '1px solid #c62828',
+                    background: 'rgba(255,255,255,0.95)',
+                    color: '#c62828',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: deletingId === pl.id ? 'not-allowed' : 'pointer',
+                    zIndex: 2,
+                  }}
+                >
+                  {deletingId === pl.id ? '…' : 'Delete'}
+                </button>
+              )}
+            </div>
           ))}
         </div>
       )}
