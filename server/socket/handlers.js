@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const db = require('../config/database');
+const { redisClient } = require('../config/redis');
 const { logger } = require('../utils/logger');
 const { MAX_CHAT_MESSAGE_LENGTH, VALID_ROOM_ACTIONS, REACTION_EMOJIS } = require('../config/constants');
 const { buildRoomStatePayload } = require('../services/social/syncService');
@@ -459,13 +460,14 @@ const setupSocketHandlers = (io) => {
 
     socket.on('sync-state', async (state) => {
       try {
-        await db.query(
+        const result = await db.query(
           `INSERT INTO playback_states (user_id, current_song_id, position, is_playing, volume, playback_speed, pitch_shift, stems_config)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
            ON CONFLICT (user_id) DO UPDATE SET
              current_song_id = $2, position = $3, is_playing = $4,
              volume = $5, playback_speed = $6, pitch_shift = $7, stems_config = $8,
-             updated_at = CURRENT_TIMESTAMP`,
+             updated_at = CURRENT_TIMESTAMP
+           RETURNING *`,
           [
             socket.userId,
             state.currentSongId,
@@ -477,6 +479,17 @@ const setupSocketHandlers = (io) => {
             state.stemsConfig,
           ]
         );
+
+        // Keep Redis in sync with DB so getPlaybackState does not serve stale cache
+        const row = result.rows[0];
+        if (row) {
+          const cacheKey = `playback:${socket.userId}`;
+          try {
+            await redisClient.setEx(cacheKey, 3600, JSON.stringify(row));
+          } catch (redisErr) {
+            logger.warn(`Redis setEx after sync-state failed (DB updated): ${redisErr.message}`);
+          }
+        }
 
         socket.to(`user-${socket.userId}`).emit('sync-state', state);
       } catch (error) {
