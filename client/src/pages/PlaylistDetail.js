@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { musicService } from '../services/music';
 import { usePlayer } from '../contexts/PlayerContext';
@@ -64,6 +64,15 @@ const PlaylistDetail = () => {
       setDeleting(false);
     }
   };
+
+  const handleRemoveSong = useCallback(
+    async (songId) => {
+      if (!playlist?.id) return;
+      await musicService.removeFromPlaylist(playlist.id, songId);
+      setSongs((prev) => prev.filter((s) => String(s.id) !== String(songId)));
+    },
+    [playlist?.id]
+  );
 
   if (loading) return <div className="loading-screen">Loading playlist...</div>;
 
@@ -137,7 +146,12 @@ const PlaylistDetail = () => {
           <p>This playlist has no songs yet</p>
         </div>
       ) : (
-        <SongList songs={songs} title="Tracks" showSearch={false} />
+        <SongList
+          songs={songs}
+          title="Tracks"
+          showSearch={false}
+          onRemoveSong={isOwner ? handleRemoveSong : undefined}
+        />
       )}
     </div>
   );

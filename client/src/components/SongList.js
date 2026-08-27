@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import { usePlayer } from '../contexts/PlayerContext';
 import { musicService } from '../services/music';
 
-const SongList = ({ songs, title, showSearch = false, onRefresh }) => {
+const SongList = ({ songs, title, showSearch = false, onRefresh, onRemoveSong }) => {
   const { setQueueAndPlay, currentSong, isPlaying } = usePlayer();
   const [search, setSearch] = useState('');
   const [selectedGenre, setSelectedGenre] = useState('');
   const [addingToPlaylist, setAddingToPlaylist] = useState(null);
   const [playlists, setPlaylists] = useState([]);
+  const [removingId, setRemovingId] = useState(null);
 
   const filtered = songs.filter(s => {
     const matchesSearch = !search || s.title?.toLowerCase().includes(search.toLowerCase()) || s.artist?.toLowerCase().includes(search.toLowerCase());
@@ -37,6 +38,20 @@ const SongList = ({ songs, title, showSearch = false, onRefresh }) => {
       setAddingToPlaylist(null);
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleRemove = async (song) => {
+    if (!onRemoveSong || removingId) return;
+    const ok = window.confirm(`Remove "${song.title}" from this playlist?`);
+    if (!ok) return;
+    setRemovingId(song.id);
+    try {
+      await onRemoveSong(song.id);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setRemovingId(null);
     }
   };
 
@@ -90,6 +105,19 @@ const SongList = ({ songs, title, showSearch = false, onRefresh }) => {
                 <button className="song-action-btn" onClick={() => handleAddToPlaylist(song.id)} title="Add to playlist">
                   <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} width="18" height="18"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
                 </button>
+                {onRemoveSong && (
+                  <button
+                    className="song-action-btn"
+                    onClick={() => handleRemove(song)}
+                    disabled={removingId === song.id}
+                    title="Remove from playlist"
+                    style={{ color: removingId === song.id ? '#999' : '#c62828' }}
+                  >
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} width="18" height="18">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
               </div>
 
               {addingToPlaylist === song.id && (
