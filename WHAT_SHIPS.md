@@ -20,18 +20,21 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Olympus modules mount when feature flags are on; degrade when OpenAI/worker missing
 - Socket `sync-state` writes DB **and** Redis `playback:${userId}` (matches HTTP update path)
 - **Settings profile**: display name form via existing `PUT /auth/profile`; shows username/email read-only; Sign out button
+- **`/playlists`**: dedicated list page (not Home shell); cards link to `/playlists/:id`
+- **Playlist detail**: loads `GET /playlists/:id`, shows tracks via SongList, Play All queues songs
 
 ## This run changed
 
-- **dose-2.0**: Settings page profile section — edit display name through `updateProfile`, read-only username/email, soft Sign out
+- **dose-3.0**: Replace `/playlists` → Home with `Playlists` page + `PlaylistDetail` route; wire existing `musicService.getPlaylists` / `getPlaylist`
 
 ## Does not ship (honest)
 
 - OAuth, HLS in the React player, WebRTC video, Demucs stems, pitch-shift DSP
 - Drag-reorder / remove-from-queue in the panel (list + jump only)
 - Avatar upload / email change from Settings (API supports avatarUrl only; no file picker yet)
-- `/playlists` route still renders Home shell (no dedicated playlist detail page)
+- Create/delete playlist UI on the new Playlists page (API exists; Home AI tab still creates)
+- Playlist cards on Home tab still non-navigating (sidebar /playlists is the real entry)
 
 ## Next item
 
-Dose 3: dedicated `/playlists` list + playlist detail route if missing.
+Dose 4: room disconnect cleans participants; host song picker; honest listener counts (verify under multi-tab).

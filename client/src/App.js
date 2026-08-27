@@ -7,6 +7,8 @@ import MusicPlayer from './components/MusicPlayer';
 import Login from './components/Login';
 import Register from './components/Register';
 import Home from './pages/Home';
+import Playlists from './pages/Playlists';
+import PlaylistDetail from './pages/PlaylistDetail';
 import Rooms from './pages/Rooms';
 import Podcast from './pages/Podcast';
 import ListeningRoom from './components/ListeningRoom';
@@ -51,7 +53,8 @@ function App() {
             <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
             <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
             <Route path="/" element={<PrivateRoute><AppLayout><Home /></AppLayout></PrivateRoute>} />
-            <Route path="/playlists" element={<PrivateRoute><AppLayout><Home /></AppLayout></PrivateRoute>} />
+            <Route path="/playlists" element={<PrivateRoute><AppLayout><Playlists /></AppLayout></PrivateRoute>} />
+            <Route path="/playlists/:id" element={<PrivateRoute><AppLayout><PlaylistDetail /></AppLayout></PrivateRoute>} />
             <Route path="/rooms" element={<PrivateRoute><AppLayout><Rooms /></AppLayout></PrivateRoute>} />
             <Route path="/room/:id" element={<PrivateRoute><AppLayout><ListeningRoom /></AppLayout></PrivateRoute>} />
             <Route path="/podcast" element={<PrivateRoute><AppLayout><Podcast /></AppLayout></PrivateRoute>} />
