@@ -66,7 +66,7 @@ const AIChat = ({ isOpen, onClose }) => {
         content: m.content
       }));
 
-      const response = await const response = await chatWithAI(userMessage, conversationHistory);
+      const response = await chatWithAI(userMessage, conversationHistory);
 
       setMessages(prev => [...prev, {
         role: 'assistant',
