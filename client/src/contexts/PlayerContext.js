@@ -19,6 +19,13 @@ function fisherYatesShuffle(length) {
   return order;
 }
 
+/** After removing index `removed`, map old shuffle indices into the new queue. */
+function remapShuffleAfterRemove(shuffleOrder, removed) {
+  return shuffleOrder
+    .filter((i) => i !== removed)
+    .map((i) => (i > removed ? i - 1 : i));
+}
+
 export const usePlayer = () => {
   const context = useContext(PlayerContext);
   if (!context) throw new Error('usePlayer must be used within a PlayerProvider');
@@ -230,6 +237,59 @@ export const PlayerProvider = ({ children }) => {
     }
   }, [queue, isShuffled, shuffleOrder, loadSong, audio, preloadNext]);
 
+  /** Remove a track from the queue by index; keeps playback if current is not removed. */
+  const removeFromQueue = useCallback((index) => {
+    if (index < 0 || index >= queue.length) return;
+
+    const newQueue = queue.filter((_, i) => i !== index);
+    const newShuffle = remapShuffleAfterRemove(shuffleOrder, index);
+
+    if (newQueue.length === 0) {
+      setQueue([]);
+      setQueueIndex(0);
+      setShuffleOrder([]);
+      setShufflePos(0);
+      audio.pause();
+      setIsPlaying(false);
+      setCurrentSong(null);
+      setAudioSrc(null);
+      setProgress(0);
+      setDuration(0);
+      audio.removeAttribute('src');
+      audio.load();
+      return;
+    }
+
+    let newIndex = queueIndex;
+    if (index < queueIndex) {
+      newIndex = queueIndex - 1;
+    } else if (index === queueIndex) {
+      // Current track removed — advance to the same slot (next song) or wrap
+      newIndex = Math.min(index, newQueue.length - 1);
+    }
+
+    setQueue(newQueue);
+    setQueueIndex(newIndex);
+    setShuffleOrder(newShuffle);
+    if (isShuffled && newShuffle.length > 0) {
+      const pos = newShuffle.indexOf(newIndex);
+      setShufflePos(pos >= 0 ? pos : 0);
+    } else {
+      setShufflePos((p) => Math.min(p, Math.max(0, newShuffle.length - 1)));
+    }
+
+    if (index === queueIndex) {
+      const nextSong = newQueue[newIndex];
+      loadSong(nextSong)
+        .then(() => audio.play())
+        .then(() => {
+          setIsPlaying(true);
+          preloadNext(newQueue, newIndex);
+        })
+        .catch(() => setIsPlaying(false));
+    }
+  }, [queue, queueIndex, shuffleOrder, isShuffled, audio, loadSong, preloadNext]);
+
   useEffect(() => {
     const handleEnded = () => {
       if (currentSong) {
@@ -305,6 +365,7 @@ export const PlayerProvider = ({ children }) => {
     progress, duration, queue, queueIndex, isShuffled, repeatMode, audioSrc,
     loudnessGain, waveform,
     play, pause, togglePlay, seek, playNext, playPrevious, playAtIndex,
+    removeFromQueue,
     setQueueAndPlay, loadSong,
     setVolume, setPlaybackSpeed,
     toggleShuffle,

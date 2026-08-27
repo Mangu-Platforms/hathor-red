@@ -6,7 +6,7 @@ const MusicPlayer = () => {
     currentSong, isPlaying, togglePlay, progress, duration, volume,
     setVolume, playbackSpeed, setPlaybackSpeed, playNext, playPrevious,
     isShuffled, toggleShuffle, repeatMode, cycleRepeat, seek, formatTime,
-    queue, queueIndex, playAtIndex,
+    queue, queueIndex, playAtIndex, removeFromQueue,
   } = usePlayer();
 
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -115,7 +115,7 @@ const MusicPlayer = () => {
           ) : (
             <ul className="player-queue-list">
               {queue.map((song, idx) => (
-                <li key={`${song.id}-${idx}`}>
+                <li key={`${song.id}-${idx}`} className="player-queue-row">
                   <button
                     type="button"
                     className={`player-queue-item ${idx === queueIndex ? 'active' : ''}`}
@@ -129,6 +129,20 @@ const MusicPlayer = () => {
                     {idx === queueIndex && isPlaying && (
                       <span className="player-queue-now" aria-label="Now playing">▶</span>
                     )}
+                  </button>
+                  <button
+                    type="button"
+                    className="player-queue-remove"
+                    title="Remove from queue"
+                    aria-label={`Remove ${song.title} from queue`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeFromQueue(idx);
+                    }}
+                  >
+                    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
                   </button>
                 </li>
               ))}

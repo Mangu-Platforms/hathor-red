@@ -11,7 +11,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Seek rejects invalid duration / non-finite times
 - Play after load awaits `audio.play()` (no fixed 100ms race)
 - Pitch/stem UI **hidden** (not implemented on the audio graph)
-- **Queue panel** on the player bar (list + jump via `playAtIndex`)
+- **Queue panel** on the player bar (list + jump via `playAtIndex` + **remove via `removeFromQueue`**)
 - `GET /api/songs/genres` wired (controller was present; route was missing)
 - **Home genre filter** passes `genre` query to `getSongs` and shows active filter + clear
 - Soft logout: `auth:logout` / Sign Out clear user state without `window.location` hard reload (PrivateRoute navigates)
@@ -40,12 +40,12 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## This run changed
 
-- **dose-5.8**: Added public `GET /api/features`. Sidebar fetches it once and appends `(off)` to discovery/commerce/intel-gated nav labels when those pillars are disabled.
+- **dose-1.9**: Queue panel can remove tracks (`removeFromQueue`). Removes one index, remaps shuffle permutation, advances playback if the current track was removed, clears player when queue empties.
 
 ## Does not ship (honest)
 
 - OAuth, HLS in the React player, WebRTC video, Demucs stems, pitch-shift DSP
-- Drag-reorder / remove-from-queue in the panel (list + jump only)
+- Drag-reorder in the queue panel (list + jump + remove only)
 - Avatar upload / email change from Settings (API supports avatarUrl only; no file picker yet)
 - Rooms list still uses DB participant count (not in-memory socket roster); live roster only inside the room view
 - Live LLM responses when Colab/OpenAI is not configured (rule-based fallback only)
@@ -53,4 +53,4 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## Next item
 
-Dose 5 continued: optional remove of dead nav when flags off (vs soft-label only); queue panel drag-reorder / remove; Settings avatar file picker if product wants it.
+Dose 5 continued: optional remove of dead nav when flags off (vs soft-label only); queue panel drag-reorder; Settings avatar file picker if product wants it.
