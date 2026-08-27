@@ -31,21 +31,22 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Store / Library**: distinguish commerce 404 (flag off) from empty catalog / empty owned tracks
 - **Semantic Search**: 404 when discovery flag off is explicit (not a generic "search failed")
 - **Home Daily Mix**: reads `dailyMix.songs` from `GET /ai/daily-mix` (also tolerates flat `songs`)
+- **Artist Hub**: distinguishes intel/commerce 404 (feature flag off) from empty plays/sales; full-page message when both pillars off
 
 ## This run changed
 
-- **dose-5.3**: Home playlist cards navigate to `/playlists/:id`; Sidebar labels Podcasts as "Podcasts (soon)" without removing the route
+- **dose-5.4**: ArtistDashboard classifies settled intel/commerce calls as feature-off (404) vs empty data vs error; honest banners and empty copy
 
 ## Does not ship (honest)
 
 - OAuth, HLS in the React player, WebRTC video, Demucs stems, pitch-shift DSP
 - Drag-reorder / remove-from-queue in the panel (list + jump only)
 - Avatar upload / email change from Settings (API supports avatarUrl only; no file picker yet)
-- Create/delete playlist UI on the new Playlists page (API exists; Home AI tab still creates)
+- Create/delete playlist UI on the Playlists page (API exists; Home AI tab still creates)
 - Rooms list still uses DB participant count (not in-memory socket roster); live roster only inside the room view
 - Live LLM responses when Colab/OpenAI is not configured (rule-based fallback only)
 - Commerce/discovery/store UX when `FEATURE_COMMERCE` / `FEATURE_DISCOVERY` are off (pages stay in nav; empty state explains)
 
 ## Next item
 
-Dose 5 continued: Artist Hub honest empty when intel/commerce APIs 404 or flags off (distinguish feature-off vs no data); optional create-playlist affordance on `/playlists` page.
+Dose 5 continued: optional create-playlist affordance on `/playlists` page; remove or gate dead nav when flags off if still noisy.

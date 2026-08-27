@@ -5,6 +5,21 @@ import './Olympus.css';
 const centsToUsd = (cents) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format((cents || 0) / 100);
 
+/** Classify a settled promise: feature-off (404), error, or data. */
+function classifySettled(result) {
+  if (result.status === 'fulfilled') {
+    return { kind: 'ok', value: result.value };
+  }
+  const status = result.reason?.response?.status;
+  if (status === 404) {
+    return { kind: 'feature_off' };
+  }
+  return {
+    kind: 'error',
+    message: result.reason?.response?.data?.error || result.reason?.message || 'Request failed',
+  };
+}
+
 const RetentionChart = ({ retention }) => {
   if (!retention?.curve?.length) return <div className="muted">No listening segments yet.</div>;
   return (
@@ -30,6 +45,10 @@ const ArtistDashboard = () => {
   const [retention, setRetention] = useState(null);
   const [retentionSong, setRetentionSong] = useState(null);
   const [loading, setLoading] = useState(true);
+  // null = unknown, true = 404/flag off, false = routes present
+  const [intelOff, setIntelOff] = useState(null);
+  const [commerceOff, setCommerceOff] = useState(null);
+  const [loadError, setLoadError] = useState(null);
 
   useEffect(() => {
     Promise.allSettled([
@@ -39,11 +58,32 @@ const ArtistDashboard = () => {
       commerceService.getRevenue(),
       intelService.getRevenueByTrack(),
     ]).then(([ov, tt, ge, re, rt]) => {
-      if (ov.status === 'fulfilled') setOverview(ov.value);
-      if (tt.status === 'fulfilled') setTopTracks(tt.value.tracks || []);
-      if (ge.status === 'fulfilled') setGeo(ge.value.countries || []);
-      if (re.status === 'fulfilled') setRevenue(re.value);
-      if (rt.status === 'fulfilled') setRevenueByTrack(rt.value.tracks || []);
+      const cOv = classifySettled(ov);
+      const cTt = classifySettled(tt);
+      const cGe = classifySettled(ge);
+      const cRe = classifySettled(re);
+      const cRt = classifySettled(rt);
+
+      const intelResults = [cOv, cTt, cGe, cRt];
+      const intelAll404 = intelResults.every((c) => c.kind === 'feature_off');
+      const intelAnyOk = intelResults.some((c) => c.kind === 'ok');
+      setIntelOff(intelAll404 ? true : intelAnyOk ? false : null);
+
+      if (cRe.kind === 'feature_off') setCommerceOff(true);
+      else if (cRe.kind === 'ok') setCommerceOff(false);
+      else setCommerceOff(null);
+
+      if (cOv.kind === 'ok') setOverview(cOv.value);
+      if (cTt.kind === 'ok') setTopTracks(cTt.value.tracks || []);
+      if (cGe.kind === 'ok') setGeo(cGe.value.countries || []);
+      if (cRe.kind === 'ok') setRevenue(cRe.value);
+      if (cRt.kind === 'ok') setRevenueByTrack(cRt.value.tracks || []);
+
+      const firstErr = [cOv, cTt, cGe, cRe, cRt].find((c) => c.kind === 'error');
+      if (firstErr && !intelAnyOk && cRe.kind !== 'ok') {
+        setLoadError(firstErr.message);
+      }
+
       setLoading(false);
     });
   }, []);
@@ -54,7 +94,12 @@ const ArtistDashboard = () => {
     try {
       setRetention(await intelService.getRetention(track.songId));
     } catch (err) {
-      setRetention({ error: err.response?.data?.error || 'Failed to load retention' });
+      const status = err.response?.status;
+      if (status === 404) {
+        setRetention({ error: 'Retention API not available (intel feature flag off or route missing).' });
+      } else {
+        setRetention({ error: err.response?.data?.error || 'Failed to load retention' });
+      }
     }
   };
 
@@ -62,10 +107,41 @@ const ArtistDashboard = () => {
 
   if (loading) return <div className="oly-page"><div className="oly-empty">Crunching your numbers…</div></div>;
 
+  if (intelOff === true && commerceOff === true) {
+    return (
+      <div className="oly-page">
+        <h1>Artist Intelligence</h1>
+        <div className="oly-empty">
+          Artist Hub is not available on this server (intel and commerce feature flags off or routes missing).
+        </div>
+      </div>
+    );
+  }
+
+  if (loadError && !overview && topTracks.length === 0 && !revenue) {
+    return (
+      <div className="oly-page">
+        <h1>Artist Intelligence</h1>
+        <div className="oly-empty">{loadError}</div>
+      </div>
+    );
+  }
+
   return (
     <div className="oly-page">
       <h1>Artist Intelligence</h1>
       <div className="oly-sub">Last 30 days across everything you've uploaded.</div>
+
+      {intelOff === true && (
+        <div className="oly-msg err" style={{ marginBottom: 16 }}>
+          Listening analytics are not available (FEATURE_INTEL off or route missing).
+        </div>
+      )}
+      {commerceOff === true && (
+        <div className="oly-msg err" style={{ marginBottom: 16 }}>
+          Revenue data is not available (FEATURE_COMMERCE off or route missing).
+        </div>
+      )}
 
       <div className="oly-stat-row">
         <div className="oly-stat"><div className="value">{overview?.plays ?? 0}</div><div className="label">Plays</div></div>
@@ -77,7 +153,11 @@ const ArtistDashboard = () => {
 
       <div className="oly-section">
         <h2>Top tracks</h2>
-        {topTracks.length === 0 ? <div className="oly-empty">No plays recorded yet.</div> : (
+        {intelOff === true ? (
+          <div className="oly-empty">Intel analytics disabled on this server.</div>
+        ) : topTracks.length === 0 ? (
+          <div className="oly-empty">No plays recorded yet.</div>
+        ) : (
           <table className="oly-table">
             <thead>
               <tr><th>Track</th><th>Plays</th><th>Listeners</th><th>Skip rate</th><th></th></tr>
@@ -127,7 +207,11 @@ const ArtistDashboard = () => {
 
       <div className="oly-section">
         <h2>Where your listeners are</h2>
-        {geo.length === 0 ? <div className="oly-empty">No geo data yet.</div> : (
+        {intelOff === true ? (
+          <div className="oly-empty">Intel analytics disabled on this server.</div>
+        ) : geo.length === 0 ? (
+          <div className="oly-empty">No geo data yet.</div>
+        ) : (
           <table className="oly-table">
             <thead><tr><th>Country</th><th>Plays</th><th>Listeners</th></tr></thead>
             <tbody>
@@ -145,7 +229,11 @@ const ArtistDashboard = () => {
 
       <div className="oly-section">
         <h2>Revenue by track</h2>
-        {revenueByTrack.length === 0 ? <div className="oly-empty">No sales yet — list a track in the Store.</div> : (
+        {commerceOff === true && intelOff !== false && revenueByTrack.length === 0 ? (
+          <div className="oly-empty">Commerce is not available on this server (feature flag off or route missing).</div>
+        ) : revenueByTrack.length === 0 ? (
+          <div className="oly-empty">No sales yet — list a track in the Store.</div>
+        ) : (
           <table className="oly-table">
             <thead><tr><th>Track</th><th>Sales</th><th>Your share</th></tr></thead>
             <tbody>
