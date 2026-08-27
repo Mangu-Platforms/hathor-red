@@ -13,6 +13,8 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Pitch/stem UI **hidden** (not implemented on the audio graph)
 - **Queue panel** on the player bar (list + jump via `playAtIndex`)
 - `GET /api/songs/genres` wired (controller was present; route was missing)
+- **Home genre filter** passes `genre` query to `getSongs` and shows active filter + clear
+- Soft logout: `auth:logout` / Sign Out clear user state without `window.location` hard reload (PrivateRoute navigates)
 - Podcasts nav: honest coming-soon page
 - Rooms / playlists / AI endpoints present; behavior depends on DB seed + API keys
 - Olympus modules mount when feature flags are on; degrade when OpenAI/worker missing
@@ -20,16 +22,16 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## This run changed
 
-- **dose-1.3**: MusicPlayer queue panel + PlayerContext `playAtIndex`; route `GET /songs/genres` before `/:id`
+- **dose-1.4**: Home `fetchSongs(params)` actually forwards genre to the API; active-genre UI + clear; AuthContext soft logout (no hard reload on token expiry event)
 
 ## Does not ship (honest)
 
 - OAuth, HLS in the React player, WebRTC video, Demucs stems, pitch-shift DSP
-- Genre **filter UI** on Home still needs verification that it passes `genre` query to `getSongs`
 - Drag-reorder / remove-from-queue in the panel (list + jump only)
+- Settings still privacy-only (no profile editor form yet)
+- `/playlists` route still renders Home shell (no dedicated playlist detail page)
 
 ## Next item
 
-Dose 1 closed for core playback + queue surface.
-Dose 2: Settings profile polish, logout without hard reload.
-Dose 3: confirm Home genre filter actually filters; playlist detail route if missing.
+Dose 2: Settings profile polish (display name / email form via existing PUT), logout path already soft.
+Dose 3: dedicated `/playlists` list + playlist detail route if missing.

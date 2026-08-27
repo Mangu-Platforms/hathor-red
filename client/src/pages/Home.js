@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import SongList from '../components/SongList';
 import AIPlaylistGenerator from '../components/AIPlaylistGenerator';
 import { musicService } from '../services/music';
@@ -10,13 +10,20 @@ const Home = () => {
   const [genres, setGenres] = useState([]);
   const [dailyMix, setDailyMix] = useState([]);
   const [activeTab, setActiveTab] = useState('discover');
+  const [activeGenre, setActiveGenre] = useState(null);
   const [loading, setLoading] = useState(true);
   const { setQueueAndPlay } = usePlayer();
 
-  const fetchSongs = async () => {
-    try { const res = await musicService.getSongs(); setSongs(res.songs); }
-    catch (err) { console.error(err); }
-  };
+  const fetchSongs = useCallback(async (params = {}) => {
+    try {
+      const res = await musicService.getSongs(params);
+      setSongs(res.songs || []);
+      if (params.genre) setActiveGenre(params.genre);
+      else if (!params.genre && Object.keys(params).length === 0) setActiveGenre(null);
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
 
   const fetchPlaylists = async () => {
     try { const res = await musicService.getPlaylists(); setPlaylists(res.playlists); }
@@ -36,7 +43,12 @@ const Home = () => {
   useEffect(() => {
     setLoading(true);
     Promise.all([fetchSongs(), fetchPlaylists(), fetchGenres(), fetchDailyMix()]).finally(() => setLoading(false));
-  }, []);
+  }, [fetchSongs]);
+
+  const clearGenreFilter = () => {
+    setActiveGenre(null);
+    fetchSongs();
+  };
 
   if (loading) return <div className="loading-screen">Loading your music universe...</div>;
 
@@ -77,17 +89,31 @@ const Home = () => {
               <h2>Browse by Genre</h2>
               <div className="genre-grid">
                 {genres.map(g => (
-                  <button key={g.genre} className="genre-card" onClick={() => fetchSongs({ genre: g.genre })}>
+                  <button
+                    key={g.genre}
+                    className={`genre-card${activeGenre === g.genre ? ' active' : ''}`}
+                    onClick={() => fetchSongs({ genre: g.genre })}
+                  >
                     <div className="genre-card-bg">{g.genre?.[0]}</div>
                     <span className="genre-card-name">{g.genre}</span>
                     <span className="genre-card-count">{g.count} songs</span>
                   </button>
                 ))}
               </div>
+              {activeGenre && (
+                <button type="button" className="play-all-btn" style={{ marginTop: 12 }} onClick={clearGenreFilter}>
+                  Clear filter ({activeGenre})
+                </button>
+              )}
             </section>
           )}
 
-          <SongList songs={songs} title="All Songs" showSearch={true} onRefresh={fetchSongs} />
+          <SongList
+            songs={songs}
+            title={activeGenre ? `${activeGenre} Songs` : 'All Songs'}
+            showSearch={true}
+            onRefresh={() => fetchSongs(activeGenre ? { genre: activeGenre } : {})}
+          />
         </>
       )}
 

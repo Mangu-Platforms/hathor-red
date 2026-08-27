@@ -29,9 +29,11 @@ export const AuthProvider = ({ children }) => {
     };
     loadUser();
 
+    // Soft logout: clear user state only. PrivateRoute will Navigate to /login.
+    // Avoid window.location hard reload so SPA state can clean up cleanly.
     const handleLogout = () => {
       setUser(null);
-      window.location.href = '/login';
+      setError(null);
     };
     window.addEventListener('auth:logout', handleLogout);
     return () => window.removeEventListener('auth:logout', handleLogout);
