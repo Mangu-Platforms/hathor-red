@@ -10,7 +10,7 @@ const AIRecommendations = ({ currentSongId = null }) => {
   const [activeTab, setActiveTab] = useState('forYou');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const { playSong } = usePlayer();
+  const { setQueueAndPlay } = usePlayer();
 
   useEffect(() => {
     loadRecommendations();
@@ -53,10 +53,10 @@ const AIRecommendations = ({ currentSongId = null }) => {
   };
 
   const handlePlaySong = (song) => {
-    playSong(song);
+    if (song) setQueueAndPlay([song], 0);
   };
 
-  const renderSongList = (songs, showReason = false) => {
+  const renderSongList = (songs) => {
     if (!songs || songs.length === 0) {
       return <p className="no-songs">No songs available</p>;
     }

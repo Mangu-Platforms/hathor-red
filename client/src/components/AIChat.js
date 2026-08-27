@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { chatWithAI, generateAIPlaylist, semanticSearch } from '../services/ai';
+import { chatWithAI, getAIStatus } from '../services/ai';
 import { usePlayer } from '../contexts/PlayerContext';
 import './AIChat.css';
 
@@ -12,9 +12,10 @@ const AIChat = ({ isOpen, onClose }) => {
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [aiStatus, setAiStatus] = useState(null);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
-  const { playSong } = usePlayer();
+  const { setQueueAndPlay } = usePlayer();
 
   useEffect(() => {
     scrollToBottom();
@@ -26,8 +27,29 @@ const AIChat = ({ isOpen, onClose }) => {
     }
   }, [isOpen]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    getAIStatus()
+      .then((data) => {
+        if (!cancelled) setAiStatus(data?.status || data || null);
+      })
+      .catch(() => {
+        if (!cancelled) setAiStatus({ fallbackMode: true, initialized: false });
+      });
+    return () => { cancelled = true; };
+  }, [isOpen]);
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const statusLabel = () => {
+    if (!aiStatus) return 'Checking AI…';
+    if (aiStatus.fallbackMode || !aiStatus.initialized) {
+      return 'Rule-based fallback (no live model)';
+    }
+    return 'Live AI connected';
   };
 
   const handleSend = async () => {
@@ -44,9 +66,8 @@ const AIChat = ({ isOpen, onClose }) => {
         content: m.content
       }));
 
-      const response = await chatWithAI(userMessage, conversationHistory);
+      const response = await const response = await chatWithAI(userMessage, conversationHistory);
 
-      // Add assistant response
       setMessages(prev => [...prev, {
         role: 'assistant',
         content: response.response,
@@ -108,13 +129,17 @@ const AIChat = ({ isOpen, onClose }) => {
       }
     } catch (error) {
       console.error('Quick action error:', error);
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: 'Something went wrong with that request. Try again in a moment.'
+      }]);
     } finally {
       setLoading(false);
     }
   };
 
   const handlePlaySong = (song) => {
-    playSong(song);
+    if (song) setQueueAndPlay([song], 0);
   };
 
   const renderMessage = (message, index) => {
@@ -123,7 +148,6 @@ const AIChat = ({ isOpen, onClose }) => {
         <div className="message-content">
           <p>{message.content}</p>
 
-          {/* Render search results if available */}
           {message.actionResults && message.actionResults.length > 0 && (
             <div className="action-results">
               {message.actionResults.map((result, idx) => (
@@ -165,7 +189,7 @@ const AIChat = ({ isOpen, onClose }) => {
             </div>
             <div>
               <h3>AI Music Assistant</h3>
-              <span className="status">Powered by Colab AI</span>
+              <span className="status">{statusLabel()}</span>
             </div>
           </div>
           <button className="close-btn" onClick={onClose}>

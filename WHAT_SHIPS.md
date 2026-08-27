@@ -25,10 +25,12 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Rooms**: disconnect/leave cleans `room_participants` (refcounted multi-tab); host handoff; **host song picker** (lists catalog, emits `change-song`); listener count prefers live socket roster when present
 - **Rooms list**: polls `GET /rooms` every 15s so DB `listener_count` stays fresher on the list page
 - Sidebar **Settings** label (was mislabeled Privacy)
+- **AI Chat / Recommendations**: play uses `setQueueAndPlay` (not a missing `playSong`); header shows live vs rule-based fallback from `GET /ai/status`
+- **Radar**: distinguishes API/feature failure from empty listening history
 
 ## This run changed
 
-- **dose-4.1**: Rooms list 15s poll for listener counts; Sidebar Settings nav label + gear icon (was Privacy)
+- **dose-5.1**: AIChat + AIRecommendations play via `setQueueAndPlay`; AIChat status label honest about fallback mode; Radar empty vs error messaging
 
 ## Does not ship (honest)
 
@@ -38,7 +40,8 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Create/delete playlist UI on the new Playlists page (API exists; Home AI tab still creates)
 - Playlist cards on Home tab still non-navigating (sidebar /playlists is the real entry)
 - Rooms list still uses DB participant count (not in-memory socket roster); live roster only inside the room view
+- Live LLM responses when Colab/OpenAI is not configured (rule-based fallback only)
 
 ## Next item
 
-Dose 5: Olympus shells/fallbacks when OpenAI/worker missing; audit Radar/Store/Library for honest empty states; remove any remaining dead nav if features stay unwired.
+Dose 5 continued: Store/Library/Search honest messages when commerce/discovery flags return 404; Home daily-mix path align with `dailyMix.songs` API shape; remove any remaining dead nav if features stay unwired.

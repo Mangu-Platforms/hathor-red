@@ -7,14 +7,22 @@ import './Olympus.css';
 const Radar = () => {
   const [radar, setRadar] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const { setQueueAndPlay } = usePlayer();
 
   const load = useCallback(async (refresh = false) => {
     setLoading(true);
+    setError(null);
     try {
       setRadar(await discoveryService.getRadar(refresh));
     } catch (err) {
       setRadar(null);
+      const status = err.response?.status;
+      if (status === 404) {
+        setError('Discovery is not available on this server (feature flag off or route missing).');
+      } else {
+        setError(err.response?.data?.error || 'Could not load Radar. Try again later.');
+      }
     } finally {
       setLoading(false);
     }
@@ -24,7 +32,6 @@ const Radar = () => {
 
   const playAll = async () => {
     if (!radar?.tracks?.length) return;
-    // Radar rows carry ids + display fields; hydrate full song rows for the queue.
     const songs = await Promise.all(
       radar.tracks.map((t) =>
         musicService.getSong(t.songId).then((d) => d.song).catch(() => null)
@@ -49,6 +56,8 @@ const Radar = () => {
 
       {loading ? (
         <div className="oly-empty">Tuning your radar…</div>
+      ) : error ? (
+        <div className="oly-empty">{error}</div>
       ) : !radar?.tracks?.length ? (
         <div className="oly-empty">
           Not enough listening history yet — play a few tracks and check back.
