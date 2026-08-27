@@ -67,11 +67,23 @@ const ProductCard = ({ product, onBought }) => {
 const Store = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     commerceService.listProducts()
-      .then((data) => setProducts(data.products || []))
-      .catch(() => setProducts([]))
+      .then((data) => {
+        setProducts(data.products || []);
+        setError(null);
+      })
+      .catch((err) => {
+        setProducts([]);
+        const status = err.response?.status;
+        if (status === 404) {
+          setError('Store is not available on this server (commerce feature flag off or route missing).');
+        } else {
+          setError(err.response?.data?.error || 'Could not load store. Try again later.');
+        }
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -81,6 +93,8 @@ const Store = () => {
       <div className="oly-sub">Buy directly from artists — 80% of every sale goes to them.</div>
       {loading ? (
         <div className="oly-empty">Loading store…</div>
+      ) : error ? (
+        <div className="oly-empty">{error}</div>
       ) : products.length === 0 ? (
         <div className="oly-empty">No products listed yet. Artists can sell tracks from their dashboard.</div>
       ) : (

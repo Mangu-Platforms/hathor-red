@@ -27,10 +27,13 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Sidebar **Settings** label (was mislabeled Privacy)
 - **AI Chat / Recommendations**: play uses `setQueueAndPlay` (not a missing `playSong`); header shows live vs rule-based fallback from `GET /ai/status`
 - **Radar**: distinguishes API/feature failure from empty listening history
+- **Store / Library**: distinguish commerce 404 (flag off) from empty catalog / empty owned tracks
+- **Semantic Search**: 404 when discovery flag off is explicit (not a generic "search failed")
+- **Home Daily Mix**: reads `dailyMix.songs` from `GET /ai/daily-mix` (also tolerates flat `songs`)
 
 ## This run changed
 
-- **dose-5.1**: AIChat + AIRecommendations play via `setQueueAndPlay`; AIChat status label honest about fallback mode; Radar empty vs error messaging
+- **dose-5.2**: Store/Library/Search show honest messages when commerce/discovery routes return 404; Home daily-mix path uses `res.dailyMix.songs`
 
 ## Does not ship (honest)
 
@@ -41,7 +44,8 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Playlist cards on Home tab still non-navigating (sidebar /playlists is the real entry)
 - Rooms list still uses DB participant count (not in-memory socket roster); live roster only inside the room view
 - Live LLM responses when Colab/OpenAI is not configured (rule-based fallback only)
+- Commerce/discovery/store UX when `FEATURE_COMMERCE` / `FEATURE_DISCOVERY` are off (pages stay in nav; empty state explains)
 
 ## Next item
 
-Dose 5 continued: Store/Library/Search honest messages when commerce/discovery flags return 404; Home daily-mix path align with `dailyMix.songs` API shape; remove any remaining dead nav if features stay unwired.
+Dose 5 continued: Home playlist cards link to `/playlists/:id`; optional nav label for Podcasts as coming-soon without removing route; Artist Hub honest empty when intel/commerce unavailable.

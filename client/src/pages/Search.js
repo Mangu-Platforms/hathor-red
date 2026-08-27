@@ -17,7 +17,15 @@ const Search = () => {
     try {
       setResult(await discoveryService.search(query.trim(), 20));
     } catch (err) {
-      setResult({ results: [], error: err.response?.data?.error || 'Search failed' });
+      const status = err.response?.status;
+      if (status === 404) {
+        setResult({
+          results: [],
+          error: 'Semantic search is not available on this server (discovery feature flag off or route missing).',
+        });
+      } else {
+        setResult({ results: [], error: err.response?.data?.error || 'Search failed' });
+      }
     } finally {
       setLoading(false);
     }

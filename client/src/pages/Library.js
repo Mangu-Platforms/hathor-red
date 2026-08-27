@@ -6,13 +6,25 @@ import './Olympus.css';
 const Library = () => {
   const [library, setLibrary] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [message, setMessage] = useState(null);
   const { setQueueAndPlay, formatTime } = usePlayer();
 
   useEffect(() => {
     commerceService.getLibrary()
-      .then((data) => setLibrary(data.library || []))
-      .catch(() => setLibrary([]))
+      .then((data) => {
+        setLibrary(data.library || []);
+        setError(null);
+      })
+      .catch((err) => {
+        setLibrary([]);
+        const status = err.response?.status;
+        if (status === 404) {
+          setError('Library is not available on this server (commerce feature flag off or route missing).');
+        } else {
+          setError(err.response?.data?.error || 'Could not load library. Try again later.');
+        }
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -46,6 +58,8 @@ const Library = () => {
       {message && <div className={`oly-msg ${message.ok ? 'ok' : 'err'}`}>{message.text}</div>}
       {loading ? (
         <div className="oly-empty">Loading library…</div>
+      ) : error ? (
+        <div className="oly-empty">{error}</div>
       ) : library.length === 0 ? (
         <div className="oly-empty">Nothing here yet — visit the Store to own your first track.</div>
       ) : (

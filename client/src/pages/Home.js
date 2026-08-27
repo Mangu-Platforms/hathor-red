@@ -36,8 +36,15 @@ const Home = () => {
   };
 
   const fetchDailyMix = async () => {
-    try { const res = await musicService.getDailyMix(); setDailyMix(res.songs || []); }
-    catch (err) { console.error(err); }
+    try {
+      const res = await musicService.getDailyMix();
+      // API returns { dailyMix: { songs, name, basedOn } }; accept flat { songs } too
+      const list = res.dailyMix?.songs || res.songs || [];
+      setDailyMix(Array.isArray(list) ? list : []);
+    } catch (err) {
+      console.error(err);
+      setDailyMix([]);
+    }
   };
 
   useEffect(() => {
