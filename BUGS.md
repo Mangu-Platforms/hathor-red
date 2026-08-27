@@ -25,13 +25,14 @@ This document lists identified bugs, security vulnerabilities, and architectural
 *   **Impact**: The `listener_count` for rooms becomes inaccurate over time, showing users as "present" when they are no longer connected.
 *   **Root Cause**: Disconnect handler in `server/socket/handlers.js` only emits a message but doesn't perform database cleanup.
 *   **Suggested Fix**: Add a database query to the `disconnect` handler to remove the user from any active rooms they were in.
-*   **Status**: Disconnect path calls `departRoom` which deletes from `room_participants` (verify under multi-tab).
+*   **Status**: Disconnect path calls `departRoom` which deletes from `room_participants` (verify under multi-tab). Rooms list page polls every 15s (dose-4.1) so counts refresh without a full reload.
 
 ### 4. Security Bypass on Audio Files
 *   **Description**: The `/uploads` directory is served as static files via `express.static` in `server/index.js` without any authentication.
 *   **Impact**: Although filenames are UUIDs, any user who knows or guesses a filename can access and download the raw audio files without being logged in, bypassing the intended protection on the `/api/songs/:id/stream` route.
 *   **Root Cause**: Static file serving is not protected by middleware.
 *   **Suggested Fix**: Remove the public static route for `/uploads` and exclusively use the authenticated stream endpoint (after fixing the auth mismatch).
+*   **Status**: Fixed — `server/index.js` no longer mounts `express.static` on `/uploads`; audio is served only via signed `stream` route + `resolveUploadPath`.
 
 ## 🔵 Medium Severity
 
@@ -40,7 +41,7 @@ This document lists identified bugs, security vulnerabilities, and architectural
 *   **Impact**: Misleading documentation and broken feature promises for users.
 *   **Root Cause**: Placeholder code used for features that require significant implementation.
 *   **Suggested Fix**: Implement the Web Audio API nodes for pitch shifting and use a library or pre-separated stems for the stem feature.
-*   **Status**: UI controls hidden on main; do not re-list as shipping features.
+*   **Status**: UI controls hidden on main; README and WHAT_SHIPS honest about non-shipping; do not re-list as shipping features.
 
 ### 6. Race Conditions in Resource Management
 *   **Description**: Both `addSongToPlaylist` and `joinRoom` use a "check then act" pattern (counting existing items then inserting) which is not atomic.
@@ -61,6 +62,7 @@ This document lists identified bugs, security vulnerabilities, and architectural
 *   **Impact**: Potential for unnecessary re-renders or infinite loops if dependencies are not managed correctly.
 *   **Root Cause**: Deviation from React best practices for hook dependencies.
 *   **Suggested Fix**: Wrap data-fetching functions in `useCallback`.
+*   **Status**: Rooms.js fetch path now uses `useCallback` (dose-4.1).
 
 ### 9. Potential NaN in Player Seek
 *   **Description**: `Player.js` calculates seek position using `duration * percent`. If `duration` is not yet loaded (0 or NaN), this can pass invalid values to the `seek` function.

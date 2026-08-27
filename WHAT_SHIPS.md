@@ -23,10 +23,12 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **`/playlists`**: dedicated list page (not Home shell); cards link to `/playlists/:id`
 - **Playlist detail**: loads `GET /playlists/:id`, shows tracks via SongList, Play All queues songs
 - **Rooms**: disconnect/leave cleans `room_participants` (refcounted multi-tab); host handoff; **host song picker** (lists catalog, emits `change-song`); listener count prefers live socket roster when present
+- **Rooms list**: polls `GET /rooms` every 15s so DB `listener_count` stays fresher on the list page
+- Sidebar **Settings** label (was mislabeled Privacy)
 
 ## This run changed
 
-- **dose-4.0**: Host song picker in ListeningRoom (fetch songs + pick → `room-control` change-song); apply `roster` from room-state/user-joined/user-left for honest live listener list; track hostId from room-state/host-changed
+- **dose-4.1**: Rooms list 15s poll for listener counts; Sidebar Settings nav label + gear icon (was Privacy)
 
 ## Does not ship (honest)
 
@@ -35,8 +37,8 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Avatar upload / email change from Settings (API supports avatarUrl only; no file picker yet)
 - Create/delete playlist UI on the new Playlists page (API exists; Home AI tab still creates)
 - Playlist cards on Home tab still non-navigating (sidebar /playlists is the real entry)
-- Rooms list page still shows DB `listener_count` (live roster only inside the room view)
+- Rooms list still uses DB participant count (not in-memory socket roster); live roster only inside the room view
 
 ## Next item
 
-Dose 4 remainder: verify multi-tab participant cleanup under load; optional Rooms list refresh of counts. Then Dose 5: Olympus shells/fallbacks when OpenAI/worker missing; remove dead nav items if any.
+Dose 5: Olympus shells/fallbacks when OpenAI/worker missing; audit Radar/Store/Library for honest empty states; remove any remaining dead nav if features stay unwired.

@@ -1,6 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { musicService } from '../services/music';
+
+const ROOMS_POLL_MS = 15000;
 
 const Rooms = () => {
   const [rooms, setRooms] = useState([]);
@@ -10,12 +12,20 @@ const Rooms = () => {
   const [newRoomMaxListeners, setNewRoomMaxListeners] = useState(50);
   const navigate = useNavigate();
 
-  const fetchRooms = async () => {
-    try { const res = await musicService.getRooms(); setRooms(res.rooms); }
-    catch (err) { console.error(err); }
-  };
+  const fetchRooms = useCallback(async () => {
+    try {
+      const res = await musicService.getRooms();
+      setRooms(res.rooms || []);
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
 
-  useEffect(() => { fetchRooms(); }, []);
+  useEffect(() => {
+    fetchRooms();
+    const id = setInterval(fetchRooms, ROOMS_POLL_MS);
+    return () => clearInterval(id);
+  }, [fetchRooms]);
 
   const handleCreate = async () => {
     if (!newRoomName.trim()) return;
