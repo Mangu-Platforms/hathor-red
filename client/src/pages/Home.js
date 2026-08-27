@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import SongList from '../components/SongList';
 import AIPlaylistGenerator from '../components/AIPlaylistGenerator';
 import { musicService } from '../services/music';
@@ -137,7 +138,7 @@ const Home = () => {
           ) : (
             <div className="playlist-grid">
               {playlists.map(pl => (
-                <div key={pl.id} className="playlist-card">
+                <Link key={pl.id} to={`/playlists/${pl.id}`} className="playlist-card">
                   <div className="playlist-card-cover">
                     {pl.cover_url ? <img src={pl.cover_url} alt="" /> : <div className="playlist-cover-placeholder">{pl.name?.[0]}</div>}
                   </div>
@@ -146,7 +147,7 @@ const Home = () => {
                     <p>{pl.description || (pl.is_ai_generated ? 'AI Generated' : 'Custom Playlist')}</p>
                     {pl.is_public && <span className="public-badge">Public</span>}
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           )}

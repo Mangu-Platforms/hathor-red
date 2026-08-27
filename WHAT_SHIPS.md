@@ -15,13 +15,14 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - `GET /api/songs/genres` wired (controller was present; route was missing)
 - **Home genre filter** passes `genre` query to `getSongs` and shows active filter + clear
 - Soft logout: `auth:logout` / Sign Out clear user state without `window.location` hard reload (PrivateRoute navigates)
-- Podcasts nav: honest coming-soon page
+- Podcasts nav: honest coming-soon page; sidebar label **Podcasts (soon)**
 - Rooms / playlists / AI endpoints present; behavior depends on DB seed + API keys
 - Olympus modules mount when feature flags are on; degrade when OpenAI/worker missing
 - Socket `sync-state` writes DB **and** Redis `playback:${userId}` (matches HTTP update path)
 - **Settings profile**: display name form via existing `PUT /auth/profile`; shows username/email read-only; Sign out button
 - **`/playlists`**: dedicated list page (not Home shell); cards link to `/playlists/:id`
 - **Playlist detail**: loads `GET /playlists/:id`, shows tracks via SongList, Play All queues songs
+- **Home My Playlists tab**: playlist cards are `Link`s to `/playlists/:id` (same detail route as sidebar entry)
 - **Rooms**: disconnect/leave cleans `room_participants` (refcounted multi-tab); host handoff; **host song picker** (lists catalog, emits `change-song`); listener count prefers live socket roster when present
 - **Rooms list**: polls `GET /rooms` every 15s so DB `listener_count` stays fresher on the list page
 - Sidebar **Settings** label (was mislabeled Privacy)
@@ -33,7 +34,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## This run changed
 
-- **dose-5.2**: Store/Library/Search show honest messages when commerce/discovery routes return 404; Home daily-mix path uses `res.dailyMix.songs`
+- **dose-5.3**: Home playlist cards navigate to `/playlists/:id`; Sidebar labels Podcasts as "Podcasts (soon)" without removing the route
 
 ## Does not ship (honest)
 
@@ -41,11 +42,10 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Drag-reorder / remove-from-queue in the panel (list + jump only)
 - Avatar upload / email change from Settings (API supports avatarUrl only; no file picker yet)
 - Create/delete playlist UI on the new Playlists page (API exists; Home AI tab still creates)
-- Playlist cards on Home tab still non-navigating (sidebar /playlists is the real entry)
 - Rooms list still uses DB participant count (not in-memory socket roster); live roster only inside the room view
 - Live LLM responses when Colab/OpenAI is not configured (rule-based fallback only)
 - Commerce/discovery/store UX when `FEATURE_COMMERCE` / `FEATURE_DISCOVERY` are off (pages stay in nav; empty state explains)
 
 ## Next item
 
-Dose 5 continued: Home playlist cards link to `/playlists/:id`; optional nav label for Podcasts as coming-soon without removing route; Artist Hub honest empty when intel/commerce unavailable.
+Dose 5 continued: Artist Hub honest empty when intel/commerce APIs 404 or flags off (distinguish feature-off vs no data); optional create-playlist affordance on `/playlists` page.
