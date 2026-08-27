@@ -7,6 +7,8 @@ const upload = require('../middleware/upload');
 const { songUploadValidation, recordListeningValidation, idParamValidation, validate } = require('../middleware/validation');
 
 router.get('/', authMiddleware, songController.getSongs);
+// Static path before /:id so "genres" is not captured as an id
+router.get('/genres', authMiddleware, songController.getGenres);
 router.get('/:id', authMiddleware, idParamValidation, validate, songController.getSongById);
 router.post('/upload', authMiddleware, upload.single('audio'), songUploadValidation, validate, songController.uploadSong);
 router.get('/:id/stream-url', authMiddleware, idParamValidation, validate, songController.getStreamUrl);

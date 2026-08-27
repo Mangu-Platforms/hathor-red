@@ -11,6 +11,8 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Seek rejects invalid duration / non-finite times
 - Play after load awaits `audio.play()` (no fixed 100ms race)
 - Pitch/stem UI **hidden** (not implemented on the audio graph)
+- **Queue panel** on the player bar (list + jump via `playAtIndex`)
+- `GET /api/songs/genres` wired (controller was present; route was missing)
 - Podcasts nav: honest coming-soon page
 - Rooms / playlists / AI endpoints present; behavior depends on DB seed + API keys
 - Olympus modules mount when feature flags are on; degrade when OpenAI/worker missing
@@ -18,17 +20,16 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## This run changed
 
-- **dose-0.1**: README badges → `Mangu-Platforms/hathor-red`; removed claims that OAuth/HLS/WebRTC/stems ship in the live SPA
-- **dose-1.1**: PlayerContext play race + seek guards + real shuffle order; MusicPlayer hides pitch/stems; stream token TTL 4h (was 60s)
-- **dose-1.2**: Socket `sync-state` now `setEx` Redis after DB upsert so `getPlaybackState` does not return stale cache
+- **dose-1.3**: MusicPlayer queue panel + PlayerContext `playAtIndex`; route `GET /songs/genres` before `/:id`
 
 ## Does not ship (honest)
 
 - OAuth, HLS in the React player, WebRTC video, Demucs stems, pitch-shift DSP
-- Genre route was controller-only historically — confirm wiring before claiming genre filter
-- Queue panel UI (queue exists in context; dedicated drawer TBD)
+- Genre **filter UI** on Home still needs verification that it passes `genre` query to `getSongs`
+- Drag-reorder / remove-from-queue in the panel (list + jump only)
 
 ## Next item
 
-Dose 1 remaining: queue UI surface; confirm genres route if still missing.
-Then Dose 2: Settings profile polish, logout without hard reload.
+Dose 1 closed for core playback + queue surface.
+Dose 2: Settings profile polish, logout without hard reload.
+Dose 3: confirm Home genre filter actually filters; playlist detail route if missing.

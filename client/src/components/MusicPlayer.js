@@ -6,9 +6,11 @@ const MusicPlayer = () => {
     currentSong, isPlaying, togglePlay, progress, duration, volume,
     setVolume, playbackSpeed, setPlaybackSpeed, playNext, playPrevious,
     isShuffled, toggleShuffle, repeatMode, cycleRepeat, seek, formatTime,
+    queue, queueIndex, playAtIndex,
   } = usePlayer();
 
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showQueue, setShowQueue] = useState(false);
 
   if (!currentSong) return null;
 
@@ -72,7 +74,17 @@ const MusicPlayer = () => {
             <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" /></svg>
             <input type="range" min="0" max="1" step="0.01" value={volume} onChange={e => setVolume(parseFloat(e.target.value))} />
           </div>
-          <button className="player-btn" onClick={() => setShowAdvanced(!showAdvanced)} title="Playback speed">
+          <button
+            className={`player-btn ${showQueue ? 'active' : ''}`}
+            onClick={() => { setShowQueue((v) => !v); setShowAdvanced(false); }}
+            title="Queue"
+          >
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z" />
+            </svg>
+            {queue.length > 0 && <span className="queue-count-badge">{queue.length}</span>}
+          </button>
+          <button className="player-btn" onClick={() => { setShowAdvanced(!showAdvanced); setShowQueue(false); }} title="Playback speed">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
           </button>
         </div>
@@ -85,6 +97,43 @@ const MusicPlayer = () => {
             <input type="range" min="0.5" max="2" step="0.05" value={playbackSpeed} onChange={e => setPlaybackSpeed(parseFloat(e.target.value))} />
           </div>
           {/* Pitch shift and stem toggles intentionally omitted — not implemented on the audio graph */}
+        </div>
+      )}
+
+      {showQueue && (
+        <div className="player-queue-panel" role="listbox" aria-label="Play queue">
+          <div className="player-queue-header">
+            <span>Up next ({queue.length})</span>
+            <button type="button" className="player-btn" onClick={() => setShowQueue(false)} title="Close queue">
+              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          {queue.length === 0 ? (
+            <div className="player-queue-empty">Queue is empty</div>
+          ) : (
+            <ul className="player-queue-list">
+              {queue.map((song, idx) => (
+                <li key={`${song.id}-${idx}`}>
+                  <button
+                    type="button"
+                    className={`player-queue-item ${idx === queueIndex ? 'active' : ''}`}
+                    onClick={() => playAtIndex(idx)}
+                  >
+                    <span className="player-queue-num">{idx + 1}</span>
+                    <span className="player-queue-meta">
+                      <span className="player-queue-title">{song.title}</span>
+                      <span className="player-queue-artist">{song.artist}</span>
+                    </span>
+                    {idx === queueIndex && isPlaying && (
+                      <span className="player-queue-now" aria-label="Now playing">▶</span>
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
     </div>

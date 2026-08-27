@@ -212,6 +212,24 @@ export const PlayerProvider = ({ children }) => {
     }
   }, [queue, queueIndex, isShuffled, shuffleOrder, shufflePos, loadSong, audio, preloadNext]);
 
+  /** Jump to a specific queue index (used by queue panel). */
+  const playAtIndex = useCallback(async (index) => {
+    if (!queue.length || index < 0 || index >= queue.length) return;
+    setQueueIndex(index);
+    if (isShuffled && shuffleOrder.length === queue.length) {
+      const pos = shuffleOrder.indexOf(index);
+      if (pos >= 0) setShufflePos(pos);
+    }
+    try {
+      await loadSong(queue[index]);
+      await audio.play();
+      setIsPlaying(true);
+      preloadNext(queue, index);
+    } catch (err) {
+      setIsPlaying(false);
+    }
+  }, [queue, isShuffled, shuffleOrder, loadSong, audio, preloadNext]);
+
   useEffect(() => {
     const handleEnded = () => {
       if (currentSong) {
@@ -286,7 +304,7 @@ export const PlayerProvider = ({ children }) => {
     currentSong, isPlaying, volume, playbackSpeed,
     progress, duration, queue, queueIndex, isShuffled, repeatMode, audioSrc,
     loudnessGain, waveform,
-    play, pause, togglePlay, seek, playNext, playPrevious,
+    play, pause, togglePlay, seek, playNext, playPrevious, playAtIndex,
     setQueueAndPlay, loadSong,
     setVolume, setPlaybackSpeed,
     toggleShuffle,
