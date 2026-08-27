@@ -148,6 +148,19 @@ if (features.isPrivacyEnabled()) {
   app.use('/api/privacy', privacyRoutes);
 }
 
+// Public feature-flag snapshot for honest client nav / empty states (no secrets).
+app.get('/api/features', healthLimiter, (req, res) => {
+  res.json({
+    media: features.isMediaPipelineEnabled(),
+    commerce: features.isCommerceEnabled(),
+    discovery: features.isDiscoveryEnabled(),
+    social: features.isSocialEnabled(),
+    intel: features.isIntelEnabled(),
+    privacy: features.isPrivacyEnabled(),
+    worker: features.isWorkerEnabled(),
+  });
+});
+
 // Health check
 app.get('/api/health', healthLimiter, async (req, res) => {
   const health = {

@@ -35,10 +35,12 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Semantic Search**: 404 when discovery flag off is explicit (not a generic "search failed")
 - **Home Daily Mix**: reads `dailyMix.songs` from `GET /ai/daily-mix` (also tolerates flat `songs`)
 - **Artist Hub**: distinguishes intel/commerce 404 (feature flag off) from empty plays/sales; full-page message when both pillars off
+- **`GET /api/features`**: public snapshot of Olympus flags (media, commerce, discovery, social, intel, privacy, worker) for honest client labels
+- **Sidebar soft-labels**: Search / Radar / Store / Library / Artist Hub show `(off)` when the matching FEATURE_* flag is disabled (still linkable; pages keep empty-state honesty)
 
 ## This run changed
 
-- **dose-5.7**: Mounted `DELETE /playlists/:id/songs/:songId` (controller existed; route missing). Owner-only remove-from-playlist button on playlist detail SongList.
+- **dose-5.8**: Added public `GET /api/features`. Sidebar fetches it once and appends `(off)` to discovery/commerce/intel-gated nav labels when those pillars are disabled.
 
 ## Does not ship (honest)
 
@@ -47,8 +49,8 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Avatar upload / email change from Settings (API supports avatarUrl only; no file picker yet)
 - Rooms list still uses DB participant count (not in-memory socket roster); live roster only inside the room view
 - Live LLM responses when Colab/OpenAI is not configured (rule-based fallback only)
-- Commerce/discovery/store UX when `FEATURE_COMMERCE` / `FEATURE_DISCOVERY` are off (pages stay in nav; empty state explains)
+- Commerce/discovery/store UX when `FEATURE_COMMERCE` / `FEATURE_DISCOVERY` are off (pages stay in nav with `(off)` label; empty state explains)
 
 ## Next item
 
-Dose 5 continued: gate or soft-label nav items when FEATURE_* flags off if still noisy; optional client feature-status endpoint if needed for honest labels.
+Dose 5 continued: optional remove of dead nav when flags off (vs soft-label only); queue panel drag-reorder / remove; Settings avatar file picker if product wants it.
