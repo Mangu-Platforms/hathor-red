@@ -1,11 +1,22 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { privacyService } from '../services/olympus';
+import { useAuth } from '../contexts/AuthContext';
 import './Olympus.css';
 
 const Settings = () => {
+  const { user, updateProfile, logout } = useAuth();
   const [exportInfo, setExportInfo] = useState(null);
   const [message, setMessage] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [displayName, setDisplayName] = useState('');
+  const [profileBusy, setProfileBusy] = useState(false);
+  const [profileMsg, setProfileMsg] = useState(null);
+
+  useEffect(() => {
+    if (user) {
+      setDisplayName(user.display_name || user.displayName || '');
+    }
+  }, [user]);
 
   const refresh = useCallback(() => {
     privacyService.exportStatus()
@@ -14,6 +25,25 @@ const Settings = () => {
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
+
+  const saveProfile = async (e) => {
+    e.preventDefault();
+    const trimmed = (displayName || '').trim();
+    if (!trimmed) {
+      setProfileMsg({ ok: false, text: 'Display name cannot be empty' });
+      return;
+    }
+    setProfileBusy(true);
+    setProfileMsg(null);
+    try {
+      await updateProfile({ displayName: trimmed });
+      setProfileMsg({ ok: true, text: 'Profile updated' });
+    } catch (err) {
+      setProfileMsg({ ok: false, text: err.response?.data?.error || 'Update failed' });
+    } finally {
+      setProfileBusy(false);
+    }
+  };
 
   const requestExport = async () => {
     setBusy(true);
@@ -58,8 +88,52 @@ const Settings = () => {
 
   return (
     <div className="oly-page">
-      <h1>Privacy & Data</h1>
-      <div className="oly-sub">Your data belongs to you — export it or leave, no dark patterns.</div>
+      <h1>Settings</h1>
+      <div className="oly-sub">Account, privacy, and data controls.</div>
+
+      <div className="oly-section">
+        <h2>Profile</h2>
+        <p className="muted" style={{ marginBottom: 12 }}>
+          Username and email are fixed after registration. You can change your display name.
+        </p>
+        {user && (
+          <div style={{ marginBottom: 12 }}>
+            <div className="muted" style={{ fontSize: '0.85rem' }}>Username</div>
+            <div style={{ marginBottom: 8 }}>{user.username}</div>
+            <div className="muted" style={{ fontSize: '0.85rem' }}>Email</div>
+            <div style={{ marginBottom: 12 }}>{user.email}</div>
+          </div>
+        )}
+        <form onSubmit={saveProfile}>
+          <label className="muted" style={{ fontSize: '0.85rem', display: 'block', marginBottom: 4 }}>
+            Display name
+          </label>
+          <div className="oly-row" style={{ maxWidth: 420 }}>
+            <input
+              className="oly-input"
+              type="text"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              maxLength={100}
+              disabled={profileBusy}
+              placeholder="How you appear to others"
+            />
+            <button className="oly-btn" type="submit" disabled={profileBusy}>
+              {profileBusy ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        </form>
+        {profileMsg && (
+          <div className={`oly-msg ${profileMsg.ok ? 'ok' : 'err'}`} style={{ marginTop: 12 }}>
+            {profileMsg.text}
+          </div>
+        )}
+        <div className="oly-row" style={{ marginTop: 16 }}>
+          <button className="oly-btn-ghost" type="button" onClick={() => logout()}>
+            Sign out
+          </button>
+        </div>
+      </div>
 
       {message && <div className={`oly-msg ${message.ok ? 'ok' : 'err'}`}>{message.text}</div>}
 

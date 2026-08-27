@@ -19,19 +19,19 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Rooms / playlists / AI endpoints present; behavior depends on DB seed + API keys
 - Olympus modules mount when feature flags are on; degrade when OpenAI/worker missing
 - Socket `sync-state` writes DB **and** Redis `playback:${userId}` (matches HTTP update path)
+- **Settings profile**: display name form via existing `PUT /auth/profile`; shows username/email read-only; Sign out button
 
 ## This run changed
 
-- **dose-1.4**: Home `fetchSongs(params)` actually forwards genre to the API; active-genre UI + clear; AuthContext soft logout (no hard reload on token expiry event)
+- **dose-2.0**: Settings page profile section — edit display name through `updateProfile`, read-only username/email, soft Sign out
 
 ## Does not ship (honest)
 
 - OAuth, HLS in the React player, WebRTC video, Demucs stems, pitch-shift DSP
 - Drag-reorder / remove-from-queue in the panel (list + jump only)
-- Settings still privacy-only (no profile editor form yet)
+- Avatar upload / email change from Settings (API supports avatarUrl only; no file picker yet)
 - `/playlists` route still renders Home shell (no dedicated playlist detail page)
 
 ## Next item
 
-Dose 2: Settings profile polish (display name / email form via existing PUT), logout path already soft.
 Dose 3: dedicated `/playlists` list + playlist detail route if missing.
