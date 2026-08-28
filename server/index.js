@@ -149,7 +149,8 @@ if (features.isPrivacyEnabled()) {
 }
 
 // Public feature-flag snapshot for honest client nav / empty states (no secrets).
-// aiLive reflects whether Colab/OpenAI initialized (else rule-based fallback only).
+// aiLive: Colab/OpenAI initialized (else rule-based fallback only).
+// workerLive: FEATURE_WORKER on AND in-process job worker started successfully.
 app.get('/api/features', healthLimiter, (req, res) => {
   let aiLive = false;
   try {
@@ -158,6 +159,17 @@ app.get('/api/features', healthLimiter, (req, res) => {
   } catch {
     aiLive = false;
   }
+
+  let workerLive = false;
+  try {
+    if (features.isWorkerEnabled()) {
+      const ws = jobWorker.getStatus();
+      workerLive = Boolean(ws && ws.startedOk && ws.running);
+    }
+  } catch {
+    workerLive = false;
+  }
+
   res.json({
     media: features.isMediaPipelineEnabled(),
     commerce: features.isCommerceEnabled(),
@@ -167,6 +179,7 @@ app.get('/api/features', healthLimiter, (req, res) => {
     privacy: features.isPrivacyEnabled(),
     worker: features.isWorkerEnabled(),
     aiLive,
+    workerLive,
   });
 });
 
@@ -268,6 +281,8 @@ const startServer = async () => {
       } catch (workerErr) {
         logger.warn(`Job worker failed to start (API still serving): ${workerErr.message}`);
       }
+    } else {
+      logger.info('FEATURE_WORKER off — background jobs will not run in this process');
     }
 
     server.listen(PORT, () => {

@@ -18,6 +18,9 @@ let pollTimer = null;
 let running = false;
 let draining = false;
 let wakeSubscriber = null;
+/** Set when start() completes without throwing (poll loop scheduled). */
+let startedOk = false;
+let startError = null;
 
 /** Register a handler: async (payload, job) => result */
 function register(jobType, handlerFn) {
@@ -98,30 +101,40 @@ async function subscribeWake() {
 async function start({ intervalMs = 15000 } = {}) {
   if (running) return;
   running = true;
+  startError = null;
 
-  await subscribeWake();
+  try {
+    await subscribeWake();
 
-  const loop = async () => {
-    if (!running) return;
-    try {
-      await drain();
-    } catch (err) {
-      // DB unavailable — degrade quietly, the next tick retries.
-      logger.warn(`Job poll error (will retry): ${err.message}`);
-    }
-    if (running) {
-      pollTimer = setTimeout(loop, intervalMs);
-      if (pollTimer.unref) pollTimer.unref();
-    }
-  };
+    const loop = async () => {
+      if (!running) return;
+      try {
+        await drain();
+      } catch (err) {
+        // DB unavailable — degrade quietly, the next tick retries.
+        logger.warn(`Job poll error (will retry): ${err.message}`);
+      }
+      if (running) {
+        pollTimer = setTimeout(loop, intervalMs);
+        if (pollTimer.unref) pollTimer.unref();
+      }
+    };
 
-  pollTimer = setTimeout(loop, intervalMs);
-  if (pollTimer.unref) pollTimer.unref();
-  logger.info(`Job worker started (poll every ${intervalMs}ms; handlers: ${registeredTypes().join(', ') || 'none'})`);
+    pollTimer = setTimeout(loop, intervalMs);
+    if (pollTimer.unref) pollTimer.unref();
+    startedOk = true;
+    logger.info(`Job worker started (poll every ${intervalMs}ms; handlers: ${registeredTypes().join(', ') || 'none'})`);
+  } catch (err) {
+    running = false;
+    startedOk = false;
+    startError = err.message || String(err);
+    throw err;
+  }
 }
 
 async function stop() {
   running = false;
+  startedOk = false;
   if (pollTimer) clearTimeout(pollTimer);
   pollTimer = null;
   if (wakeSubscriber) {
@@ -134,9 +147,23 @@ async function stop() {
   }
 }
 
+/** Public snapshot for /api/features honesty (no secrets). */
+function getStatus() {
+  return {
+    running,
+    startedOk,
+    startError,
+    handlerCount: handlers.size,
+    handlers: registeredTypes(),
+  };
+}
+
 /** Test hook: clear registered handlers. */
 function resetHandlers() {
   handlers.clear();
+  startedOk = false;
+  startError = null;
+  running = false;
 }
 
 module.exports = {
@@ -146,5 +173,6 @@ module.exports = {
   drain,
   start,
   stop,
+  getStatus,
   resetHandlers,
 };
