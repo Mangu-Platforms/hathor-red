@@ -51,6 +51,7 @@ const ArtistDashboard = () => {
   const [geo, setGeo] = useState([]);
   const [revenue, setRevenue] = useState(null);
   const [revenueByTrack, setRevenueByTrack] = useState([]);
+  const [mySongs, setMySongs] = useState([]);
   const [retention, setRetention] = useState(null);
   const [retentionSong, setRetentionSong] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -99,12 +100,14 @@ const ArtistDashboard = () => {
       intelService.getGeography(30),
       commerceService.getRevenue(),
       intelService.getRevenueByTrack(),
-    ]).then(([ov, tt, ge, re, rt]) => {
+      musicService.getMySongs({ limit: 100 }),
+    ]).then(([ov, tt, ge, re, rt, mine]) => {
       const cOv = classifySettled(ov);
       const cTt = classifySettled(tt);
       const cGe = classifySettled(ge);
       const cRe = classifySettled(re);
       const cRt = classifySettled(rt);
+      const cMine = classifySettled(mine);
 
       const intelResults = [cOv, cTt, cGe, cRt];
       const intelAll404 = intelResults.every((c) => c.kind === 'feature_off');
@@ -120,6 +123,7 @@ const ArtistDashboard = () => {
       if (cGe.kind === 'ok') setGeo(cGe.value.countries || []);
       if (cRe.kind === 'ok') setRevenue(cRe.value);
       if (cRt.kind === 'ok') setRevenueByTrack(cRt.value.tracks || []);
+      if (cMine.kind === 'ok') setMySongs(cMine.value.songs || []);
 
       const firstErr = [cOv, cTt, cGe, cRe, cRt].find((c) => c.kind === 'error');
       if (firstErr && !intelAnyOk && cRe.kind !== 'ok') {
@@ -388,6 +392,12 @@ const ArtistDashboard = () => {
         kind: 'ok',
         text: `Uploaded “${result?.song?.title || uploadTitle}” (id ${songId ?? '—'}).${extra}`,
       });
+      if (result?.song) {
+        setMySongs((prev) => {
+          if (prev.some((s) => s.id === result.song.id)) return prev;
+          return [result.song, ...prev];
+        });
+      }
       if (songId != null && pipeline?.jobId) {
         setPipelineBySong((prev) => ({
           ...prev,
@@ -419,11 +429,18 @@ const ArtistDashboard = () => {
   };
 
   const pipelineTracks = (() => {
-    const fromTop = topTracks.map((t) => ({ songId: t.songId, title: t.title }));
-    const fromRev = revenueByTrack.map((t) => ({ songId: t.songId, title: t.title }));
     const map = new Map();
-    [...fromTop, ...fromRev].forEach((t) => {
-      if (t.songId != null && !map.has(t.songId)) map.set(t.songId, t);
+    // Prefer explicit my-uploads list so the panel works without intel/commerce plays
+    mySongs.forEach((s) => {
+      if (s?.id != null && !map.has(s.id)) {
+        map.set(s.id, { songId: s.id, title: s.title || `Song #${s.id}` });
+      }
+    });
+    topTracks.forEach((t) => {
+      if (t.songId != null && !map.has(t.songId)) map.set(t.songId, { songId: t.songId, title: t.title });
+    });
+    revenueByTrack.forEach((t) => {
+      if (t.songId != null && !map.has(t.songId)) map.set(t.songId, { songId: t.songId, title: t.title });
     });
     // Include songs that only exist via recent upload (job poll) so status is visible
     Object.keys(pipelineBySong).forEach((sid) => {
@@ -667,13 +684,13 @@ function PipelineSection({ tracks, pipelineBySong, loadPipeline, handleReprocess
     <div className="oly-section">
       <h2>Media pipeline</h2>
       <div className="oly-sub" style={{ marginBottom: 12 }}>
-        Asset and variant status via <code>GET /api/media/songs/:id/pipeline</code>.
+        Owned tracks from <code>GET /api/songs/mine</code>; status via <code>GET /api/media/songs/:id/pipeline</code>.
         Job status via <code>GET /api/media/jobs/:id</code> (auto-poll after upload/reprocess).
         Worker: {features?.workerLive === true ? 'live' : features?.worker === false ? 'flag off' : features ? 'not live' : '…'}.
       </div>
       {tracks.length === 0 ? (
         <div className="oly-empty" style={{ padding: '16px 0' }}>
-          No owned tracks in analytics yet. Upload a track, then use Refresh status after it appears in Top tracks or Revenue.
+          No uploads yet. Upload a track above — it will appear here via <code>/api/songs/mine</code> even before plays or sales.
         </div>
       ) : (
         <table className="oly-table">
