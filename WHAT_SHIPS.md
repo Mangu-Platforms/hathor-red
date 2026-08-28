@@ -38,10 +38,11 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Artist Hub**: distinguishes intel/commerce 404 (feature flag off) from empty plays/sales; full-page message when both pillars off
 - **`GET /api/features`**: public snapshot of Olympus flags (media, commerce, discovery, social, intel, privacy, worker) for honest client labels
 - **Sidebar nav honesty**: Search / Radar / Store / Library / Artist Hub are **omitted from the sidebar** when the matching FEATURE_* flag is off (routes remain for deep links; pages keep empty-state honesty). While `/api/features` is loading, items stay visible to avoid nav flash.
+- **Deep-link feature gates**: `/search` and `/radar` require discovery; `/store` and `/library` require commerce; `/dashboard` requires intel **or** commerce. When the flag is explicitly off, `FeatureRoute` redirects to `/` (Home). While flags are loading, the page still renders (no flash).
 
 ## This run changed
 
-- **dose-2.2**: Sidebar footer avatar shows `avatar_url` / `avatarUrl` image when set; CSS `overflow: hidden` + object-fit; onError falls back to initial letter. Completes the Settings avatar URL work in the shell.
+- **dose-0.3**: Deep-link redirects when Olympus feature flags are off — `FeatureRoute` in `client/src/App.js` gates Search/Radar (discovery), Store/Library (commerce), and Artist Hub (intel or commerce) to Home.
 
 ## Does not ship (honest)
 
@@ -50,9 +51,8 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Email change from Settings
 - Rooms list still uses DB participant count (not in-memory socket roster); live roster only inside the room view
 - Live LLM responses when Colab/OpenAI is not configured (rule-based fallback only)
-- Commerce/discovery/store UX when `FEATURE_COMMERCE` / `FEATURE_DISCOVERY` are off (nav items hidden; deep-link pages still explain empty/404)
-- Deep-link redirects to Home when pillar flags are off (pages already show honest empty/404)
+- Commerce/discovery/store UX when `FEATURE_COMMERCE` / `FEATURE_DISCOVERY` are off (nav items hidden; deep links now redirect Home)
 
 ## Next item
 
-Optional deep-link redirects when flags off (Search/Radar/Store/Library/Artist Hub → Home or Settings notice).
+Dose 1 polish if any remaining playback edge case, else Dose 2/3 residual (e.g. playlist add-from-catalog UX) or Dose 5 fallbacks for missing worker/OpenAI.
