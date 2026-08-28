@@ -10,7 +10,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Shuffle uses a Fisher-Yates permutation (not random-jump each skip)
 - Seek rejects invalid duration / non-finite times
 - Play after load awaits `audio.play()` (no fixed 100ms race)
-- Pitch/stem UI **hidden** (not implemented on the audio graph)
+- Pitch/stem UI **hidden** (not implemented on the audio graph); dead legacy `Player.js` re-exports `MusicPlayer`
 - **Queue panel** on the player bar (list + jump via `playAtIndex` + **remove via `removeFromQueue`** + **reorder via up/down `moveInQueue`**; CSS styled)
 - `GET /api/songs/genres` wired (controller was present; route was missing)
 - **Home genre filter** passes `genre` query to `getSongs` and shows active filter + clear
@@ -36,11 +36,11 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Home Daily Mix**: reads `dailyMix.songs` from `GET /ai/daily-mix` (also tolerates flat `songs`)
 - **Artist Hub**: distinguishes intel/commerce 404 (feature flag off) from empty plays/sales; full-page message when both pillars off
 - **`GET /api/features`**: public snapshot of Olympus flags (media, commerce, discovery, social, intel, privacy, worker) for honest client labels
-- **Sidebar soft-labels**: Search / Radar / Store / Library / Artist Hub show `(off)` when the matching FEATURE_* flag is disabled (still linkable; pages keep empty-state honesty)
+- **Sidebar nav honesty**: Search / Radar / Store / Library / Artist Hub are **omitted from the sidebar** when the matching FEATURE_* flag is off (routes remain for deep links; pages keep empty-state honesty). While `/api/features` is loading, items stay visible to avoid nav flash.
 
 ## This run changed
 
-- **dose-1.10**: Queue panel styles (were missing from CSS) + reorder via up/down (`moveInQueue`). Remaps shuffle indices; current track keeps playing when only order changes.
+- **dose-5.1**: Hide feature-gated sidebar items when flags are off (no more soft `(off)` labels for those pillars). Legacy unused `Player.js` (fake pitch/stems) now re-exports live `MusicPlayer`.
 
 ## Does not ship (honest)
 
@@ -49,8 +49,8 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Avatar upload / email change from Settings (API supports avatarUrl only; no file picker yet)
 - Rooms list still uses DB participant count (not in-memory socket roster); live roster only inside the room view
 - Live LLM responses when Colab/OpenAI is not configured (rule-based fallback only)
-- Commerce/discovery/store UX when `FEATURE_COMMERCE` / `FEATURE_DISCOVERY` are off (pages stay in nav with `(off)` label; empty state explains)
+- Commerce/discovery/store UX when `FEATURE_COMMERCE` / `FEATURE_DISCOVERY` are off (nav items hidden; deep-link pages still explain empty/404)
 
 ## Next item
 
-Dose 5 continued: optional remove of dead nav when flags off (vs soft-label only); native DnD queue reorder; Settings avatar file picker if product wants it.
+Native DnD queue reorder; Settings avatar file picker if product wants it; optional deep-link redirects when flags off.
