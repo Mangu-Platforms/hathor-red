@@ -37,6 +37,8 @@ export const musicService = {
   createPlaylist: (data) => api.post('/playlists', data).then(r => r.data),
   addToPlaylist: (playlistId, songId) => api.post('/playlists/add-song', { playlistId, songId }).then(r => r.data),
   removeFromPlaylist: (playlistId, songId) => api.delete(`/playlists/${playlistId}/songs/${songId}`).then(r => r.data),
+  reorderPlaylist: (playlistId, songIds) =>
+    api.put(`/playlists/${playlistId}/reorder`, { songIds }).then((r) => r.data),
   deletePlaylist: (id) => api.delete(`/playlists/${id}`).then(r => r.data),
   generateAIPlaylist: (prompt, name, songCount) => api.post('/playlists/generate-ai', { prompt, name, songCount }).then(r => r.data),
 

@@ -258,6 +258,22 @@ const deletePlaylist = async (req, res) => {
   }
 };
 
+/** Compact positions to 1..N after a delete so gaps do not accumulate. */
+const renumberPlaylistPositions = async (playlistId, client = db) => {
+  await client.query(
+    `WITH ordered AS (
+       SELECT song_id, ROW_NUMBER() OVER (ORDER BY position, song_id) AS new_pos
+       FROM playlist_songs
+       WHERE playlist_id = $1
+     )
+     UPDATE playlist_songs ps
+     SET position = ordered.new_pos
+     FROM ordered
+     WHERE ps.playlist_id = $1 AND ps.song_id = ordered.song_id`,
+    [playlistId]
+  );
+};
+
 const removeSongFromPlaylist = async (req, res) => {
   try {
     const { id, songId } = req.params;
@@ -275,14 +291,90 @@ const removeSongFromPlaylist = async (req, res) => {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    await db.query(
-      'DELETE FROM playlist_songs WHERE playlist_id = $1 AND song_id = $2',
+    const del = await db.query(
+      'DELETE FROM playlist_songs WHERE playlist_id = $1 AND song_id = $2 RETURNING song_id',
       [id, songId]
     );
+
+    if (del.rows.length === 0) {
+      return res.status(404).json({ error: 'Song not in playlist' });
+    }
+
+    await renumberPlaylistPositions(id);
 
     res.json({ message: 'Song removed from playlist' });
   } catch (error) {
     logger.error('Remove song from playlist error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * Reorder tracks: body.songIds is the full ordered list of song IDs for this playlist.
+ * Owner-only. Validates set equality with current membership, then assigns positions 1..N.
+ */
+const reorderPlaylistSongs = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { songIds } = req.body;
+
+    if (!Array.isArray(songIds) || songIds.length === 0) {
+      return res.status(400).json({ error: 'songIds must be a non-empty array' });
+    }
+
+    const normalized = songIds.map((x) => parseInt(x, 10));
+    if (normalized.some((n) => !Number.isFinite(n) || n < 1)) {
+      return res.status(400).json({ error: 'Invalid song ID in songIds' });
+    }
+    if (new Set(normalized).size !== normalized.length) {
+      return res.status(400).json({ error: 'songIds must be unique' });
+    }
+
+    const playlistResult = await db.query(
+      'SELECT user_id FROM playlists WHERE id = $1',
+      [id]
+    );
+
+    if (playlistResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Playlist not found' });
+    }
+
+    if (playlistResult.rows[0].user_id !== req.user.userId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const existing = await db.query(
+      'SELECT song_id FROM playlist_songs WHERE playlist_id = $1',
+      [id]
+    );
+    const existingIds = existing.rows.map((r) => r.song_id).sort((a, b) => a - b);
+    const incomingSorted = [...normalized].sort((a, b) => a - b);
+
+    if (
+      existingIds.length !== incomingSorted.length ||
+      existingIds.some((v, i) => v !== incomingSorted[i])
+    ) {
+      return res.status(400).json({
+        error: 'songIds must list exactly the songs currently in the playlist',
+      });
+    }
+
+    // Offset positions temporarily so unique(position) constraints (if any) never collide mid-update
+    await db.query(
+      'UPDATE playlist_songs SET position = position + 1000000 WHERE playlist_id = $1',
+      [id]
+    );
+
+    for (let i = 0; i < normalized.length; i++) {
+      await db.query(
+        'UPDATE playlist_songs SET position = $1 WHERE playlist_id = $2 AND song_id = $3',
+        [i + 1, id, normalized[i]]
+      );
+    }
+
+    res.json({ message: 'Playlist order updated', songIds: normalized });
+  } catch (error) {
+    logger.error('Reorder playlist songs error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -295,4 +387,5 @@ module.exports = {
   generateAIPlaylist,
   deletePlaylist,
   removeSongFromPlaylist,
+  reorderPlaylistSongs,
 };

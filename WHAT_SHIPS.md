@@ -30,7 +30,8 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Home My Playlists tab**: playlist cards are `Link`s to `/playlists/:id` (same detail route as sidebar entry)
 - **Create playlist on `/playlists`**: New playlist form (name, optional description, public flag) via `POST /playlists`; navigates to detail on success
 - **Delete playlist**: owner-only Delete on list cards and detail page; confirms then `DELETE /playlists/:id`; list removes card; detail navigates back to `/playlists`
-- **Remove track from playlist**: owner-only on detail (`DELETE /playlists/:id/songs/:songId`); SongList remove button; local list updates
+- **Remove track from playlist**: owner-only on detail (`DELETE /playlists/:id/songs/:songId`); SongList remove button; local list updates; **positions renumbered 1..N after remove**
+- **Reorder playlist tracks**: owner-only `PUT /playlists/:id/reorder` with full `songIds` order; PlaylistDetail ▲/▼ controls; validates membership set equality
 - **Add song to playlist**: position assigned in one SQL statement (`MAX(position)+1` subquery) so concurrent adds do not collide on position
 - **Rooms join**: capacity check is part of the insert (`WHERE count < max_listeners`) so concurrent joins cannot overrun `max_listeners`
 - **Rooms**: disconnect/leave cleans `room_participants` (refcounted multi-tab); host handoff; **host song picker** (lists catalog, emits `change-song`); listener count prefers live socket roster when present
@@ -49,7 +50,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## This run changed
 
-- **dose-3.1**: Atomic `addSongToPlaylist` (single INSERT with MAX(position)+1 subquery); atomic capacity-gated `joinRoom` insert. Closes BUGS.md race notes for playlist position and room max_listeners.
+- **dose-3.2**: After `removeSongFromPlaylist`, positions are compacted to 1..N. New owner-only `PUT /playlists/:id/reorder` accepts full `songIds` order (set must match membership). Client: `musicService.reorderPlaylist` + PlaylistDetail up/down controls.
 
 ## Does not ship (honest)
 
@@ -59,7 +60,8 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Rooms list still uses DB participant count (not in-memory socket roster); live roster only inside the room view
 - Live LLM responses when Colab/OpenAI is not configured (rule-based fallback only)
 - Commerce/discovery/store UX when `FEATURE_COMMERCE` / `FEATURE_DISCOVERY` are off (nav items hidden; deep links now redirect Home)
+- Playlist drag-and-drop reorder UI (up/down buttons only)
 
 ## Next item
 
-Dose 5 fallbacks for missing worker/OpenAI, or further Dose 3 playlist UX (reorder tracks, renumber positions after remove).
+Dose 5 fallbacks for missing worker/OpenAI, or playlist drag-and-drop reorder polish.

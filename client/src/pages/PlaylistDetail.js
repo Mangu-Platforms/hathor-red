@@ -15,6 +15,8 @@ const PlaylistDetail = () => {
   const [error, setError] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
+  const [reorderError, setReorderError] = useState(null);
+  const [reordering, setReordering] = useState(false);
   const { setQueueAndPlay } = usePlayer();
 
   useEffect(() => {
@@ -74,6 +76,38 @@ const PlaylistDetail = () => {
     [playlist?.id]
   );
 
+  const moveSong = useCallback(
+    async (index, direction) => {
+      if (!playlist?.id || reordering) return;
+      const next = index + direction;
+      if (next < 0 || next >= songs.length) return;
+
+      const reordered = [...songs];
+      const [item] = reordered.splice(index, 1);
+      reordered.splice(next, 0, item);
+      const songIds = reordered.map((s) => s.id);
+
+      setReorderError(null);
+      setReordering(true);
+      setSongs(reordered);
+      try {
+        await musicService.reorderPlaylist(playlist.id, songIds);
+      } catch (err) {
+        setReorderError(err.response?.data?.error || 'Failed to reorder');
+        // reload authoritative order
+        try {
+          const res = await musicService.getPlaylist(playlist.id);
+          setSongs(res.songs || []);
+        } catch {
+          /* keep optimistic list */
+        }
+      } finally {
+        setReordering(false);
+      }
+    },
+    [playlist?.id, songs, reordering]
+  );
+
   if (loading) return <div className="loading-screen">Loading playlist...</div>;
 
   if (error || !playlist) {
@@ -107,6 +141,11 @@ const PlaylistDetail = () => {
           {deleteError && (
             <div className="ai-error" style={{ marginTop: 8 }}>
               {deleteError}
+            </div>
+          )}
+          {reorderError && (
+            <div className="ai-error" style={{ marginTop: 8 }}>
+              {reorderError}
             </div>
           )}
         </div>
@@ -146,12 +185,74 @@ const PlaylistDetail = () => {
           <p>This playlist has no songs yet</p>
         </div>
       ) : (
-        <SongList
-          songs={songs}
-          title="Tracks"
-          showSearch={false}
-          onRemoveSong={isOwner ? handleRemoveSong : undefined}
-        />
+        <>
+          {isOwner && songs.length > 1 && (
+            <div
+              style={{
+                marginBottom: 12,
+                fontSize: 13,
+                color: 'var(--text-secondary)',
+              }}
+            >
+              Reorder with ▲ / ▼ on each row{reordering ? ' (saving…)' : ''}
+            </div>
+          )}
+          <div className="playlist-tracks">
+            {songs.map((song, index) => (
+              <div
+                key={song.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  marginBottom: 4,
+                }}
+              >
+                {isOwner && songs.length > 1 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <button
+                      type="button"
+                      aria-label="Move up"
+                      disabled={reordering || index === 0}
+                      onClick={() => moveSong(index, -1)}
+                      style={{
+                        padding: '2px 6px',
+                        fontSize: 11,
+                        cursor: index === 0 || reordering ? 'not-allowed' : 'pointer',
+                        opacity: index === 0 ? 0.4 : 1,
+                      }}
+                    >
+                      ▲
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Move down"
+                      disabled={reordering || index === songs.length - 1}
+                      onClick={() => moveSong(index, 1)}
+                      style={{
+                        padding: '2px 6px',
+                        fontSize: 11,
+                        cursor:
+                          index === songs.length - 1 || reordering ? 'not-allowed' : 'pointer',
+                        opacity: index === songs.length - 1 ? 0.4 : 1,
+                      }}
+                    >
+                      ▼
+                    </button>
+                  </div>
+                )}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <SongList
+                    songs={[song]}
+                    title={null}
+                    showSearch={false}
+                    onRemoveSong={isOwner ? handleRemoveSong : undefined}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
