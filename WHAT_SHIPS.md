@@ -8,6 +8,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Change password** (`POST /api/auth/change-password`) from Settings: current + new (same strength rules as register); audit on success/fail
 - Song list, upload, **signed progressive stream** for `<audio>` (`stream-url` + `streamAuth` query token)
 - **Stream URL resolution**: when `REACT_APP_API_URL` is absolute, client rewrites relative `/api/songs/…/stream?t=` to the API origin so `<audio>` does not hit the SPA host
+- **`GET /api/songs/mine`**: current user’s uploads (id, title, artist, …) for Artist Hub pipeline list when intel/commerce analytics are empty
 - Player: load/play/pause, volume, speed, progress, queue next/prev, repeat modes
 - Shuffle uses a Fisher-Yates permutation (not random-jump each skip)
 - **Shuffle + repeat none**: natural end of the last track in the permutation **stops** (does not wrap forever); `repeat all` still loops; manual Next still advances/wraps
@@ -44,7 +45,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Home Daily Mix**: reads `dailyMix.songs` from `GET /ai/daily-mix` (also tolerates flat `songs`)
 - **Artist Hub**: distinguishes intel/commerce 404 (feature flag off) from empty plays/sales; full-page message when both pillars off; **media/worker honesty banner** from `getFeatures()` when media off, worker flag off, or `workerLive` false (transcode/reprocess may stall)
 - **Artist Hub upload**: form posts multipart to existing `POST /api/songs/upload`; shows pipeline queue status and warns when worker is off or not live; **client validation** (required title/artist, max 50 MB, audio-ish MIME/extension, title/artist length)
-- **Artist Hub media pipeline panel**: lists owned tracks from top-tracks / revenue-by-track; **Refresh** calls `GET /api/media/songs/:id/pipeline` (asset status, variants, workerLive); **Reprocess** calls `POST .../reprocess` and shows job id + worker warning; **job status poll** via `GET /api/media/jobs/:id` every 4s after upload/reprocess (or manual Poll job) until completed/failed/dead or ~3 min; then refreshes pipeline; recent-upload song ids appear in the table even before analytics
+- **Artist Hub media pipeline panel**: lists owned tracks from **`GET /api/songs/mine`** first, then merges top-tracks / revenue-by-track / recent job-tracked uploads; **Refresh** calls `GET /api/media/songs/:id/pipeline`; **Reprocess** calls `POST .../reprocess`; **job status poll** via `GET /api/media/jobs/:id` every 4s after upload/reprocess (or manual Poll job) until completed/failed/dead or ~3 min; then refreshes pipeline
 - **`GET /api/features`**: public snapshot of Olympus flags (media, commerce, discovery, social, intel, privacy, worker) **plus `aiLive`** (true only when Colab/OpenAI initialized; false = rule-based fallback) **and `workerLive`** (true only when FEATURE_WORKER on **and** in-process job worker `startedOk`)
 - **`GET /api/health`**: DB + Redis checks; **`checks.worker`** reports `disabled` | `healthy` | `not_running` (enabled flag, startedOk, running, handler names). Worker not running does **not** force overall 503 (API still serves).
 - **Settings Platform status**: shows worker / AI / privacy / media honesty chips from `getFeatures()`; **plus API health badge** from `GET /api/health` (overall status, DB, Redis, worker check); GDPR export copy notes when worker is off or not running
@@ -56,7 +57,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## This run changed
 
-- **dose-5.8**: Artist Hub pipeline panel **polls `GET /api/media/jobs/:id`** after upload/reprocess (and manual Poll job); shows job status/attempts/errors; refreshes pipeline on terminal status.
+- **dose-5.9**: `GET /api/songs/mine` (uploader-scoped list) + client `musicService.getMySongs`; Artist Hub pipeline panel loads my-uploads so the table is not empty when intel/commerce analytics have no tracks.
 
 ## Does not ship (honest)
 
@@ -68,8 +69,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Commerce/discovery/store UX when `FEATURE_COMMERCE` / `FEATURE_DISCOVERY` are off (nav items hidden; deep links now redirect Home)
 - Background job processing when `FEATURE_WORKER=false` or worker fails to start (`workerLive` false)
 - Dedicated upload **page** (upload lives on Artist Hub only; no separate route)
-- Dedicated “my uploads” song list API (pipeline panel uses intel/commerce track ids + recent job-tracked uploads)
 
 ## Next item
 
-Dose 5 continued: my-uploads list endpoint if empty analytics leave the panel empty (or stop when no further Dose 5 honesty work remains).
+Dose 5 honesty complete for my-uploads; residual Olympus polish only if a concrete gap appears (no Dose 6+).

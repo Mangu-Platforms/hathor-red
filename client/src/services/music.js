@@ -20,6 +20,7 @@ function resolveStreamUrl(url) {
 
 export const musicService = {
   getSongs: (params) => api.get('/songs', { params }).then(r => r.data),
+  getMySongs: (params) => api.get('/songs/mine', { params }).then(r => r.data),
   getSong: (id) => api.get(`/songs/${id}`).then(r => r.data),
   getGenres: () => api.get('/songs/genres').then(r => r.data),
   getStreamUrl: (id) =>

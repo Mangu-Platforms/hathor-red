@@ -67,6 +67,31 @@ const getSongs = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/songs/mine — songs uploaded by the current user (Artist Hub pipeline list).
+ * Not cached: ownership is per-user and uploads are infrequent.
+ */
+const getMySongs = async (req, res) => {
+  try {
+    const pageLimit = Math.min(parseInt(req.query.limit, 10) || DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT);
+    const pageOffset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+
+    const result = await db.query(
+      `SELECT id, title, artist, album, duration, genre, year, file_path, created_at, uploaded_by
+       FROM songs
+       WHERE uploaded_by = $1
+       ORDER BY created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [req.user.userId, pageLimit, pageOffset]
+    );
+
+    res.json({ songs: result.rows });
+  } catch (error) {
+    logger.error('Get my songs error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 const getSongById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -315,6 +340,7 @@ const getGenres = async (req, res) => {
 
 module.exports = {
   getSongs,
+  getMySongs,
   getSongById,
   uploadSong,
   getStreamUrl,
