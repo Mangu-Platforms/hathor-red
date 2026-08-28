@@ -99,11 +99,25 @@ export const PlayerProvider = ({ children }) => {
     }
   }, []);
 
-  const preloadNext = useCallback(async (songs, index) => {
+  /**
+   * Opportunistically preload the track that will actually play next.
+   * When shuffle is on, that is the next index in the Fisher-Yates permutation,
+   * not songs[queueIndex + 1].
+   */
+  const preloadNext = useCallback(async (songs, currentQueueIndex, opts = {}) => {
     try {
       if (!songs || songs.length < 2) return;
-      const next = songs[(index + 1) % songs.length];
-      if (!next || next.id === songs[index]?.id) return;
+      const { shuffled, order, pos } = opts;
+      let nextIndex;
+      if (shuffled && Array.isArray(order) && order.length === songs.length) {
+        const nextPos = ((typeof pos === 'number' ? pos : 0) + 1) % order.length;
+        nextIndex = order[nextPos];
+      } else {
+        nextIndex = (currentQueueIndex + 1) % songs.length;
+      }
+      if (!Number.isInteger(nextIndex) || nextIndex < 0 || nextIndex >= songs.length) return;
+      const next = songs[nextIndex];
+      if (!next || next.id === songs[currentQueueIndex]?.id) return;
       const { url } = await musicService.getStreamUrl(next.id);
       if (!preloadRef.current) preloadRef.current = new Audio();
       preloadRef.current.preload = 'auto';
@@ -191,11 +205,15 @@ export const PlayerProvider = ({ children }) => {
       await loadSong(queue[next.index]);
       await audio.play();
       setIsPlaying(true);
-      preloadNext(queue, next.index);
+      preloadNext(queue, next.index, {
+        shuffled: isShuffled,
+        order: shuffleOrder,
+        pos: next.shufflePos,
+      });
     } catch (err) {
       setIsPlaying(false);
     }
-  }, [queue, resolveNextIndex, isShuffled, loadSong, audio, currentSong, preloadNext]);
+  }, [queue, resolveNextIndex, isShuffled, shuffleOrder, loadSong, audio, currentSong, preloadNext]);
 
   const playPrevious = useCallback(async () => {
     if (queue.length === 0) return;
@@ -213,7 +231,11 @@ export const PlayerProvider = ({ children }) => {
       await loadSong(queue[prevIndex]);
       await audio.play();
       setIsPlaying(true);
-      preloadNext(queue, prevIndex);
+      preloadNext(queue, prevIndex, {
+        shuffled: isShuffled,
+        order: shuffleOrder,
+        pos: nextShufflePos,
+      });
     } catch (err) {
       setIsPlaying(false);
     }
@@ -223,19 +245,27 @@ export const PlayerProvider = ({ children }) => {
   const playAtIndex = useCallback(async (index) => {
     if (!queue.length || index < 0 || index >= queue.length) return;
     setQueueIndex(index);
+    let pos = shufflePos;
     if (isShuffled && shuffleOrder.length === queue.length) {
-      const pos = shuffleOrder.indexOf(index);
-      if (pos >= 0) setShufflePos(pos);
+      const found = shuffleOrder.indexOf(index);
+      if (found >= 0) {
+        pos = found;
+        setShufflePos(found);
+      }
     }
     try {
       await loadSong(queue[index]);
       await audio.play();
       setIsPlaying(true);
-      preloadNext(queue, index);
+      preloadNext(queue, index, {
+        shuffled: isShuffled,
+        order: shuffleOrder,
+        pos,
+      });
     } catch (err) {
       setIsPlaying(false);
     }
-  }, [queue, isShuffled, shuffleOrder, loadSong, audio, preloadNext]);
+  }, [queue, isShuffled, shuffleOrder, shufflePos, loadSong, audio, preloadNext]);
 
   /** Remove a track from the queue by index; keeps playback if current is not removed. */
   const removeFromQueue = useCallback((index) => {
@@ -271,9 +301,11 @@ export const PlayerProvider = ({ children }) => {
     setQueue(newQueue);
     setQueueIndex(newIndex);
     setShuffleOrder(newShuffle);
+    let newPos = 0;
     if (isShuffled && newShuffle.length > 0) {
       const pos = newShuffle.indexOf(newIndex);
-      setShufflePos(pos >= 0 ? pos : 0);
+      newPos = pos >= 0 ? pos : 0;
+      setShufflePos(newPos);
     } else {
       setShufflePos((p) => Math.min(p, Math.max(0, newShuffle.length - 1)));
     }
@@ -284,7 +316,11 @@ export const PlayerProvider = ({ children }) => {
         .then(() => audio.play())
         .then(() => {
           setIsPlaying(true);
-          preloadNext(newQueue, newIndex);
+          preloadNext(newQueue, newIndex, {
+            shuffled: isShuffled,
+            order: newShuffle,
+            pos: newPos,
+          });
         })
         .catch(() => setIsPlaying(false));
     }
@@ -403,12 +439,18 @@ export const PlayerProvider = ({ children }) => {
     // Put start index first in shuffle path when user enables shuffle later
     setShuffleOrder(order);
     const posInOrder = order.indexOf(safeStart);
-    setShufflePos(posInOrder >= 0 ? posInOrder : 0);
+    const startPos = posInOrder >= 0 ? posInOrder : 0;
+    setShufflePos(startPos);
     try {
       await loadSong(songs[safeStart]);
       await audio.play();
       setIsPlaying(true);
-      preloadNext(songs, safeStart);
+      // Shuffle may still be off; preload sequential until user toggles shuffle
+      preloadNext(songs, safeStart, {
+        shuffled: false,
+        order,
+        pos: startPos,
+      });
     } catch (err) {
       setIsPlaying(false);
     }
@@ -430,10 +472,12 @@ export const PlayerProvider = ({ children }) => {
         }
         setShuffleOrder(order);
         setShufflePos(0);
+        // Warm the true next track in the new permutation
+        preloadNext(queue, queueIndex, { shuffled: true, order, pos: 0 });
       }
       return next;
     });
-  }, [queue, queueIndex]);
+  }, [queue, queueIndex, preloadNext]);
 
   const formatTime = (seconds) => {
     if (!seconds || isNaN(seconds)) return '0:00';

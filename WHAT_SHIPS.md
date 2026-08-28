@@ -13,6 +13,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Player: load/play/pause, volume, speed, progress, queue next/prev, repeat modes
 - Shuffle uses a Fisher-Yates permutation (not random-jump each skip)
 - **Shuffle + repeat none**: natural end of the last track in the permutation **stops** (does not wrap forever); `repeat all` still loops; manual Next still advances/wraps
+- **Preload next**: opportunistic stream-url fetch uses the **next index in the shuffle permutation** when shuffle is on (not `queue[i+1]` sequential); sequential when shuffle is off; re-warm on shuffle toggle
 - Seek rejects invalid duration / non-finite times
 - Play after load awaits `audio.play()` (no fixed 100ms race)
 - Pitch/stem UI **hidden** (not implemented on the audio graph); dead legacy `Player.js` re-exports `MusicPlayer`
@@ -58,7 +59,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## This run changed
 
-- **dose-1.10**: Helmet CSP `mediaSrc` expanded so signed progressive streams work when SPA and API are on different origins (dev localhost + optional `PUBLIC_API_URL` / `CSP_RELAX_MEDIA`). Same-origin production stays on `'self'` + `blob:` unless relaxed.
+- **dose-1.11**: Player preload of the next stream URL follows the Fisher-Yates shuffle permutation when shuffle is on (previously always preloaded `queue[i+1]`). Re-warm on shuffle toggle.
 
 ## Does not ship (honest)
 
@@ -73,4 +74,4 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## Next item
 
-Dose 1 CSP mediaSrc for split-origin streams; residual honesty/polish only if a concrete gap appears (no Dose 6+).
+Residual Dose 1 polish only if a concrete gap appears; otherwise Dose 2 account basics already largely shipped — verify any remaining Settings/profile gaps (no Dose 6+).
