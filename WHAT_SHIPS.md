@@ -20,6 +20,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Olympus modules mount when feature flags are on; degrade when OpenAI/worker missing
 - Socket `sync-state` writes DB **and** Redis `playback:${userId}` (matches HTTP update path)
 - **Settings profile**: display name form via existing `PUT /auth/profile`; shows username/email read-only; Sign out button; **avatar URL** field (http/https) via same PUT (`avatarUrl`); preview in Settings
+- **Sidebar avatar**: when `avatar_url` / `avatarUrl` is set, footer shows the image (object-fit cover); on load error falls back to initial letter
 - **`/playlists`**: dedicated list page (not Home shell); cards link to `/playlists/:id`
 - **Playlist detail**: loads `GET /playlists/:id`, shows tracks via SongList, Play All queues songs
 - **Home My Playlists tab**: playlist cards are `Link`s to `/playlists/:id` (same detail route as sidebar entry)
@@ -40,7 +41,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## This run changed
 
-- **dose-2.1**: Settings profile accepts **avatar URL** (http/https) via existing `PUT /auth/profile` `avatarUrl`; validates URL client-side; shows preview; clear by saving blank. No file-upload endpoint yet.
+- **dose-2.2**: Sidebar footer avatar shows `avatar_url` / `avatarUrl` image when set; CSS `overflow: hidden` + object-fit; onError falls back to initial letter. Completes the Settings avatar URL work in the shell.
 
 ## Does not ship (honest)
 
@@ -50,7 +51,8 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Rooms list still uses DB participant count (not in-memory socket roster); live roster only inside the room view
 - Live LLM responses when Colab/OpenAI is not configured (rule-based fallback only)
 - Commerce/discovery/store UX when `FEATURE_COMMERCE` / `FEATURE_DISCOVERY` are off (nav items hidden; deep-link pages still explain empty/404)
+- Deep-link redirects to Home when pillar flags are off (pages already show honest empty/404)
 
 ## Next item
 
-Optional deep-link redirects when flags off; sidebar avatar image when `avatar_url` is set.
+Optional deep-link redirects when flags off (Search/Radar/Store/Library/Artist Hub → Home or Settings notice).

@@ -140,6 +140,19 @@ body {
   justify-content: center;
   font-weight: 700;
   font-size: 14px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.user-avatar.has-image {
+  background: var(--bg-tertiary);
+}
+
+.user-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .user-info { overflow: hidden; }
