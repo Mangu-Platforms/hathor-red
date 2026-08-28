@@ -105,7 +105,32 @@ const hlsResourceValidation = [
 
 const updateProfileValidation = [
   body('displayName').optional().trim().isLength({ min: 1, max: 100 }),
-  body('avatarUrl').optional().trim().isURL().withMessage('Invalid avatar URL'),
+  // Allow empty string so client can clear avatar (controller maps '' -> null)
+  body('avatarUrl')
+    .optional({ nullable: true, checkFalsy: false })
+    .custom((value) => {
+      if (value === null || value === undefined || value === '') return true;
+      if (typeof value !== 'string') throw new Error('Invalid avatar URL');
+      try {
+        const u = new URL(value.trim());
+        if (u.protocol !== 'http:' && u.protocol !== 'https:') {
+          throw new Error('Avatar URL must be http or https');
+        }
+      } catch (e) {
+        if (e.message && e.message.startsWith('Avatar')) throw e;
+        throw new Error('Invalid avatar URL');
+      }
+      return true;
+    }),
+];
+
+const changePasswordValidation = [
+  body('currentPassword').notEmpty().withMessage('Current password is required'),
+  body('newPassword')
+    .isLength({ min: 8, max: 128 })
+    .withMessage('New password must be 8-128 characters')
+    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
+    .withMessage('New password must contain uppercase, lowercase, and a number'),
 ];
 
 // ── Olympus M2: commerce ────────────────────────────────────────────────────
@@ -246,6 +271,7 @@ module.exports = {
   idParamValidation,
   hlsResourceValidation,
   updateProfileValidation,
+  changePasswordValidation,
   productValidation,
   productListValidation,
   productUpdateValidation,

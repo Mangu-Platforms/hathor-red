@@ -28,6 +28,10 @@ export const authService = {
     const response = await api.put('/auth/profile', data);
     return response.data;
   },
+  changePassword: async (currentPassword, newPassword) => {
+    const response = await api.post('/auth/change-password', { currentPassword, newPassword });
+    return response.data;
+  },
   getStats: async () => {
     const response = await api.get('/auth/stats');
     return response.data;

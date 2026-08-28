@@ -5,6 +5,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 ## Works today
 
 - Password register/login, JWT, profile GET/PUT
+- **Change password** (`POST /api/auth/change-password`) from Settings: current + new (same strength rules as register); audit on success/fail
 - Song list, upload, **signed progressive stream** for `<audio>` (`stream-url` + `streamAuth` query token)
 - **Stream URL resolution**: when `REACT_APP_API_URL` is absolute, client rewrites relative `/api/songs/…/stream?t=` to the API origin so `<audio>` does not hit the SPA host
 - Player: load/play/pause, volume, speed, progress, queue next/prev, repeat modes
@@ -22,7 +23,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Rooms / playlists / AI endpoints present; behavior depends on DB seed + API keys
 - Olympus modules mount when feature flags are on; degrade when OpenAI/worker missing
 - Socket `sync-state` writes DB **and** Redis `playback:${userId}` (matches HTTP update path)
-- **Settings profile**: display name form via existing `PUT /auth/profile`; shows username/email read-only; Sign out button; **avatar URL** field (http/https) via same PUT (`avatarUrl`); preview in Settings
+- **Settings profile**: display name form via existing `PUT /auth/profile`; shows username/email read-only; Sign out button; **avatar URL** field (http/https) via same PUT (`avatarUrl`); **empty avatar URL clears** `avatar_url` (no longer stuck via COALESCE); preview in Settings
 - **Sidebar avatar**: when `avatar_url` / `avatarUrl` is set, footer shows the image (object-fit cover); on load error falls back to initial letter
 - **`/playlists`**: dedicated list page (not Home shell); cards link to `/playlists/:id`
 - **Playlist detail**: loads `GET /playlists/:id`, shows tracks via SongList, Play All queues songs
@@ -46,7 +47,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## This run changed
 
-- **dose-1.6**: Player `ended` handler no longer treats shuffle alone as infinite loop. With **repeat none** + shuffle, playback stops after the last index in the Fisher-Yates permutation; **repeat all** still loops; user Next still wraps via `resolveNextIndex`.
+- **dose-2.1**: `POST /api/auth/change-password` (auth + validation matching register strength); Settings **Change password** form; profile update now **clears** avatar when client sends empty `avatarUrl` (explicit SET, not COALESCE).
 
 ## Does not ship (honest)
 
@@ -59,4 +60,4 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## Next item
 
-Dose 2 residual (password path solid; OAuth still out) or Dose 3 polish or Dose 5 fallbacks for missing worker/OpenAI. Prefer any remaining playback edge case if found.
+Dose 3 polish (playlist UX edges) or Dose 5 fallbacks for missing worker/OpenAI. Prefer any remaining playback edge case if found.

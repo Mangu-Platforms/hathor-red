@@ -125,10 +125,50 @@ const updateProfile = async (req, res) => {
   try {
     const { displayName, avatarUrl } = req.body;
 
+    // Build SET clause so empty/null avatarUrl clears the column (COALESCE cannot clear).
+    const sets = [];
+    const params = [];
+
+    if (displayName !== undefined && displayName !== null) {
+      const trimmed = sanitizeInput(displayName);
+      if (!trimmed) {
+        return res.status(400).json({ error: 'Display name cannot be empty' });
+      }
+      params.push(trimmed);
+      sets.push(`display_name = $${params.length}`);
+    }
+
+    if (avatarUrl !== undefined) {
+      const raw = avatarUrl === null || avatarUrl === '' ? null : String(avatarUrl).trim();
+      if (raw) {
+        try {
+          const u = new URL(raw);
+          if (u.protocol !== 'http:' && u.protocol !== 'https:') {
+            return res.status(400).json({ error: 'Avatar URL must be http or https' });
+          }
+        } catch {
+          return res.status(400).json({ error: 'Invalid avatar URL' });
+        }
+      }
+      params.push(raw);
+      sets.push(`avatar_url = $${params.length}`);
+    }
+
+    if (sets.length === 0) {
+      return res.status(400).json({ error: 'No profile fields to update' });
+    }
+
+    sets.push('updated_at = CURRENT_TIMESTAMP');
+    params.push(req.user.userId);
+
     const result = await db.query(
-      'UPDATE users SET display_name = COALESCE($1, display_name), avatar_url = COALESCE($2, avatar_url), updated_at = CURRENT_TIMESTAMP WHERE id = $3 RETURNING id, username, email, display_name, avatar_url',
-      [displayName ? sanitizeInput(displayName) : null, avatarUrl || null, req.user.userId]
+      `UPDATE users SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING id, username, email, display_name, avatar_url`,
+      params
     );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
 
     res.json({
       message: 'Profile updated successfully',
@@ -136,6 +176,51 @@ const updateProfile = async (req, res) => {
     });
   } catch (error) {
     logger.error('Update profile error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/** Change password while authenticated (password path solid before OAuth). */
+const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Current password and new password are required' });
+    }
+
+    if (currentPassword === newPassword) {
+      return res.status(400).json({ error: 'New password must differ from current password' });
+    }
+
+    const result = await db.query(
+      'SELECT id, password_hash FROM users WHERE id = $1',
+      [req.user.userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = result.rows[0];
+    const ok = await comparePassword(currentPassword, user.password_hash);
+    if (!ok) {
+      await auditService.record({ userId: user.id, action: 'password_change_failed', ip: req.ip });
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+
+    const passwordHash = await hashPassword(newPassword);
+    await db.query(
+      'UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      [passwordHash, user.id]
+    );
+
+    logger.info({ action: 'password_changed', userId: user.id });
+    await auditService.record({ userId: user.id, action: 'password_changed', ip: req.ip });
+
+    res.json({ message: 'Password updated successfully' });
+  } catch (error) {
+    logger.error('Change password error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -193,5 +278,6 @@ module.exports = {
   login,
   getProfile,
   updateProfile,
+  changePassword,
   getListeningStats,
 };

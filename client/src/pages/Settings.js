@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { privacyService } from '../services/olympus';
+import { authService } from '../services/auth';
 import { useAuth } from '../contexts/AuthContext';
 import './Olympus.css';
 
@@ -12,6 +13,11 @@ const Settings = () => {
   const [avatarUrl, setAvatarUrl] = useState('');
   const [profileBusy, setProfileBusy] = useState(false);
   const [profileMsg, setProfileMsg] = useState(null);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [pwBusy, setPwBusy] = useState(false);
+  const [pwMsg, setPwMsg] = useState(null);
 
   useEffect(() => {
     if (user) {
@@ -53,13 +59,48 @@ const Settings = () => {
     try {
       await updateProfile({
         displayName: trimmed,
-        avatarUrl: trimmedAvatar || null,
+        // empty string clears avatar on server (null alone was ignored by old COALESCE)
+        avatarUrl: trimmedAvatar || '',
       });
       setProfileMsg({ ok: true, text: 'Profile updated' });
     } catch (err) {
       setProfileMsg({ ok: false, text: err.response?.data?.error || 'Update failed' });
     } finally {
       setProfileBusy(false);
+    }
+  };
+
+  const savePassword = async (e) => {
+    e.preventDefault();
+    setPwMsg(null);
+    if (!currentPassword || !newPassword) {
+      setPwMsg({ ok: false, text: 'Enter current and new password' });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPwMsg({ ok: false, text: 'New password and confirmation do not match' });
+      return;
+    }
+    if (newPassword.length < 8) {
+      setPwMsg({ ok: false, text: 'New password must be at least 8 characters' });
+      return;
+    }
+    setPwBusy(true);
+    try {
+      await authService.changePassword(currentPassword, newPassword);
+      setPwMsg({ ok: true, text: 'Password updated' });
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err) {
+      const details = err.response?.data?.details;
+      const detailMsg = Array.isArray(details) && details[0]?.message ? details[0].message : null;
+      setPwMsg({
+        ok: false,
+        text: detailMsg || err.response?.data?.error || 'Password change failed',
+      });
+    } finally {
+      setPwBusy(false);
     }
   };
 
@@ -196,6 +237,61 @@ const Settings = () => {
             Sign out
           </button>
         </div>
+      </div>
+
+      <div className="oly-section">
+        <h2>Change password</h2>
+        <p className="muted" style={{ marginBottom: 12 }}>
+          Use your current password, then a new one (8+ characters with upper, lower, and a number).
+          OAuth is not available yet.
+        </p>
+        <form onSubmit={savePassword} style={{ maxWidth: 420 }}>
+          <label className="muted" style={{ fontSize: '0.85rem', display: 'block', marginBottom: 4 }}>
+            Current password
+          </label>
+          <input
+            className="oly-input"
+            type="password"
+            autoComplete="current-password"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            disabled={pwBusy}
+            style={{ width: '100%', marginBottom: 12 }}
+          />
+          <label className="muted" style={{ fontSize: '0.85rem', display: 'block', marginBottom: 4 }}>
+            New password
+          </label>
+          <input
+            className="oly-input"
+            type="password"
+            autoComplete="new-password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            disabled={pwBusy}
+            style={{ width: '100%', marginBottom: 12 }}
+          />
+          <label className="muted" style={{ fontSize: '0.85rem', display: 'block', marginBottom: 4 }}>
+            Confirm new password
+          </label>
+          <div className="oly-row">
+            <input
+              className="oly-input"
+              type="password"
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              disabled={pwBusy}
+            />
+            <button className="oly-btn" type="submit" disabled={pwBusy}>
+              {pwBusy ? 'Updating…' : 'Update password'}
+            </button>
+          </div>
+        </form>
+        {pwMsg && (
+          <div className={`oly-msg ${pwMsg.ok ? 'ok' : 'err'}`} style={{ marginTop: 12 }}>
+            {pwMsg.text}
+          </div>
+        )}
       </div>
 
       {message && <div className={`oly-msg ${message.ok ? 'ok' : 'err'}`}>{message.text}</div>}
