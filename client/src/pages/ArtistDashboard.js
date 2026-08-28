@@ -9,6 +9,10 @@ const centsToUsd = (cents) =>
 
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024; // 50 MB client-side guard
 const AUDIO_MIME_PREFIXES = ['audio/', 'video/ogg', 'video/webm'];
+/** Poll GET /api/media/jobs/:id while status is pending/running. */
+const JOB_POLL_MS = 4000;
+const JOB_POLL_MAX = 45; // ~3 minutes
+const TERMINAL_JOB = new Set(['completed', 'failed', 'dead']);
 
 /** Classify a settled promise: feature-off (404), error, or data. */
 function classifySettled(result) {
@@ -65,8 +69,10 @@ const ArtistDashboard = () => {
   const [uploadMsg, setUploadMsg] = useState(null);
   const fileInputRef = useRef(null);
 
-  // Pipeline status: songId -> { loading, data, error, jobId, reprocessBusy }
+  // Pipeline status: songId -> { loading, data, error, jobId, reprocessBusy, jobStatus, jobError }
   const [pipelineBySong, setPipelineBySong] = useState({});
+  // Active poll timers: songId -> interval id (cleared on unmount / terminal)
+  const jobPollTimers = useRef({});
 
   useEffect(() => {
     let cancelled = false;
@@ -74,6 +80,16 @@ const ArtistDashboard = () => {
       if (!cancelled) setFeatures(f);
     });
     return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    const timers = jobPollTimers.current;
+    return () => {
+      Object.keys(timers).forEach((sid) => {
+        clearInterval(timers[sid]);
+        delete timers[sid];
+      });
+    };
   }, []);
 
   useEffect(() => {
@@ -164,23 +180,91 @@ const ArtistDashboard = () => {
     }
   }, []);
 
+  const stopJobPoll = useCallback((songId) => {
+    const key = String(songId);
+    if (jobPollTimers.current[key]) {
+      clearInterval(jobPollTimers.current[key]);
+      delete jobPollTimers.current[key];
+    }
+  }, []);
+
+  /** Poll GET /api/media/jobs/:id until terminal status, then refresh pipeline. */
+  const startJobPoll = useCallback((songId, jobId) => {
+    if (songId == null || jobId == null) return;
+    const key = String(songId);
+    stopJobPoll(songId);
+
+    let ticks = 0;
+    const tick = async () => {
+      ticks += 1;
+      try {
+        const res = await mediaService.getJob(jobId);
+        const job = res?.job;
+        const status = job?.status || 'unknown';
+        setPipelineBySong((prev) => ({
+          ...prev,
+          [songId]: {
+            ...(prev[songId] || {}),
+            jobId,
+            jobStatus: status,
+            jobAttempts: job?.attempts,
+            jobMaxAttempts: job?.maxAttempts,
+            jobError: job?.lastError || null,
+            jobWorkerLive: res?.workerLive,
+            jobWorkerEnabled: res?.workerEnabled,
+            jobWarning: res?.warning || null,
+          },
+        }));
+
+        if (TERMINAL_JOB.has(status) || ticks >= JOB_POLL_MAX) {
+          stopJobPoll(songId);
+          await loadPipeline(songId);
+        }
+      } catch (err) {
+        const status = err.response?.status;
+        let message = err.response?.data?.error || err.message || 'Job status failed';
+        if (status === 404) {
+          message = 'Job not found (expired or media routes off).';
+        } else if (status === 403) {
+          message = 'Not allowed to view this job.';
+        }
+        setPipelineBySong((prev) => ({
+          ...prev,
+          [songId]: {
+            ...(prev[songId] || {}),
+            jobStatus: 'error',
+            jobError: message,
+          },
+        }));
+        stopJobPoll(songId);
+      }
+    };
+
+    // Immediate first tick, then interval
+    tick();
+    jobPollTimers.current[key] = setInterval(tick, JOB_POLL_MS);
+  }, [stopJobPoll, loadPipeline]);
+
   const handleReprocess = async (songId) => {
     setPipelineBySong((prev) => ({
       ...prev,
-      [songId]: { ...(prev[songId] || {}), reprocessBusy: true, error: null },
+      [songId]: { ...(prev[songId] || {}), reprocessBusy: true, error: null, jobStatus: null, jobError: null },
     }));
     try {
       const result = await mediaService.reprocess(songId);
+      const jobId = result.jobId;
       setPipelineBySong((prev) => ({
         ...prev,
         [songId]: {
           ...(prev[songId] || {}),
           reprocessBusy: false,
-          jobId: result.jobId,
+          jobId,
           lastReprocess: result,
+          jobStatus: 'pending',
         },
       }));
       await loadPipeline(songId);
+      if (jobId != null) startJobPoll(songId, jobId);
     } catch (err) {
       const status = err.response?.status;
       let message = err.response?.data?.error || err.message || 'Reprocess failed';
@@ -307,8 +391,13 @@ const ArtistDashboard = () => {
       if (songId != null && pipeline?.jobId) {
         setPipelineBySong((prev) => ({
           ...prev,
-          [songId]: { ...(prev[songId] || {}), jobId: pipeline.jobId },
+          [songId]: {
+            ...(prev[songId] || {}),
+            jobId: pipeline.jobId,
+            jobStatus: 'pending',
+          },
         }));
+        startJobPoll(songId, pipeline.jobId);
       }
       setUploadTitle('');
       setUploadArtist('');
@@ -335,6 +424,13 @@ const ArtistDashboard = () => {
     const map = new Map();
     [...fromTop, ...fromRev].forEach((t) => {
       if (t.songId != null && !map.has(t.songId)) map.set(t.songId, t);
+    });
+    // Include songs that only exist via recent upload (job poll) so status is visible
+    Object.keys(pipelineBySong).forEach((sid) => {
+      const id = Number(sid);
+      if (!Number.isNaN(id) && !map.has(id) && pipelineBySong[sid]?.jobId) {
+        map.set(id, { songId: id, title: `Upload #${id}` });
+      }
     });
     return Array.from(map.values());
   })();
@@ -365,6 +461,14 @@ const ArtistDashboard = () => {
           fileInputRef={fileInputRef}
           handleUpload={handleUpload}
         />
+        <PipelineSection
+          tracks={pipelineTracks}
+          pipelineBySong={pipelineBySong}
+          loadPipeline={loadPipeline}
+          handleReprocess={handleReprocess}
+          startJobPoll={startJobPoll}
+          features={features}
+        />
       </div>
     );
   }
@@ -389,6 +493,14 @@ const ArtistDashboard = () => {
           uploadMsg={uploadMsg}
           fileInputRef={fileInputRef}
           handleUpload={handleUpload}
+        />
+        <PipelineSection
+          tracks={pipelineTracks}
+          pipelineBySong={pipelineBySong}
+          loadPipeline={loadPipeline}
+          handleReprocess={handleReprocess}
+          startJobPoll={startJobPoll}
+          features={features}
         />
       </div>
     );
@@ -437,6 +549,7 @@ const ArtistDashboard = () => {
         pipelineBySong={pipelineBySong}
         loadPipeline={loadPipeline}
         handleReprocess={handleReprocess}
+        startJobPoll={startJobPoll}
         features={features}
       />
 
@@ -549,12 +662,13 @@ const ArtistDashboard = () => {
   );
 };
 
-function PipelineSection({ tracks, pipelineBySong, loadPipeline, handleReprocess, features }) {
+function PipelineSection({ tracks, pipelineBySong, loadPipeline, handleReprocess, startJobPoll, features }) {
   return (
     <div className="oly-section">
       <h2>Media pipeline</h2>
       <div className="oly-sub" style={{ marginBottom: 12 }}>
-        Asset and variant status for your tracks via <code>GET /api/media/songs/:id/pipeline</code>.
+        Asset and variant status via <code>GET /api/media/songs/:id/pipeline</code>.
+        Job status via <code>GET /api/media/jobs/:id</code> (auto-poll after upload/reprocess).
         Worker: {features?.workerLive === true ? 'live' : features?.worker === false ? 'flag off' : features ? 'not live' : '…'}.
       </div>
       {tracks.length === 0 ? (
@@ -568,6 +682,7 @@ function PipelineSection({ tracks, pipelineBySong, loadPipeline, handleReprocess
               <th>Track</th>
               <th>Asset</th>
               <th>Variants</th>
+              <th>Job</th>
               <th>Worker</th>
               <th></th>
             </tr>
@@ -582,18 +697,28 @@ function PipelineSection({ tracks, pipelineBySong, loadPipeline, handleReprocess
                   ? '—'
                   : variants.map((v) => `${v.key}:${v.status}`).join(', ');
               const workerLabel =
-                row.data?.workerLive === true
+                row.data?.workerLive === true || row.jobWorkerLive === true
                   ? 'live'
-                  : row.data?.workerEnabled === false
+                  : row.data?.workerEnabled === false || row.jobWorkerEnabled === false
                     ? 'off'
-                    : row.data
+                    : row.data || row.jobStatus
                       ? 'not live'
                       : '—';
+              const jobLabel = (() => {
+                if (!row.jobId && !row.jobStatus) return '—';
+                const st = row.jobStatus || '…';
+                const idPart = row.jobId != null ? `#${row.jobId}` : '';
+                const attempts =
+                  row.jobAttempts != null && row.jobMaxAttempts != null
+                    ? ` (${row.jobAttempts}/${row.jobMaxAttempts})`
+                    : '';
+                return `${idPart} ${st}${attempts}`.trim();
+              })();
               return (
                 <tr key={t.songId}>
                   <td>
                     {t.title}
-                    <div className="muted">id {t.songId}{row.jobId ? ` · job #${row.jobId}` : ''}</div>
+                    <div className="muted">id {t.songId}</div>
                   </td>
                   <td>
                     {row.loading
@@ -603,6 +728,15 @@ function PipelineSection({ tracks, pipelineBySong, loadPipeline, handleReprocess
                         : assetStatus || (row.data?.message ? 'none' : '—')}
                   </td>
                   <td className="muted">{variantSummary}</td>
+                  <td>
+                    <span className="muted">{jobLabel}</span>
+                    {row.jobError && (
+                      <div className="oly-msg err" style={{ margin: '4px 0 0', padding: '4px 8px' }}>{row.jobError}</div>
+                    )}
+                    {row.jobWarning && (
+                      <div className="muted" style={{ marginTop: 4 }}>{row.jobWarning}</div>
+                    )}
+                  </td>
                   <td>{workerLabel}</td>
                   <td>
                     <div className="oly-row" style={{ flexWrap: 'wrap', gap: 8 }}>
@@ -622,6 +756,17 @@ function PipelineSection({ tracks, pipelineBySong, loadPipeline, handleReprocess
                       >
                         {row.reprocessBusy ? 'Queuing…' : 'Reprocess'}
                       </button>
+                      {row.jobId != null && !TERMINAL_JOB.has(row.jobStatus) && (
+                        <button
+                          type="button"
+                          className="oly-btn-ghost"
+                          disabled={row.loading}
+                          onClick={() => startJobPoll(t.songId, row.jobId)}
+                          title="Poll GET /api/media/jobs/:id"
+                        >
+                          Poll job
+                        </button>
+                      )}
                     </div>
                     {row.lastReprocess?.warning && (
                       <div className="muted" style={{ marginTop: 4 }}>{row.lastReprocess.warning}</div>
