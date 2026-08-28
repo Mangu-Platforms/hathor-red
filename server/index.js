@@ -183,7 +183,7 @@ app.get('/api/features', healthLimiter, (req, res) => {
   });
 });
 
-// Health check
+// Health check — includes job-worker snapshot for ops / load balancers (no secrets).
 app.get('/api/health', healthLimiter, async (req, res) => {
   const health = {
     status: 'ok',
@@ -212,6 +212,32 @@ app.get('/api/health', healthLimiter, async (req, res) => {
   } catch (err) {
     health.status = 'degraded';
     health.checks.redis = { status: 'unhealthy', error: err.message };
+  }
+
+  // Worker is optional: flag off or start failure does not fail the process,
+  // but surface status so monitors and Settings stay honest.
+  try {
+    const workerEnabled = features.isWorkerEnabled();
+    if (!workerEnabled) {
+      health.checks.worker = { status: 'disabled', enabled: false };
+    } else {
+      const ws = jobWorker.getStatus();
+      const live = Boolean(ws && ws.startedOk && ws.running);
+      health.checks.worker = {
+        status: live ? 'healthy' : 'not_running',
+        enabled: true,
+        startedOk: Boolean(ws?.startedOk),
+        running: Boolean(ws?.running),
+        handlerCount: ws?.handlerCount ?? 0,
+        handlers: Array.isArray(ws?.handlers) ? ws.handlers : [],
+      };
+      if (ws?.startError) {
+        health.checks.worker.startError = ws.startError;
+      }
+      // Do not mark overall health degraded solely for worker — API still serves.
+    }
+  } catch (err) {
+    health.checks.worker = { status: 'unknown', error: err.message };
   }
 
   res.status(health.status === 'ok' ? 200 : 503).json(health);

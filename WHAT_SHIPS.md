@@ -44,6 +44,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Home Daily Mix**: reads `dailyMix.songs` from `GET /ai/daily-mix` (also tolerates flat `songs`)
 - **Artist Hub**: distinguishes intel/commerce 404 (feature flag off) from empty plays/sales; full-page message when both pillars off
 - **`GET /api/features`**: public snapshot of Olympus flags (media, commerce, discovery, social, intel, privacy, worker) **plus `aiLive`** (true only when Colab/OpenAI initialized; false = rule-based fallback) **and `workerLive`** (true only when FEATURE_WORKER on **and** in-process job worker `startedOk`)
+- **`GET /api/health`**: DB + Redis checks; **`checks.worker`** reports `disabled` | `healthy` | `not_running` (enabled flag, startedOk, running, handler names). Worker not running does **not** force overall 503 (API still serves).
 - **Settings Platform status**: shows worker / AI / privacy / media honesty chips from `getFeatures()`; GDPR export copy notes when worker is off or not running
 - **Sidebar nav honesty**: Search / Radar / Store / Library / Artist Hub are **omitted from the sidebar** when the matching FEATURE_* flag is off (routes remain for deep links; pages keep empty-state honesty). While `/api/features` is loading, items stay visible to avoid nav flash.
 - **Deep-link feature gates**: `/search` and `/radar` require discovery; `/store` and `/library` require commerce; `/dashboard` requires intel **or** commerce. When the flag is explicitly off, `FeatureRoute` redirects to `/` (Home). While flags are loading, the page still renders (no flash).
@@ -52,7 +53,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## This run changed
 
-- **dose-5.2**: `jobWorker.getStatus()`; `GET /api/features` adds `workerLive`; client features cache default `workerLive: false`; Settings Platform status chips + GDPR export note when worker off/not running; log when FEATURE_WORKER is off at boot.
+- **dose-5.3**: `GET /api/health` includes `checks.worker` (disabled / healthy / not_running + handler metadata). Overall status stays based on DB/Redis only so a stopped worker does not take the process out of rotation.
 
 ## Does not ship (honest)
 
@@ -66,4 +67,4 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## Next item
 
-Dose 5 continued: remaining Olympus empty-state polish (media pipeline page labels when workerLive false); optional `/api/health` worker check.
+Dose 5 continued: media pipeline empty-state polish when `workerLive` is false (Artist upload / reprocess messaging); optional client health badge in Settings.
