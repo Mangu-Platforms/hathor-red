@@ -103,19 +103,29 @@ const joinRoom = async (req, res) => {
 
     const room = roomResult.rows[0];
 
-    const countResult = await db.query(
-      'SELECT COUNT(*) as count FROM room_participants WHERE room_id = $1',
-      [id]
+    // Capacity-gated insert: only join when under max_listeners (avoids race past the limit)
+    const insertResult = await db.query(
+      `INSERT INTO room_participants (room_id, user_id)
+       SELECT $1, $2
+       WHERE (
+         SELECT COUNT(*) FROM room_participants WHERE room_id = $1
+       ) < $3
+       ON CONFLICT (room_id, user_id) DO NOTHING
+       RETURNING room_id`,
+      [id, req.user.userId, room.max_listeners]
     );
 
-    if (parseInt(countResult.rows[0].count, 10) >= room.max_listeners) {
+    if (insertResult.rows.length === 0) {
+      // Either already a participant, or room is full
+      const existing = await db.query(
+        'SELECT 1 FROM room_participants WHERE room_id = $1 AND user_id = $2',
+        [id, req.user.userId]
+      );
+      if (existing.rows.length > 0) {
+        return res.json({ message: 'Joined room successfully' });
+      }
       return res.status(403).json({ error: 'Room is full' });
     }
-
-    await db.query(
-      'INSERT INTO room_participants (room_id, user_id) VALUES ($1, $2) ON CONFLICT (room_id, user_id) DO NOTHING',
-      [id, req.user.userId]
-    );
 
     res.json({ message: 'Joined room successfully' });
   } catch (error) {

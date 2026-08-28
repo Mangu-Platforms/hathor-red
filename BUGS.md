@@ -48,6 +48,7 @@ This document lists identified bugs, security vulnerabilities, and architectural
 *   **Impact**: Playlists can end up with duplicate positions, and rooms can exceed their `max_listeners` limit under concurrent load.
 *   **Root Cause**: Non-atomic database operations.
 *   **Suggested Fix**: Use SQL subqueries or transactions with appropriate isolation levels to ensure atomicity.
+*   **Status**: Fixed in dose-3.1 — `addSongToPlaylist` uses a single INSERT with `MAX(position)+1` subquery; `joinRoom` inserts only when `COUNT(*) < max_listeners` in the same statement.
 
 ### 7. Inconsistent AI Playlist Generation Logic
 *   **Description**: `playlistController.js` and `aiController.js` both contain logic for generating AI playlists, but they use different implementation patterns (batch insert vs. individual inserts in a loop).

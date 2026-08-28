@@ -31,6 +31,8 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Create playlist on `/playlists`**: New playlist form (name, optional description, public flag) via `POST /playlists`; navigates to detail on success
 - **Delete playlist**: owner-only Delete on list cards and detail page; confirms then `DELETE /playlists/:id`; list removes card; detail navigates back to `/playlists`
 - **Remove track from playlist**: owner-only on detail (`DELETE /playlists/:id/songs/:songId`); SongList remove button; local list updates
+- **Add song to playlist**: position assigned in one SQL statement (`MAX(position)+1` subquery) so concurrent adds do not collide on position
+- **Rooms join**: capacity check is part of the insert (`WHERE count < max_listeners`) so concurrent joins cannot overrun `max_listeners`
 - **Rooms**: disconnect/leave cleans `room_participants` (refcounted multi-tab); host handoff; **host song picker** (lists catalog, emits `change-song`); listener count prefers live socket roster when present
 - **Rooms list**: polls `GET /rooms` every 15s so DB `listener_count` stays fresher on the list page
 - Sidebar **Settings** label (was mislabeled Privacy)
@@ -47,7 +49,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## This run changed
 
-- **dose-2.1**: `POST /api/auth/change-password` (auth + validation matching register strength); Settings **Change password** form; profile update now **clears** avatar when client sends empty `avatarUrl` (explicit SET, not COALESCE).
+- **dose-3.1**: Atomic `addSongToPlaylist` (single INSERT with MAX(position)+1 subquery); atomic capacity-gated `joinRoom` insert. Closes BUGS.md race notes for playlist position and room max_listeners.
 
 ## Does not ship (honest)
 
@@ -60,4 +62,4 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## Next item
 
-Dose 3 polish (playlist UX edges) or Dose 5 fallbacks for missing worker/OpenAI. Prefer any remaining playback edge case if found.
+Dose 5 fallbacks for missing worker/OpenAI, or further Dose 3 playlist UX (reorder tracks, renumber positions after remove).

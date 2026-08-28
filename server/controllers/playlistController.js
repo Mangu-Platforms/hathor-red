@@ -89,16 +89,15 @@ const addSongToPlaylist = async (req, res) => {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    const maxPositionResult = await db.query(
-      'SELECT COALESCE(MAX(position), 0) as max_pos FROM playlist_songs WHERE playlist_id = $1',
-      [playlistId]
-    );
-
-    const position = parseInt(maxPositionResult.rows[0].max_pos, 10) + 1;
-
+    // Atomic position assignment: avoid check-then-act race under concurrent adds
     await db.query(
-      'INSERT INTO playlist_songs (playlist_id, song_id, position) VALUES ($1, $2, $3)',
-      [playlistId, songId, position]
+      `INSERT INTO playlist_songs (playlist_id, song_id, position)
+       VALUES (
+         $1,
+         $2,
+         (SELECT COALESCE(MAX(position), 0) + 1 FROM playlist_songs WHERE playlist_id = $1)
+       )`,
+      [playlistId, songId]
     );
 
     res.json({ message: 'Song added to playlist' });
