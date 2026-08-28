@@ -9,6 +9,7 @@ const SongList = ({ songs, title, showSearch = false, onRefresh, onRemoveSong })
   const [addingToPlaylist, setAddingToPlaylist] = useState(null);
   const [playlists, setPlaylists] = useState([]);
   const [removingId, setRemovingId] = useState(null);
+  const [addFeedback, setAddFeedback] = useState(null); // { songId, ok, message }
 
   const filtered = songs.filter(s => {
     const matchesSearch = !search || s.title?.toLowerCase().includes(search.toLowerCase()) || s.artist?.toLowerCase().includes(search.toLowerCase());
@@ -18,26 +19,34 @@ const SongList = ({ songs, title, showSearch = false, onRefresh, onRemoveSong })
 
   const genres = [...new Set(songs.map(s => s.genre).filter(Boolean))].sort();
 
-  const handlePlay = (song, index) => {
-    setQueueAndPlay(songs, index);
+  /** Play the visible (filtered) list from the clicked row — index matches what the user sees. */
+  const handlePlay = (indexInFiltered) => {
+    if (!filtered.length || indexInFiltered < 0 || indexInFiltered >= filtered.length) return;
+    setQueueAndPlay(filtered, indexInFiltered);
   };
 
   const handleAddToPlaylist = async (songId) => {
     try {
       const res = await musicService.getPlaylists();
-      setPlaylists(res.playlists);
+      setPlaylists(res.playlists || []);
       setAddingToPlaylist(songId);
+      setAddFeedback(null);
     } catch (err) {
       console.error(err);
+      setAddFeedback({ songId, ok: false, message: 'Could not load playlists' });
     }
   };
 
   const confirmAdd = async (playlistId) => {
+    const songId = addingToPlaylist;
     try {
-      await musicService.addToPlaylist(playlistId, addingToPlaylist);
+      await musicService.addToPlaylist(playlistId, songId);
       setAddingToPlaylist(null);
+      setAddFeedback({ songId, ok: true, message: 'Added to playlist' });
+      setTimeout(() => setAddFeedback((f) => (f?.songId === songId ? null : f)), 2000);
     } catch (err) {
       console.error(err);
+      setAddFeedback({ songId, ok: false, message: 'Add failed' });
     }
   };
 
@@ -90,7 +99,7 @@ const SongList = ({ songs, title, showSearch = false, onRefresh, onRemoveSong })
               <div className="song-cover">
                 {song.cover_url ? <img src={song.cover_url} alt="" /> : <div className="song-cover-placeholder">{song.title?.[0]}</div>}
               </div>
-              <div className="song-info" onClick={() => handlePlay(song, index)}>
+              <div className="song-info" onClick={() => handlePlay(index)}>
                 <div className="song-title">{song.title}</div>
                 <div className="song-artist">{song.artist} {song.genre && <span className="song-genre">{song.genre}</span>}</div>
               </div>
@@ -99,7 +108,7 @@ const SongList = ({ songs, title, showSearch = false, onRefresh, onRemoveSong })
                 <span className="song-duration">{formatDuration(song.duration)}</span>
               </div>
               <div className="song-actions">
-                <button className="song-action-btn" onClick={() => handlePlay(song, index)} title="Play">
+                <button className="song-action-btn" onClick={() => handlePlay(index)} title="Play">
                   <svg fill="currentColor" viewBox="0 0 24 24" width="18" height="18"><path d="M8 5v14l11-7z" /></svg>
                 </button>
                 <button className="song-action-btn" onClick={() => handleAddToPlaylist(song.id)} title="Add to playlist">
@@ -124,13 +133,29 @@ const SongList = ({ songs, title, showSearch = false, onRefresh, onRemoveSong })
                 <div className="playlist-popup">
                   <div className="playlist-popup-header">
                     <span>Add to playlist</span>
-                    <button onClick={() => setAddingToPlaylist(null)}>x</button>
+                    <button type="button" onClick={() => setAddingToPlaylist(null)}>x</button>
                   </div>
+                  {(playlists.length === 0) && (
+                    <div className="playlist-popup-item" style={{ opacity: 0.7 }}>No playlists yet</div>
+                  )}
                   {playlists.map(pl => (
-                    <button key={pl.id} className="playlist-popup-item" onClick={() => confirmAdd(pl.id)}>
+                    <button key={pl.id} type="button" className="playlist-popup-item" onClick={() => confirmAdd(pl.id)}>
                       {pl.name}
                     </button>
                   ))}
+                </div>
+              )}
+
+              {addFeedback?.songId === song.id && (
+                <div
+                  className="playlist-add-feedback"
+                  style={{
+                    fontSize: '0.75rem',
+                    marginTop: 4,
+                    color: addFeedback.ok ? '#2e7d32' : '#c62828',
+                  }}
+                >
+                  {addFeedback.message}
                 </div>
               )}
             </div>

@@ -39,10 +39,11 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **`GET /api/features`**: public snapshot of Olympus flags (media, commerce, discovery, social, intel, privacy, worker) for honest client labels
 - **Sidebar nav honesty**: Search / Radar / Store / Library / Artist Hub are **omitted from the sidebar** when the matching FEATURE_* flag is off (routes remain for deep links; pages keep empty-state honesty). While `/api/features` is loading, items stay visible to avoid nav flash.
 - **Deep-link feature gates**: `/search` and `/radar` require discovery; `/store` and `/library` require commerce; `/dashboard` requires intel **or** commerce. When the flag is explicitly off, `FeatureRoute` redirects to `/` (Home). While flags are loading, the page still renders (no flash).
+- **SongList play under filter**: playing a row queues the **visible (filtered) list** from that index (no longer maps filtered index onto the full unfiltered array). Add-to-playlist shows brief success/error feedback.
 
 ## This run changed
 
-- **dose-0.3**: Deep-link redirects when Olympus feature flags are off — `FeatureRoute` in `client/src/App.js` gates Search/Radar (discovery), Store/Library (commerce), and Artist Hub (intel or commerce) to Home.
+- **dose-1.4**: `SongList` play used the filtered row index against the full `songs` array, so genre/search filters queued the wrong track. Now `setQueueAndPlay(filtered, indexInFiltered)`. Add-to-playlist popup shows empty state and transient success/failure text.
 
 ## Does not ship (honest)
 
@@ -55,4 +56,4 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## Next item
 
-Dose 1 polish if any remaining playback edge case, else Dose 2/3 residual (e.g. playlist add-from-catalog UX) or Dose 5 fallbacks for missing worker/OpenAI.
+Dose 2 residual (password path solid; OAuth still out) or Dose 3 polish (e.g. add-from-catalog already in SongList) or Dose 5 fallbacks for missing worker/OpenAI. Prefer any remaining playback edge case if found.
