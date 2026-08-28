@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { musicService } from '../services/music';
 import { usePlayer } from '../contexts/PlayerContext';
@@ -17,6 +17,9 @@ const PlaylistDetail = () => {
   const [deleteError, setDeleteError] = useState(null);
   const [reorderError, setReorderError] = useState(null);
   const [reordering, setReordering] = useState(false);
+  const [dragFrom, setDragFrom] = useState(null);
+  const [dragOver, setDragOver] = useState(null);
+  const dragFromRef = useRef(null);
   const { setQueueAndPlay } = usePlayer();
 
   useEffect(() => {
@@ -76,17 +79,10 @@ const PlaylistDetail = () => {
     [playlist?.id]
   );
 
-  const moveSong = useCallback(
-    async (index, direction) => {
-      if (!playlist?.id || reordering) return;
-      const next = index + direction;
-      if (next < 0 || next >= songs.length) return;
-
-      const reordered = [...songs];
-      const [item] = reordered.splice(index, 1);
-      reordered.splice(next, 0, item);
+  const persistOrder = useCallback(
+    async (reordered) => {
+      if (!playlist?.id) return;
       const songIds = reordered.map((s) => s.id);
-
       setReorderError(null);
       setReordering(true);
       setSongs(reordered);
@@ -94,7 +90,6 @@ const PlaylistDetail = () => {
         await musicService.reorderPlaylist(playlist.id, songIds);
       } catch (err) {
         setReorderError(err.response?.data?.error || 'Failed to reorder');
-        // reload authoritative order
         try {
           const res = await musicService.getPlaylist(playlist.id);
           setSongs(res.songs || []);
@@ -105,8 +100,60 @@ const PlaylistDetail = () => {
         setReordering(false);
       }
     },
-    [playlist?.id, songs, reordering]
+    [playlist?.id]
   );
+
+  const moveSong = useCallback(
+    async (index, direction) => {
+      if (!playlist?.id || reordering) return;
+      const next = index + direction;
+      if (next < 0 || next >= songs.length) return;
+
+      const reordered = [...songs];
+      const [item] = reordered.splice(index, 1);
+      reordered.splice(next, 0, item);
+      await persistOrder(reordered);
+    },
+    [playlist?.id, songs, reordering, persistOrder]
+  );
+
+  const onDragStart = (e, idx) => {
+    if (!isOwner || reordering || songs.length < 2) return;
+    dragFromRef.current = idx;
+    setDragFrom(idx);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(idx));
+    if (e.currentTarget) e.currentTarget.classList.add('dragging');
+  };
+
+  const onDragOver = (e, idx) => {
+    if (!isOwner || reordering) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOver !== idx) setDragOver(idx);
+  };
+
+  const onDrop = async (e, toIndex) => {
+    e.preventDefault();
+    const from = dragFromRef.current;
+    setDragFrom(null);
+    setDragOver(null);
+    dragFromRef.current = null;
+    if (from == null || from === toIndex || reordering) return;
+    if (from < 0 || from >= songs.length || toIndex < 0 || toIndex >= songs.length) return;
+
+    const reordered = [...songs];
+    const [item] = reordered.splice(from, 1);
+    reordered.splice(toIndex, 0, item);
+    await persistOrder(reordered);
+  };
+
+  const onDragEnd = (e) => {
+    if (e.currentTarget) e.currentTarget.classList.remove('dragging');
+    setDragFrom(null);
+    setDragOver(null);
+    dragFromRef.current = null;
+  };
 
   if (loading) return <div className="loading-screen">Loading playlist...</div>;
 
@@ -194,20 +241,49 @@ const PlaylistDetail = () => {
                 color: 'var(--text-secondary)',
               }}
             >
-              Reorder with ▲ / ▼ on each row{reordering ? ' (saving…)' : ''}
+              Reorder with ▲ / ▼ or drag rows{reordering ? ' (saving…)' : ''}
             </div>
           )}
           <div className="playlist-tracks">
             {songs.map((song, index) => (
               <div
                 key={song.id}
+                draggable={Boolean(isOwner && songs.length > 1 && !reordering)}
+                onDragStart={(e) => onDragStart(e, index)}
+                onDragOver={(e) => onDragOver(e, index)}
+                onDrop={(e) => onDrop(e, index)}
+                onDragEnd={onDragEnd}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: 8,
                   marginBottom: 4,
+                  opacity: dragFrom === index ? 0.55 : 1,
+                  outline:
+                    dragOver === index && dragFrom !== index
+                      ? '2px dashed var(--accent, #e53935)'
+                      : 'none',
+                  borderRadius: 6,
+                  cursor: isOwner && songs.length > 1 ? 'grab' : 'default',
                 }}
               >
+                {isOwner && songs.length > 1 && (
+                  <span
+                    title="Drag to reorder"
+                    aria-hidden="true"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      color: 'var(--text-secondary)',
+                      padding: '0 2px',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 6h2v2H8V6zm0 5h2v2H8v-2zm0 5h2v2H8v-2zm5-10h2v2h-2V6zm0 5h2v2h-2v-2zm0 5h2v2h-2v-2z" />
+                    </svg>
+                  </span>
+                )}
                 {isOwner && songs.length > 1 && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                     <button
