@@ -322,6 +322,28 @@ export const PlayerProvider = ({ children }) => {
     }
   }, [queue, queueIndex, shuffleOrder, isShuffled]);
 
+  /** Append song(s) to the end of the queue without interrupting current playback. */
+  const addToQueue = useCallback((songs) => {
+    const list = Array.isArray(songs) ? songs.filter(Boolean) : (songs ? [songs] : []);
+    if (!list.length) return;
+
+    setQueue((prev) => {
+      const start = prev.length;
+      const next = [...prev, ...list];
+
+      setShuffleOrder((ord) => {
+        if (!isShuffled || ord.length === 0) {
+          // Keep order in sync for when shuffle is toggled later
+          return ord.length === 0 ? ord : [...ord, ...list.map((_, i) => start + i)];
+        }
+        const extra = fisherYatesShuffle(list.length).map((i) => start + i);
+        return [...ord, ...extra];
+      });
+
+      return next;
+    });
+  }, [isShuffled]);
+
   useEffect(() => {
     const handleEnded = () => {
       if (currentSong) {
@@ -397,7 +419,7 @@ export const PlayerProvider = ({ children }) => {
     progress, duration, queue, queueIndex, isShuffled, repeatMode, audioSrc,
     loudnessGain, waveform,
     play, pause, togglePlay, seek, playNext, playPrevious, playAtIndex,
-    removeFromQueue, moveInQueue,
+    removeFromQueue, moveInQueue, addToQueue,
     setQueueAndPlay, loadSong,
     setVolume, setPlaybackSpeed,
     toggleShuffle,

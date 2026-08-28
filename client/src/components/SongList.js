@@ -3,7 +3,7 @@ import { usePlayer } from '../contexts/PlayerContext';
 import { musicService } from '../services/music';
 
 const SongList = ({ songs, title, showSearch = false, onRefresh, onRemoveSong }) => {
-  const { setQueueAndPlay, currentSong, isPlaying } = usePlayer();
+  const { setQueueAndPlay, addToQueue, currentSong, isPlaying } = usePlayer();
   const [search, setSearch] = useState('');
   const [selectedGenre, setSelectedGenre] = useState('');
   const [addingToPlaylist, setAddingToPlaylist] = useState(null);
@@ -23,6 +23,13 @@ const SongList = ({ songs, title, showSearch = false, onRefresh, onRemoveSong })
   const handlePlay = (indexInFiltered) => {
     if (!filtered.length || indexInFiltered < 0 || indexInFiltered >= filtered.length) return;
     setQueueAndPlay(filtered, indexInFiltered);
+  };
+
+  const handleAddToQueue = (song) => {
+    if (!song) return;
+    addToQueue(song);
+    setAddFeedback({ songId: song.id, ok: true, message: 'Added to queue' });
+    setTimeout(() => setAddFeedback((f) => (f?.songId === song.id ? null : f)), 2000);
   };
 
   const handleAddToPlaylist = async (songId) => {
@@ -110,6 +117,11 @@ const SongList = ({ songs, title, showSearch = false, onRefresh, onRemoveSong })
               <div className="song-actions">
                 <button className="song-action-btn" onClick={() => handlePlay(index)} title="Play">
                   <svg fill="currentColor" viewBox="0 0 24 24" width="18" height="18"><path d="M8 5v14l11-7z" /></svg>
+                </button>
+                <button className="song-action-btn" onClick={() => handleAddToQueue(song)} title="Add to queue">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} width="18" height="18">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z" />
+                  </svg>
                 </button>
                 <button className="song-action-btn" onClick={() => handleAddToPlaylist(song.id)} title="Add to playlist">
                   <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} width="18" height="18"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>

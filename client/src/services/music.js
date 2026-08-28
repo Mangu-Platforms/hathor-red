@@ -1,10 +1,32 @@
 import api from './api';
 
+/**
+ * stream-url returns a path like `/api/songs/:id/stream?t=…`.
+ * When REACT_APP_API_URL is an absolute origin (dev without proxy),
+ * resolve against that host so <audio src> hits the Express server.
+ */
+function resolveStreamUrl(url) {
+  if (!url || typeof url !== 'string') return url;
+  if (!url.startsWith('/')) return url;
+  const base = process.env.REACT_APP_API_URL || '';
+  if (!base.startsWith('http')) return url;
+  try {
+    const origin = new URL(base).origin;
+    return `${origin}${url}`;
+  } catch {
+    return url;
+  }
+}
+
 export const musicService = {
   getSongs: (params) => api.get('/songs', { params }).then(r => r.data),
   getSong: (id) => api.get(`/songs/${id}`).then(r => r.data),
   getGenres: () => api.get('/songs/genres').then(r => r.data),
-  getStreamUrl: (id) => api.get(`/songs/${id}/stream-url`).then(r => r.data),
+  getStreamUrl: (id) =>
+    api.get(`/songs/${id}/stream-url`).then((r) => {
+      const data = r.data || {};
+      return { ...data, url: resolveStreamUrl(data.url) };
+    }),
   uploadSong: (formData) => api.post('/songs/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   }).then(r => r.data),

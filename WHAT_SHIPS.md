@@ -6,12 +6,14 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 - Password register/login, JWT, profile GET/PUT
 - Song list, upload, **signed progressive stream** for `<audio>` (`stream-url` + `streamAuth` query token)
+- **Stream URL resolution**: when `REACT_APP_API_URL` is absolute, client rewrites relative `/api/songs/…/stream?t=` to the API origin so `<audio>` does not hit the SPA host
 - Player: load/play/pause, volume, speed, progress, queue next/prev, repeat modes
 - Shuffle uses a Fisher-Yates permutation (not random-jump each skip)
 - Seek rejects invalid duration / non-finite times
 - Play after load awaits `audio.play()` (no fixed 100ms race)
 - Pitch/stem UI **hidden** (not implemented on the audio graph); dead legacy `Player.js` re-exports `MusicPlayer`
 - **Queue panel** on the player bar (list + jump via `playAtIndex` + **remove via `removeFromQueue`** + **reorder via up/down `moveInQueue` and native HTML5 drag-and-drop**; CSS styled)
+- **`addToQueue`**: append one or more songs to the end of the queue without stopping current playback; SongList has “Add to queue” action
 - `GET /api/songs/genres` wired (controller was present; route was missing)
 - **Home genre filter** passes `genre` query to `getSongs` and shows active filter + clear
 - Soft logout: `auth:logout` / Sign Out clear user state without `window.location` hard reload (PrivateRoute navigates)
@@ -43,7 +45,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## This run changed
 
-- **dose-1.4**: `SongList` play used the filtered row index against the full `songs` array, so genre/search filters queued the wrong track. Now `setQueueAndPlay(filtered, indexInFiltered)`. Add-to-playlist popup shows empty state and transient success/failure text.
+- **dose-1.5**: Client `getStreamUrl` resolves relative stream paths against `REACT_APP_API_URL` origin when absolute (fixes `<audio>` hitting SPA host in split-origin dev). `PlayerContext.addToQueue` appends tracks without interrupting playback; SongList “Add to queue” button + feedback.
 
 ## Does not ship (honest)
 
@@ -56,4 +58,4 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## Next item
 
-Dose 2 residual (password path solid; OAuth still out) or Dose 3 polish (e.g. add-from-catalog already in SongList) or Dose 5 fallbacks for missing worker/OpenAI. Prefer any remaining playback edge case if found.
+Dose 2 residual (password path solid; OAuth still out) or Dose 3 polish or Dose 5 fallbacks for missing worker/OpenAI. Prefer any remaining playback edge case if found.
