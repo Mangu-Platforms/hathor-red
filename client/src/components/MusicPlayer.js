@@ -6,7 +6,7 @@ const MusicPlayer = () => {
     currentSong, isPlaying, togglePlay, progress, duration, volume,
     setVolume, playbackSpeed, setPlaybackSpeed, playNext, playPrevious,
     isShuffled, toggleShuffle, repeatMode, cycleRepeat, seek, formatTime,
-    queue, queueIndex, playAtIndex, removeFromQueue,
+    queue, queueIndex, playAtIndex, removeFromQueue, moveInQueue,
   } = usePlayer();
 
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -116,6 +116,38 @@ const MusicPlayer = () => {
             <ul className="player-queue-list">
               {queue.map((song, idx) => (
                 <li key={`${song.id}-${idx}`} className="player-queue-row">
+                  <div className="player-queue-reorder">
+                    <button
+                      type="button"
+                      className="player-queue-move"
+                      title="Move up"
+                      aria-label={`Move ${song.title} up`}
+                      disabled={idx === 0}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        moveInQueue(idx, idx - 1);
+                      }}
+                    >
+                      <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      className="player-queue-move"
+                      title="Move down"
+                      aria-label={`Move ${song.title} down`}
+                      disabled={idx === queue.length - 1}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        moveInQueue(idx, idx + 1);
+                      }}
+                    >
+                      <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                  </div>
                   <button
                     type="button"
                     className={`player-queue-item ${idx === queueIndex ? 'active' : ''}`}
