@@ -5,6 +5,8 @@ const { redisClient } = require('../config/redis');
 const { logger } = require('../utils/logger');
 const { isAdmin } = require('../utils/roles');
 const jobQueue = require('../services/jobs/jobQueue');
+const features = require('../config/features');
+const jobWorker = require('../services/jobs/worker');
 const { buildMasterManifest, resolveHlsPath, appendTokenToPlaylist } = require('../services/media/hlsService');
 
 const WAVEFORM_CACHE_TTL = 3600;
@@ -33,6 +35,32 @@ async function canManageSong(userId, songId) {
   return { found: true, allowed: await isAdmin(userId) };
 }
 
+/** Honest worker snapshot for API responses (no secrets). */
+function workerSnapshot() {
+  const enabled = features.isWorkerEnabled();
+  if (!enabled) {
+    return { workerEnabled: false, workerLive: false, warning: 'FEATURE_WORKER is off — job will stay queued until a worker is enabled' };
+  }
+  try {
+    const ws = jobWorker.getStatus();
+    const live = Boolean(ws && ws.startedOk && ws.running);
+    if (!live) {
+      return {
+        workerEnabled: true,
+        workerLive: false,
+        warning: 'Background job worker is not running — job is queued but may stall until the worker starts',
+      };
+    }
+    return { workerEnabled: true, workerLive: true };
+  } catch {
+    return {
+      workerEnabled: true,
+      workerLive: false,
+      warning: 'Could not read worker status — job is queued; confirm the worker is running',
+    };
+  }
+}
+
 /**
  * GET /api/media/songs/:id/pipeline — full pipeline state for a song
  * (asset status, per-variant status, persisted commands). Uploader/admin only.
@@ -46,7 +74,11 @@ const getPipeline = async (req, res) => {
 
     const asset = await loadAssetForSong(songId);
     if (!asset) {
-      return res.json({ pipeline: null, message: 'No media asset — song predates the pipeline or processing has not started' });
+      return res.json({
+        pipeline: null,
+        message: 'No media asset — song predates the pipeline or processing has not started',
+        ...workerSnapshot(),
+      });
     }
 
     const variants = await loadVariants(asset.id);
@@ -73,6 +105,7 @@ const getPipeline = async (req, res) => {
           ffmpegCommand: v.ffmpeg_command,
         })),
       },
+      ...workerSnapshot(),
     });
   } catch (error) {
     logger.error('Get pipeline error:', error);
@@ -107,7 +140,11 @@ const getWaveform = async (req, res) => {
     };
 
     if (!payload.waveform) {
-      return res.status(404).json({ error: 'Waveform not generated yet', status: asset.status });
+      return res.status(404).json({
+        error: 'Waveform not generated yet',
+        status: asset.status,
+        ...workerSnapshot(),
+      });
     }
 
     try {
@@ -262,6 +299,7 @@ const getHlsResource = async (req, res) => {
 /**
  * POST /api/media/songs/:id/reprocess — re-enqueue the transcode pipeline.
  * Uploader/admin. Creates the media_asset row when the song predates M1.
+ * Response always includes workerEnabled / workerLive (and warning when not live).
  */
 const reprocessSong = async (req, res) => {
   try {
@@ -290,8 +328,20 @@ const reprocessSong = async (req, res) => {
     }
 
     const job = await jobQueue.enqueue('transcode', { assetId: asset.id }, { createdBy: req.user.userId });
-    logger.info({ action: 'transcode_requeued', songId, assetId: asset.id, jobId: job.id });
-    res.status(202).json({ message: 'Reprocess queued', jobId: job.id, assetId: asset.id });
+    const snap = workerSnapshot();
+    logger.info({
+      action: 'transcode_requeued',
+      songId,
+      assetId: asset.id,
+      jobId: job.id,
+      workerLive: snap.workerLive,
+    });
+    res.status(202).json({
+      message: snap.workerLive ? 'Reprocess queued' : 'Reprocess queued (worker not live)',
+      jobId: job.id,
+      assetId: asset.id,
+      ...snap,
+    });
   } catch (error) {
     logger.error('Reprocess song error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -323,6 +373,7 @@ const getJobStatus = async (req, res) => {
         createdAt: job.created_at,
         finishedAt: job.finished_at,
       },
+      ...workerSnapshot(),
     });
   } catch (error) {
     logger.error('Get job status error:', error);

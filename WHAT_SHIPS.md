@@ -42,10 +42,11 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Store / Library**: distinguish commerce 404 (flag off) from empty catalog / empty owned tracks
 - **Semantic Search**: 404 when discovery flag off is explicit (not a generic "search failed")
 - **Home Daily Mix**: reads `dailyMix.songs` from `GET /ai/daily-mix` (also tolerates flat `songs`)
-- **Artist Hub**: distinguishes intel/commerce 404 (feature flag off) from empty plays/sales; full-page message when both pillars off
+- **Artist Hub**: distinguishes intel/commerce 404 (feature flag off) from empty plays/sales; full-page message when both pillars off; **media/worker honesty banner** from `getFeatures()` when media off, worker flag off, or `workerLive` false (transcode/reprocess may stall)
 - **`GET /api/features`**: public snapshot of Olympus flags (media, commerce, discovery, social, intel, privacy, worker) **plus `aiLive`** (true only when Colab/OpenAI initialized; false = rule-based fallback) **and `workerLive`** (true only when FEATURE_WORKER on **and** in-process job worker `startedOk`)
 - **`GET /api/health`**: DB + Redis checks; **`checks.worker`** reports `disabled` | `healthy` | `not_running` (enabled flag, startedOk, running, handler names). Worker not running does **not** force overall 503 (API still serves).
 - **Settings Platform status**: shows worker / AI / privacy / media honesty chips from `getFeatures()`; **plus API health badge** from `GET /api/health` (overall status, DB, Redis, worker check); GDPR export copy notes when worker is off or not running
+- **Media pipeline API honesty**: `POST .../reprocess`, `GET .../pipeline`, `GET .../jobs/:id`, and waveform-not-ready responses include `workerEnabled` / `workerLive` (and `warning` when the worker will not process the queue)
 - **Sidebar nav honesty**: Search / Radar / Store / Library / Artist Hub are **omitted from the sidebar** when the matching FEATURE_* flag is off (routes remain for deep links; pages keep empty-state honesty). While `/api/features` is loading, items stay visible to avoid nav flash.
 - **Deep-link feature gates**: `/search` and `/radar` require discovery; `/store` and `/library` require commerce; `/dashboard` requires intel **or** commerce. When the flag is explicitly off, `FeatureRoute` redirects to `/` (Home). While flags are loading, the page still renders (no flash).
 - **SongList play under filter**: playing a row queues the **visible (filtered) list** from that index (no longer maps filtered index onto the full unfiltered array). Add-to-playlist shows brief success/error feedback.
@@ -53,7 +54,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## This run changed
 
-- **dose-5.4**: Settings Platform status calls `getHealth()` and surfaces overall API status plus DB / Redis / worker check chips alongside existing feature-flag honesty.
+- **dose-5.5**: Artist Hub shows media/workerLive empty-state when pipeline jobs cannot run; media reprocess/pipeline/job responses include worker snapshot + warning.
 
 ## Does not ship (honest)
 
@@ -64,7 +65,8 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Live LLM responses when Colab/OpenAI is not configured (rule-based fallback only)
 - Commerce/discovery/store UX when `FEATURE_COMMERCE` / `FEATURE_DISCOVERY` are off (nav items hidden; deep links now redirect Home)
 - Background job processing when `FEATURE_WORKER=false` or worker fails to start (`workerLive` false)
+- Client upload UI for artist tracks (API exists; no dedicated upload page yet)
 
 ## Next item
 
-Dose 5 continued: media pipeline empty-state polish when `workerLive` is false (Artist upload / reprocess messaging).
+Dose 5 continued: client upload shell with workerLive messaging, or pipeline status panel on Artist Hub for owned tracks.

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { intelService, commerceService } from '../services/olympus';
+import { getFeatures } from '../services/api';
 import './Olympus.css';
 
 const centsToUsd = (cents) =>
@@ -49,6 +50,15 @@ const ArtistDashboard = () => {
   const [intelOff, setIntelOff] = useState(null);
   const [commerceOff, setCommerceOff] = useState(null);
   const [loadError, setLoadError] = useState(null);
+  const [features, setFeatures] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getFeatures().then((f) => {
+      if (!cancelled) setFeatures(f);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     Promise.allSettled([
@@ -105,6 +115,20 @@ const ArtistDashboard = () => {
 
   const totalEarned = (revenue?.summary || []).reduce((acc, row) => acc + row.totalCents, 0);
 
+  const mediaPipelineNote = (() => {
+    if (!features) return null;
+    if (features.media === false) {
+      return 'Media pipeline is off (FEATURE_MEDIA_PIPELINE) — waveform, HLS variants, and reprocess routes are not mounted.';
+    }
+    if (features.worker === false) {
+      return 'Background worker flag is off — upload transcode / reprocess jobs will not run until FEATURE_WORKER is enabled.';
+    }
+    if (features.workerLive === false) {
+      return 'Background job worker is not running — queued transcode and reprocess jobs may stall until the worker starts.';
+    }
+    return null;
+  })();
+
   if (loading) return <div className="oly-page"><div className="oly-empty">Crunching your numbers…</div></div>;
 
   if (intelOff === true && commerceOff === true) {
@@ -140,6 +164,11 @@ const ArtistDashboard = () => {
       {commerceOff === true && (
         <div className="oly-msg err" style={{ marginBottom: 16 }}>
           Revenue data is not available (FEATURE_COMMERCE off or route missing).
+        </div>
+      )}
+      {mediaPipelineNote && (
+        <div className="oly-msg err" style={{ marginBottom: 16 }}>
+          {mediaPipelineNote}
         </div>
       )}
 
