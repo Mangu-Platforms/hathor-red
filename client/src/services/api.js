@@ -59,4 +59,10 @@ export async function getFeatures() {
   return featuresPromise;
 }
 
+/** Public health snapshot (DB / Redis / worker). Not cached — status can change. */
+export async function getHealth() {
+  const r = await api.get('/health');
+  return r.data || {};
+}
+
 export default api;

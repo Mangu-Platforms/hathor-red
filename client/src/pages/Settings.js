@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { privacyService } from '../services/olympus';
 import { authService } from '../services/auth';
 import { useAuth } from '../contexts/AuthContext';
-import { getFeatures } from '../services/api';
+import { getFeatures, getHealth } from '../services/api';
 import './Olympus.css';
 
 const Settings = () => {
@@ -20,6 +20,8 @@ const Settings = () => {
   const [pwBusy, setPwBusy] = useState(false);
   const [pwMsg, setPwMsg] = useState(null);
   const [features, setFeatures] = useState(null);
+  const [health, setHealth] = useState(null);
+  const [healthErr, setHealthErr] = useState(null);
 
   useEffect(() => {
     if (user) {
@@ -33,6 +35,24 @@ const Settings = () => {
     getFeatures().then((f) => {
       if (!cancelled) setFeatures(f);
     });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    getHealth()
+      .then((h) => {
+        if (!cancelled) {
+          setHealth(h);
+          setHealthErr(null);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setHealth(null);
+          setHealthErr(err.response?.data?.error || err.message || 'Health check failed');
+        }
+      });
     return () => { cancelled = true; };
   }, []);
 
@@ -170,12 +190,17 @@ const Settings = () => {
     return 'AI: rule-based fallback';
   })();
 
+  const healthOverall = health?.status === 'ok' ? 'API healthy' : health ? `API ${health.status}` : null;
+  const dbStatus = health?.checks?.database?.status;
+  const redisStatus = health?.checks?.redis?.status;
+  const workerHealthStatus = health?.checks?.worker?.status;
+
   return (
     <div className="oly-page">
       <h1>Settings</h1>
       <div className="oly-sub">Account, privacy, and data controls.</div>
 
-      {features && (
+      {(features || health || healthErr) && (
         <div className="oly-section" style={{ marginTop: 0 }}>
           <h2>Platform status</h2>
           <p className="muted" style={{ marginBottom: 8 }}>
@@ -183,10 +208,17 @@ const Settings = () => {
             jobs need a live worker when those pillars are enabled.
           </p>
           <div>
+            {healthOverall && <span className="oly-reason">{healthOverall}</span>}
+            {dbStatus && <span className="oly-reason">DB: {dbStatus}</span>}
+            {redisStatus && <span className="oly-reason">Redis: {redisStatus}</span>}
+            {workerHealthStatus && (
+              <span className="oly-reason">Worker check: {workerHealthStatus}</span>
+            )}
             {workerLabel && <span className="oly-reason">{workerLabel}</span>}
             {aiLabel && <span className="oly-reason">{aiLabel}</span>}
-            {features.privacy === false && <span className="oly-reason">Privacy pillar off</span>}
-            {features.media === false && <span className="oly-reason">Media pipeline off</span>}
+            {features?.privacy === false && <span className="oly-reason">Privacy pillar off</span>}
+            {features?.media === false && <span className="oly-reason">Media pipeline off</span>}
+            {healthErr && <span className="oly-reason">Health: unreachable ({healthErr})</span>}
           </div>
         </div>
       )}
