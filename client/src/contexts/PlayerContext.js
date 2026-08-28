@@ -354,7 +354,24 @@ export const PlayerProvider = ({ children }) => {
       if (repeatMode === 'one') {
         audio.currentTime = 0;
         audio.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
-      } else if (queueIndex < queue.length - 1 || repeatMode === 'all' || isShuffled) {
+        return;
+      }
+      if (repeatMode === 'all') {
+        playNext();
+        return;
+      }
+      // repeatMode === 'none': advance only while tracks remain in the current order
+      if (isShuffled && shuffleOrder.length === queue.length) {
+        if (shufflePos < shuffleOrder.length - 1) {
+          playNext();
+        } else {
+          setIsPlaying(false);
+          setProgress(0);
+          flushEvents();
+        }
+        return;
+      }
+      if (queueIndex < queue.length - 1) {
         playNext();
       } else {
         setIsPlaying(false);
@@ -364,7 +381,18 @@ export const PlayerProvider = ({ children }) => {
     };
     audio.addEventListener('ended', handleEnded);
     return () => audio.removeEventListener('ended', handleEnded);
-  }, [queue, queueIndex, repeatMode, audio, currentSong, duration, playNext, isShuffled]);
+  }, [
+    queue,
+    queueIndex,
+    repeatMode,
+    audio,
+    currentSong,
+    duration,
+    playNext,
+    isShuffled,
+    shuffleOrder,
+    shufflePos,
+  ]);
 
   const setQueueAndPlay = useCallback(async (songs, startIndex = 0) => {
     if (!songs || songs.length === 0) return;

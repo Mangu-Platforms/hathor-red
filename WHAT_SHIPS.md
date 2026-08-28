@@ -9,6 +9,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Stream URL resolution**: when `REACT_APP_API_URL` is absolute, client rewrites relative `/api/songs/…/stream?t=` to the API origin so `<audio>` does not hit the SPA host
 - Player: load/play/pause, volume, speed, progress, queue next/prev, repeat modes
 - Shuffle uses a Fisher-Yates permutation (not random-jump each skip)
+- **Shuffle + repeat none**: natural end of the last track in the permutation **stops** (does not wrap forever); `repeat all` still loops; manual Next still advances/wraps
 - Seek rejects invalid duration / non-finite times
 - Play after load awaits `audio.play()` (no fixed 100ms race)
 - Pitch/stem UI **hidden** (not implemented on the audio graph); dead legacy `Player.js` re-exports `MusicPlayer`
@@ -45,7 +46,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## This run changed
 
-- **dose-1.5**: Client `getStreamUrl` resolves relative stream paths against `REACT_APP_API_URL` origin when absolute (fixes `<audio>` hitting SPA host in split-origin dev). `PlayerContext.addToQueue` appends tracks without interrupting playback; SongList “Add to queue” button + feedback.
+- **dose-1.6**: Player `ended` handler no longer treats shuffle alone as infinite loop. With **repeat none** + shuffle, playback stops after the last index in the Fisher-Yates permutation; **repeat all** still loops; user Next still wraps via `resolveNextIndex`.
 
 ## Does not ship (honest)
 
