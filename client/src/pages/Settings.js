@@ -9,12 +9,14 @@ const Settings = () => {
   const [message, setMessage] = useState(null);
   const [busy, setBusy] = useState(false);
   const [displayName, setDisplayName] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState('');
   const [profileBusy, setProfileBusy] = useState(false);
   const [profileMsg, setProfileMsg] = useState(null);
 
   useEffect(() => {
     if (user) {
       setDisplayName(user.display_name || user.displayName || '');
+      setAvatarUrl(user.avatar_url || user.avatarUrl || '');
     }
   }, [user]);
 
@@ -33,10 +35,26 @@ const Settings = () => {
       setProfileMsg({ ok: false, text: 'Display name cannot be empty' });
       return;
     }
+    const trimmedAvatar = (avatarUrl || '').trim();
+    if (trimmedAvatar) {
+      try {
+        const u = new URL(trimmedAvatar);
+        if (u.protocol !== 'http:' && u.protocol !== 'https:') {
+          setProfileMsg({ ok: false, text: 'Avatar URL must be http or https' });
+          return;
+        }
+      } catch {
+        setProfileMsg({ ok: false, text: 'Avatar URL is not a valid URL' });
+        return;
+      }
+    }
     setProfileBusy(true);
     setProfileMsg(null);
     try {
-      await updateProfile({ displayName: trimmed });
+      await updateProfile({
+        displayName: trimmed,
+        avatarUrl: trimmedAvatar || null,
+      });
       setProfileMsg({ ok: true, text: 'Profile updated' });
     } catch (err) {
       setProfileMsg({ ok: false, text: err.response?.data?.error || 'Update failed' });
@@ -86,6 +104,8 @@ const Settings = () => {
     }
   };
 
+  const currentAvatar = user?.avatar_url || user?.avatarUrl || avatarUrl;
+
   return (
     <div className="oly-page">
       <h1>Settings</h1>
@@ -94,21 +114,50 @@ const Settings = () => {
       <div className="oly-section">
         <h2>Profile</h2>
         <p className="muted" style={{ marginBottom: 12 }}>
-          Username and email are fixed after registration. You can change your display name.
+          Username and email are fixed after registration. You can change your display name
+          and set an avatar image URL (no file upload yet).
         </p>
         {user && (
-          <div style={{ marginBottom: 12 }}>
-            <div className="muted" style={{ fontSize: '0.85rem' }}>Username</div>
-            <div style={{ marginBottom: 8 }}>{user.username}</div>
-            <div className="muted" style={{ fontSize: '0.85rem' }}>Email</div>
-            <div style={{ marginBottom: 12 }}>{user.email}</div>
+          <div style={{ marginBottom: 12, display: 'flex', gap: 16, alignItems: 'center' }}>
+            <div
+              className="user-avatar"
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: '50%',
+                overflow: 'hidden',
+                flexShrink: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'var(--surface-2, #2a2a2a)',
+                fontSize: '1.25rem',
+              }}
+            >
+              {currentAvatar ? (
+                <img
+                  src={currentAvatar}
+                  alt=""
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                />
+              ) : (
+                (user.display_name || user.displayName || user.username)?.[0]?.toUpperCase()
+              )}
+            </div>
+            <div>
+              <div className="muted" style={{ fontSize: '0.85rem' }}>Username</div>
+              <div style={{ marginBottom: 8 }}>{user.username}</div>
+              <div className="muted" style={{ fontSize: '0.85rem' }}>Email</div>
+              <div>{user.email}</div>
+            </div>
           </div>
         )}
         <form onSubmit={saveProfile}>
           <label className="muted" style={{ fontSize: '0.85rem', display: 'block', marginBottom: 4 }}>
             Display name
           </label>
-          <div className="oly-row" style={{ maxWidth: 420 }}>
+          <div className="oly-row" style={{ maxWidth: 420, marginBottom: 12 }}>
             <input
               className="oly-input"
               type="text"
@@ -117,6 +166,20 @@ const Settings = () => {
               maxLength={100}
               disabled={profileBusy}
               placeholder="How you appear to others"
+            />
+          </div>
+          <label className="muted" style={{ fontSize: '0.85rem', display: 'block', marginBottom: 4 }}>
+            Avatar URL
+          </label>
+          <div className="oly-row" style={{ maxWidth: 420 }}>
+            <input
+              className="oly-input"
+              type="url"
+              value={avatarUrl}
+              onChange={(e) => setAvatarUrl(e.target.value)}
+              maxLength={500}
+              disabled={profileBusy}
+              placeholder="https://… (optional; leave blank to clear)"
             />
             <button className="oly-btn" type="submit" disabled={profileBusy}>
               {profileBusy ? 'Saving…' : 'Save'}

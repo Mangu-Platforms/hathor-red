@@ -19,7 +19,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Rooms / playlists / AI endpoints present; behavior depends on DB seed + API keys
 - Olympus modules mount when feature flags are on; degrade when OpenAI/worker missing
 - Socket `sync-state` writes DB **and** Redis `playback:${userId}` (matches HTTP update path)
-- **Settings profile**: display name form via existing `PUT /auth/profile`; shows username/email read-only; Sign out button
+- **Settings profile**: display name form via existing `PUT /auth/profile`; shows username/email read-only; Sign out button; **avatar URL** field (http/https) via same PUT (`avatarUrl`); preview in Settings
 - **`/playlists`**: dedicated list page (not Home shell); cards link to `/playlists/:id`
 - **Playlist detail**: loads `GET /playlists/:id`, shows tracks via SongList, Play All queues songs
 - **Home My Playlists tab**: playlist cards are `Link`s to `/playlists/:id` (same detail route as sidebar entry)
@@ -40,16 +40,17 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## This run changed
 
-- **dose-1.3**: Queue panel supports **native HTML5 drag-and-drop** reorder (grip + row drag) in addition to existing up/down buttons; uses existing `moveInQueue`.
+- **dose-2.1**: Settings profile accepts **avatar URL** (http/https) via existing `PUT /auth/profile` `avatarUrl`; validates URL client-side; shows preview; clear by saving blank. No file-upload endpoint yet.
 
 ## Does not ship (honest)
 
 - OAuth, HLS in the React player, WebRTC video, Demucs stems, pitch-shift DSP
-- Avatar upload / email change from Settings (API supports avatarUrl only; no file picker yet)
+- Avatar **file** upload from Settings (URL-only; no multipart avatar route)
+- Email change from Settings
 - Rooms list still uses DB participant count (not in-memory socket roster); live roster only inside the room view
 - Live LLM responses when Colab/OpenAI is not configured (rule-based fallback only)
 - Commerce/discovery/store UX when `FEATURE_COMMERCE` / `FEATURE_DISCOVERY` are off (nav items hidden; deep-link pages still explain empty/404)
 
 ## Next item
 
-Settings avatar file picker if product wants it; optional deep-link redirects when flags off.
+Optional deep-link redirects when flags off; sidebar avatar image when `avatar_url` is set.
