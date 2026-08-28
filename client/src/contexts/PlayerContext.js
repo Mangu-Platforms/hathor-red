@@ -290,6 +290,38 @@ export const PlayerProvider = ({ children }) => {
     }
   }, [queue, queueIndex, shuffleOrder, isShuffled, audio, loadSong, preloadNext]);
 
+  /** Move queue item fromIndex -> toIndex; keeps current song playing if still present. */
+  const moveInQueue = useCallback((fromIndex, toIndex) => {
+    if (fromIndex === toIndex) return;
+    if (fromIndex < 0 || fromIndex >= queue.length) return;
+    if (toIndex < 0 || toIndex >= queue.length) return;
+
+    const newQueue = [...queue];
+    const [item] = newQueue.splice(fromIndex, 1);
+    newQueue.splice(toIndex, 0, item);
+
+    const remap = (oldIdx) => {
+      if (oldIdx === fromIndex) return toIndex;
+      if (fromIndex < toIndex) {
+        if (oldIdx > fromIndex && oldIdx <= toIndex) return oldIdx - 1;
+        return oldIdx;
+      }
+      if (oldIdx >= toIndex && oldIdx < fromIndex) return oldIdx + 1;
+      return oldIdx;
+    };
+
+    let newQueueIndex = remap(queueIndex);
+    const newShuffle = shuffleOrder.map(remap);
+
+    setQueue(newQueue);
+    setQueueIndex(newQueueIndex);
+    setShuffleOrder(newShuffle);
+    if (isShuffled && newShuffle.length > 0) {
+      const pos = newShuffle.indexOf(newQueueIndex);
+      setShufflePos(pos >= 0 ? pos : 0);
+    }
+  }, [queue, queueIndex, shuffleOrder, isShuffled]);
+
   useEffect(() => {
     const handleEnded = () => {
       if (currentSong) {
@@ -365,7 +397,7 @@ export const PlayerProvider = ({ children }) => {
     progress, duration, queue, queueIndex, isShuffled, repeatMode, audioSrc,
     loudnessGain, waveform,
     play, pause, togglePlay, seek, playNext, playPrevious, playAtIndex,
-    removeFromQueue,
+    removeFromQueue, moveInQueue,
     setQueueAndPlay, loadSong,
     setVolume, setPlaybackSpeed,
     toggleShuffle,
