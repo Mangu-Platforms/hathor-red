@@ -468,6 +468,32 @@ body {
   align-items: center;
   gap: 4px;
   padding: 0 6px;
+  cursor: grab;
+  border-left: 2px solid transparent;
+  transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
+
+.player-queue-row:active {
+  cursor: grabbing;
+}
+
+.player-queue-row.is-dragging {
+  opacity: 0.45;
+}
+
+.player-queue-row.drag-over {
+  border-left-color: var(--accent);
+  background: rgba(255,107,53,0.08);
+}
+
+.player-queue-grip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  padding: 4px 2px;
+  cursor: grab;
 }
 
 .player-queue-reorder {

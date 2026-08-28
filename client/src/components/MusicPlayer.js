@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { usePlayer } from '../contexts/PlayerContext';
 
 const MusicPlayer = () => {
@@ -11,6 +11,9 @@ const MusicPlayer = () => {
 
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showQueue, setShowQueue] = useState(false);
+  const [dragFrom, setDragFrom] = useState(null);
+  const [dragOver, setDragOver] = useState(null);
+  const dragFromRef = useRef(null);
 
   if (!currentSong) return null;
 
@@ -22,6 +25,45 @@ const MusicPlayer = () => {
     const pct = (e.clientX - rect.left) / rect.width;
     if (!Number.isFinite(pct)) return;
     seek(pct * duration);
+  };
+
+  const onQueueDragStart = (e, idx) => {
+    dragFromRef.current = idx;
+    setDragFrom(idx);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(idx));
+    // Improve drag image feedback in some browsers
+    if (e.currentTarget) {
+      e.currentTarget.classList.add('dragging');
+    }
+  };
+
+  const onQueueDragOver = (e, idx) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOver !== idx) setDragOver(idx);
+  };
+
+  const onQueueDrop = (e, toIndex) => {
+    e.preventDefault();
+    const from = dragFromRef.current;
+    if (from == null || from === toIndex) {
+      setDragFrom(null);
+      setDragOver(null);
+      dragFromRef.current = null;
+      return;
+    }
+    moveInQueue(from, toIndex);
+    setDragFrom(null);
+    setDragOver(null);
+    dragFromRef.current = null;
+  };
+
+  const onQueueDragEnd = (e) => {
+    if (e.currentTarget) e.currentTarget.classList.remove('dragging');
+    setDragFrom(null);
+    setDragOver(null);
+    dragFromRef.current = null;
   };
 
   return (
@@ -115,7 +157,24 @@ const MusicPlayer = () => {
           ) : (
             <ul className="player-queue-list">
               {queue.map((song, idx) => (
-                <li key={`${song.id}-${idx}`} className="player-queue-row">
+                <li
+                  key={`${song.id}-${idx}`}
+                  className={
+                    `player-queue-row` +
+                    (dragFrom === idx ? ' is-dragging' : '') +
+                    (dragOver === idx && dragFrom !== idx ? ' drag-over' : '')
+                  }
+                  draggable
+                  onDragStart={(e) => onQueueDragStart(e, idx)}
+                  onDragOver={(e) => onQueueDragOver(e, idx)}
+                  onDrop={(e) => onQueueDrop(e, idx)}
+                  onDragEnd={onQueueDragEnd}
+                >
+                  <span className="player-queue-grip" title="Drag to reorder" aria-hidden="true">
+                    <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 6h2v2H8V6zm0 5h2v2H8v-2zm0 5h2v2H8v-2zm5-10h2v2h-2V6zm0 5h2v2h-2v-2zm0 5h2v2h-2v-2z" />
+                    </svg>
+                  </span>
                   <div className="player-queue-reorder">
                     <button
                       type="button"
