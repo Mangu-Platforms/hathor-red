@@ -40,6 +40,37 @@ app.set('trust proxy', 1);
 const server = http.createServer(app);
 const io = socketIo(server, { cors: corsOptions });
 
+// Extra origins for <audio> when SPA and API are split (e.g. CRA :3000 + Express :5000).
+// Production same-origin deploy only needs 'self'; query-token streams still require a valid t=.
+function buildMediaSrc() {
+  const sources = ["'self'", 'blob:'];
+  const addOrigin = (raw) => {
+    if (!raw || typeof raw !== 'string') return;
+    try {
+      const origin = new URL(raw.trim()).origin;
+      if (origin && !sources.includes(origin)) sources.push(origin);
+    } catch {
+      // ignore invalid URL
+    }
+  };
+  // Public API base if the client was built with an absolute REACT_APP_API_URL
+  addOrigin(process.env.PUBLIC_API_URL);
+  addOrigin(process.env.API_PUBLIC_URL);
+  if (process.env.CLIENT_URL) {
+    process.env.CLIENT_URL.split(',').forEach((o) => addOrigin(o));
+  }
+  if (process.env.NODE_ENV !== 'production') {
+    addOrigin('http://localhost:5000');
+    addOrigin('http://127.0.0.1:5000');
+    addOrigin('http://localhost:3000');
+  }
+  // Allow http/https media when origins are env-driven (keeps CSP from blocking split deploy)
+  if (process.env.NODE_ENV !== 'production' || process.env.CSP_RELAX_MEDIA === '1') {
+    sources.push('http:', 'https:');
+  }
+  return sources;
+}
+
 // Security
 app.use(helmet({
   contentSecurityPolicy: {
@@ -48,7 +79,7 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'"],
       scriptSrc: ["'self'"],
       imgSrc: ["'self'", "data:", "https:"],
-      mediaSrc: ["'self'", "blob:"],
+      mediaSrc: buildMediaSrc(),
       connectSrc: ["'self'", "wss:", "ws:"],
     },
   },

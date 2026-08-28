@@ -8,6 +8,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Change password** (`POST /api/auth/change-password`) from Settings: current + new (same strength rules as register); audit on success/fail
 - Song list, upload, **signed progressive stream** for `<audio>` (`stream-url` + `streamAuth` query token)
 - **Stream URL resolution**: when `REACT_APP_API_URL` is absolute, client rewrites relative `/api/songs/…/stream?t=` to the API origin so `<audio>` does not hit the SPA host
+- **CSP `mediaSrc`**: allows `'self'` + `blob:` always; in non-production (or `CSP_RELAX_MEDIA=1`) also `http:`/`https:` plus localhost API/client origins so split-origin dev playback is not blocked by Helmet; production same-origin still tight
 - **`GET /api/songs/mine`**: current user’s uploads (id, title, artist, …) for Artist Hub pipeline list when intel/commerce analytics are empty
 - Player: load/play/pause, volume, speed, progress, queue next/prev, repeat modes
 - Shuffle uses a Fisher-Yates permutation (not random-jump each skip)
@@ -57,7 +58,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## This run changed
 
-- **dose-5.9**: `GET /api/songs/mine` (uploader-scoped list) + client `musicService.getMySongs`; Artist Hub pipeline panel loads my-uploads so the table is not empty when intel/commerce analytics have no tracks.
+- **dose-1.10**: Helmet CSP `mediaSrc` expanded so signed progressive streams work when SPA and API are on different origins (dev localhost + optional `PUBLIC_API_URL` / `CSP_RELAX_MEDIA`). Same-origin production stays on `'self'` + `blob:` unless relaxed.
 
 ## Does not ship (honest)
 
@@ -72,4 +73,4 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## Next item
 
-Dose 5 honesty complete for my-uploads; residual Olympus polish only if a concrete gap appears (no Dose 6+).
+Dose 1 CSP mediaSrc for split-origin streams; residual honesty/polish only if a concrete gap appears (no Dose 6+).
