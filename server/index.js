@@ -149,7 +149,15 @@ if (features.isPrivacyEnabled()) {
 }
 
 // Public feature-flag snapshot for honest client nav / empty states (no secrets).
+// aiLive reflects whether Colab/OpenAI initialized (else rule-based fallback only).
 app.get('/api/features', healthLimiter, (req, res) => {
+  let aiLive = false;
+  try {
+    const st = colabAIService.getStatus();
+    aiLive = Boolean(st && st.initialized && !st.fallbackMode);
+  } catch {
+    aiLive = false;
+  }
   res.json({
     media: features.isMediaPipelineEnabled(),
     commerce: features.isCommerceEnabled(),
@@ -158,6 +166,7 @@ app.get('/api/features', healthLimiter, (req, res) => {
     intel: features.isIntelEnabled(),
     privacy: features.isPrivacyEnabled(),
     worker: features.isWorkerEnabled(),
+    aiLive,
   });
 });
 

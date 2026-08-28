@@ -43,14 +43,15 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Semantic Search**: 404 when discovery flag off is explicit (not a generic "search failed")
 - **Home Daily Mix**: reads `dailyMix.songs` from `GET /ai/daily-mix` (also tolerates flat `songs`)
 - **Artist Hub**: distinguishes intel/commerce 404 (feature flag off) from empty plays/sales; full-page message when both pillars off
-- **`GET /api/features`**: public snapshot of Olympus flags (media, commerce, discovery, social, intel, privacy, worker) for honest client labels
+- **`GET /api/features`**: public snapshot of Olympus flags (media, commerce, discovery, social, intel, privacy, worker) **plus `aiLive`** (true only when Colab/OpenAI initialized; false = rule-based fallback)
 - **Sidebar nav honesty**: Search / Radar / Store / Library / Artist Hub are **omitted from the sidebar** when the matching FEATURE_* flag is off (routes remain for deep links; pages keep empty-state honesty). While `/api/features` is loading, items stay visible to avoid nav flash.
 - **Deep-link feature gates**: `/search` and `/radar` require discovery; `/store` and `/library` require commerce; `/dashboard` requires intel **or** commerce. When the flag is explicitly off, `FeatureRoute` redirects to `/` (Home). While flags are loading, the page still renders (no flash).
 - **SongList play under filter**: playing a row queues the **visible (filtered) list** from that index (no longer maps filtered index onto the full unfiltered array). Add-to-playlist shows brief success/error feedback.
+- **AI Recommendations UI**: same live vs rule-based status label as AI Chat (`GET /ai/status`)
 
 ## This run changed
 
-- **dose-3.3**: PlaylistDetail owner reorder now supports native HTML5 drag-and-drop (grip, drop outline) in addition to ▲/▼; both paths call the same `PUT /playlists/:id/reorder` via `persistOrder`.
+- **dose-5.1**: `GET /api/features` includes `aiLive` from ColabAIService status; AI Recommendations header shows live vs rule-based fallback (parity with AI Chat); client features cache default sets `aiLive: false` on fetch failure.
 
 ## Does not ship (honest)
 
@@ -63,4 +64,4 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## Next item
 
-Dose 5 fallbacks for missing worker/OpenAI (honest client labels when pillars degrade).
+Dose 5 continued: worker degradation labels when FEATURE_WORKER off or job worker fails to start; remaining Olympus empty-state polish.

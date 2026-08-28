@@ -39,7 +39,7 @@ export async function getFeatures() {
     })
     .catch(() => {
       // Assume enabled so nav stays usable if health path fails; pages already
-      // distinguish 404 (flag off) from empty data.
+      // distinguish 404 (flag off) from empty data. aiLive defaults false (honest).
       featuresCache = {
         media: true,
         commerce: true,
@@ -48,6 +48,7 @@ export async function getFeatures() {
         intel: true,
         privacy: true,
         worker: true,
+        aiLive: false,
       };
       return featuresCache;
     })

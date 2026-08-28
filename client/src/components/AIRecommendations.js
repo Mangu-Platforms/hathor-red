@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getRecommendations, getDailyMix, getSimilarSongs } from '../services/ai';
+import { getRecommendations, getDailyMix, getSimilarSongs, getAIStatus } from '../services/ai';
 import { usePlayer } from '../contexts/PlayerContext';
 import './AIRecommendations.css';
 
@@ -10,10 +10,23 @@ const AIRecommendations = ({ currentSongId = null }) => {
   const [activeTab, setActiveTab] = useState('forYou');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [aiStatus, setAiStatus] = useState(null);
   const { setQueueAndPlay } = usePlayer();
 
   useEffect(() => {
     loadRecommendations();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    getAIStatus()
+      .then((data) => {
+        if (!cancelled) setAiStatus(data?.status || data || null);
+      })
+      .catch(() => {
+        if (!cancelled) setAiStatus({ fallbackMode: true, initialized: false });
+      });
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -54,6 +67,14 @@ const AIRecommendations = ({ currentSongId = null }) => {
 
   const handlePlaySong = (song) => {
     if (song) setQueueAndPlay([song], 0);
+  };
+
+  const statusLabel = () => {
+    if (!aiStatus) return 'Checking AI…';
+    if (aiStatus.fallbackMode || !aiStatus.initialized) {
+      return 'Rule-based fallback (no live model)';
+    }
+    return 'Live AI connected';
   };
 
   const renderSongList = (songs) => {
@@ -111,7 +132,12 @@ const AIRecommendations = ({ currentSongId = null }) => {
   return (
     <div className="ai-recommendations">
       <div className="recommendations-header">
-        <h2>AI Music Discovery</h2>
+        <div>
+          <h2>AI Music Discovery</h2>
+          <span className="status" style={{ fontSize: '0.85rem', opacity: 0.85 }}>
+            {statusLabel()}
+          </span>
+        </div>
         <div className="tab-buttons">
           <button
             className={activeTab === 'forYou' ? 'active' : ''}
