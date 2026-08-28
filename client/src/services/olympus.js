@@ -45,6 +45,7 @@ export const mediaService = {
   getWaveform: (songId) => api.get(`/media/songs/${songId}/waveform`).then(r => r.data),
   getPipeline: (songId) => api.get(`/media/songs/${songId}/pipeline`).then(r => r.data),
   reprocess: (songId) => api.post(`/media/songs/${songId}/reprocess`).then(r => r.data),
+  getJob: (jobId) => api.get(`/media/jobs/${jobId}`).then(r => r.data),
 };
 
 export const privacyService = {

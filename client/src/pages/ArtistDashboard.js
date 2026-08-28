@@ -1,11 +1,14 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { intelService, commerceService } from '../services/olympus';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { intelService, commerceService, mediaService } from '../services/olympus';
 import { musicService } from '../services/music';
 import { getFeatures } from '../services/api';
 import './Olympus.css';
 
 const centsToUsd = (cents) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format((cents || 0) / 100);
+
+const MAX_UPLOAD_BYTES = 50 * 1024 * 1024; // 50 MB client-side guard
+const AUDIO_MIME_PREFIXES = ['audio/', 'video/ogg', 'video/webm'];
 
 /** Classify a settled promise: feature-off (404), error, or data. */
 function classifySettled(result) {
@@ -61,6 +64,9 @@ const ArtistDashboard = () => {
   const [uploadBusy, setUploadBusy] = useState(false);
   const [uploadMsg, setUploadMsg] = useState(null);
   const fileInputRef = useRef(null);
+
+  // Pipeline status: songId -> { loading, data, error, jobId, reprocessBusy }
+  const [pipelineBySong, setPipelineBySong] = useState({});
 
   useEffect(() => {
     let cancelled = false;
@@ -123,6 +129,75 @@ const ArtistDashboard = () => {
     }
   };
 
+  const loadPipeline = useCallback(async (songId) => {
+    setPipelineBySong((prev) => ({
+      ...prev,
+      [songId]: { ...(prev[songId] || {}), loading: true, error: null },
+    }));
+    try {
+      const data = await mediaService.getPipeline(songId);
+      setPipelineBySong((prev) => ({
+        ...prev,
+        [songId]: {
+          ...(prev[songId] || {}),
+          loading: false,
+          data,
+          error: null,
+        },
+      }));
+    } catch (err) {
+      const status = err.response?.status;
+      let message = err.response?.data?.error || err.message || 'Failed to load pipeline';
+      if (status === 404) {
+        message = 'Media pipeline route not available (FEATURE_MEDIA_PIPELINE off or route missing).';
+      } else if (status === 403) {
+        message = 'Only the uploader or an admin can view the pipeline.';
+      }
+      setPipelineBySong((prev) => ({
+        ...prev,
+        [songId]: {
+          ...(prev[songId] || {}),
+          loading: false,
+          error: message,
+        },
+      }));
+    }
+  }, []);
+
+  const handleReprocess = async (songId) => {
+    setPipelineBySong((prev) => ({
+      ...prev,
+      [songId]: { ...(prev[songId] || {}), reprocessBusy: true, error: null },
+    }));
+    try {
+      const result = await mediaService.reprocess(songId);
+      setPipelineBySong((prev) => ({
+        ...prev,
+        [songId]: {
+          ...(prev[songId] || {}),
+          reprocessBusy: false,
+          jobId: result.jobId,
+          lastReprocess: result,
+        },
+      }));
+      await loadPipeline(songId);
+    } catch (err) {
+      const status = err.response?.status;
+      let message = err.response?.data?.error || err.message || 'Reprocess failed';
+      if (status === 404) {
+        message = 'Reprocess route not available (FEATURE_MEDIA_PIPELINE off or route missing).';
+      }
+      setPipelineBySong((prev) => ({
+        ...prev,
+        [songId]: {
+          ...(prev[songId] || {}),
+          reprocessBusy: false,
+          error: message,
+        },
+      }));
+    }
+  };
+
   const totalEarned = (revenue?.summary || []).reduce((acc, row) => acc + row.totalCents, 0);
 
   const mediaPipelineNote = (() => {
@@ -139,15 +214,43 @@ const ArtistDashboard = () => {
     return null;
   })();
 
+  const validateUploadFile = (file) => {
+    if (!file) return 'Choose an audio file.';
+    if (file.size > MAX_UPLOAD_BYTES) {
+      return `File is too large (${Math.round(file.size / (1024 * 1024))} MB). Max ${MAX_UPLOAD_BYTES / (1024 * 1024)} MB.`;
+    }
+    const type = (file.type || '').toLowerCase();
+    const name = (file.name || '').toLowerCase();
+    const looksAudio =
+      AUDIO_MIME_PREFIXES.some((p) => type.startsWith(p)) ||
+      /\.(mp3|wav|flac|ogg|m4a|aac|opus|webm)$/i.test(name);
+    if (type && !looksAudio) {
+      return `File type “${type || 'unknown'}” does not look like audio. Use mp3, wav, flac, ogg, or m4a.`;
+    }
+    if (!type && !looksAudio) {
+      return 'Could not detect an audio file type. Use mp3, wav, flac, ogg, or m4a.';
+    }
+    return null;
+  };
+
   const handleUpload = async (e) => {
     e.preventDefault();
     setUploadMsg(null);
-    if (!uploadFile) {
-      setUploadMsg({ kind: 'err', text: 'Choose an audio file.' });
+    const fileErr = validateUploadFile(uploadFile);
+    if (fileErr) {
+      setUploadMsg({ kind: 'err', text: fileErr });
       return;
     }
     if (!uploadTitle.trim() || !uploadArtist.trim()) {
       setUploadMsg({ kind: 'err', text: 'Title and artist are required.' });
+      return;
+    }
+    if (uploadTitle.trim().length > 200) {
+      setUploadMsg({ kind: 'err', text: 'Title must be 200 characters or fewer.' });
+      return;
+    }
+    if (uploadArtist.trim().length > 200) {
+      setUploadMsg({ kind: 'err', text: 'Artist must be 200 characters or fewer.' });
       return;
     }
 
@@ -188,30 +291,53 @@ const ArtistDashboard = () => {
       let extra = '';
       if (pipeline?.status === 'queued') {
         if (features?.workerLive === false || features?.worker === false) {
-          extra = ' Transcode job was queued but the background worker is not live — processing may stall.';
+          extra = ` Transcode job #${pipeline.jobId ?? '—'} was queued but the background worker is not live — processing may stall.`;
         } else {
-          extra = ' Transcode job queued.';
+          extra = ` Transcode job #${pipeline.jobId ?? '—'} queued.`;
         }
       } else if (pipeline?.status === 'unavailable') {
         extra = ' Media pipeline could not enqueue jobs (upload still saved).';
       }
 
+      const songId = result?.song?.id;
       setUploadMsg({
         kind: 'ok',
-        text: `Uploaded “${result?.song?.title || uploadTitle}” (id ${result?.song?.id ?? '—'}).${extra}`,
+        text: `Uploaded “${result?.song?.title || uploadTitle}” (id ${songId ?? '—'}).${extra}`,
       });
+      if (songId != null && pipeline?.jobId) {
+        setPipelineBySong((prev) => ({
+          ...prev,
+          [songId]: { ...(prev[songId] || {}), jobId: pipeline.jobId },
+        }));
+      }
       setUploadTitle('');
       setUploadArtist('');
       setUploadGenre('');
       setUploadFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
     } catch (err) {
-      const text = err.response?.data?.error || err.message || 'Upload failed';
+      const status = err.response?.status;
+      let text = err.response?.data?.error || err.message || 'Upload failed';
+      if (status === 413) {
+        text = 'File rejected by server (too large). Try a smaller file.';
+      } else if (status === 400 && err.response?.data?.error) {
+        text = err.response.data.error;
+      }
       setUploadMsg({ kind: 'err', text });
     } finally {
       setUploadBusy(false);
     }
   };
+
+  const pipelineTracks = (() => {
+    const fromTop = topTracks.map((t) => ({ songId: t.songId, title: t.title }));
+    const fromRev = revenueByTrack.map((t) => ({ songId: t.songId, title: t.title }));
+    const map = new Map();
+    [...fromTop, ...fromRev].forEach((t) => {
+      if (t.songId != null && !map.has(t.songId)) map.set(t.songId, t);
+    });
+    return Array.from(map.values());
+  })();
 
   if (loading) return <div className="oly-page"><div className="oly-empty">Crunching your numbers…</div></div>;
 
@@ -304,6 +430,14 @@ const ArtistDashboard = () => {
         uploadMsg={uploadMsg}
         fileInputRef={fileInputRef}
         handleUpload={handleUpload}
+      />
+
+      <PipelineSection
+        tracks={pipelineTracks}
+        pipelineBySong={pipelineBySong}
+        loadPipeline={loadPipeline}
+        handleReprocess={handleReprocess}
+        features={features}
       />
 
       <div className="oly-stat-row">
@@ -415,6 +549,94 @@ const ArtistDashboard = () => {
   );
 };
 
+function PipelineSection({ tracks, pipelineBySong, loadPipeline, handleReprocess, features }) {
+  return (
+    <div className="oly-section">
+      <h2>Media pipeline</h2>
+      <div className="oly-sub" style={{ marginBottom: 12 }}>
+        Asset and variant status for your tracks via <code>GET /api/media/songs/:id/pipeline</code>.
+        Worker: {features?.workerLive === true ? 'live' : features?.worker === false ? 'flag off' : features ? 'not live' : '…'}.
+      </div>
+      {tracks.length === 0 ? (
+        <div className="oly-empty" style={{ padding: '16px 0' }}>
+          No owned tracks in analytics yet. Upload a track, then use Refresh status after it appears in Top tracks or Revenue.
+        </div>
+      ) : (
+        <table className="oly-table">
+          <thead>
+            <tr>
+              <th>Track</th>
+              <th>Asset</th>
+              <th>Variants</th>
+              <th>Worker</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {tracks.map((t) => {
+              const row = pipelineBySong[t.songId] || {};
+              const assetStatus = row.data?.pipeline?.asset?.status;
+              const variants = row.data?.pipeline?.variants || [];
+              const variantSummary =
+                variants.length === 0
+                  ? '—'
+                  : variants.map((v) => `${v.key}:${v.status}`).join(', ');
+              const workerLabel =
+                row.data?.workerLive === true
+                  ? 'live'
+                  : row.data?.workerEnabled === false
+                    ? 'off'
+                    : row.data
+                      ? 'not live'
+                      : '—';
+              return (
+                <tr key={t.songId}>
+                  <td>
+                    {t.title}
+                    <div className="muted">id {t.songId}{row.jobId ? ` · job #${row.jobId}` : ''}</div>
+                  </td>
+                  <td>
+                    {row.loading
+                      ? 'Loading…'
+                      : row.error
+                        ? <span className="oly-msg err" style={{ margin: 0, padding: '4px 8px' }}>{row.error}</span>
+                        : assetStatus || (row.data?.message ? 'none' : '—')}
+                  </td>
+                  <td className="muted">{variantSummary}</td>
+                  <td>{workerLabel}</td>
+                  <td>
+                    <div className="oly-row" style={{ flexWrap: 'wrap', gap: 8 }}>
+                      <button
+                        type="button"
+                        className="oly-btn-ghost"
+                        disabled={row.loading || row.reprocessBusy}
+                        onClick={() => loadPipeline(t.songId)}
+                      >
+                        {row.loading ? '…' : 'Refresh'}
+                      </button>
+                      <button
+                        type="button"
+                        className="oly-btn-ghost"
+                        disabled={row.reprocessBusy || row.loading}
+                        onClick={() => handleReprocess(t.songId)}
+                      >
+                        {row.reprocessBusy ? 'Queuing…' : 'Reprocess'}
+                      </button>
+                    </div>
+                    {row.lastReprocess?.warning && (
+                      <div className="muted" style={{ marginTop: 4 }}>{row.lastReprocess.warning}</div>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
 function UploadSection({
   features,
   mediaPipelineNote,
@@ -450,6 +672,7 @@ function UploadSection({
       <h2>Upload track</h2>
       <div className="oly-sub" style={{ marginBottom: 12 }}>
         Uses <code>POST /api/songs/upload</code>. Progressive stream works immediately; transcode depends on the worker.
+        Max {MAX_UPLOAD_BYTES / (1024 * 1024)} MB · audio types only.
       </div>
       {(mediaPipelineNote || workerNote) && (
         <div className="oly-msg err" style={{ marginBottom: 12 }}>
@@ -465,6 +688,7 @@ function UploadSection({
             value={uploadTitle}
             onChange={(e) => setUploadTitle(e.target.value)}
             disabled={uploadBusy}
+            maxLength={200}
           />
           <input
             className="oly-input"
@@ -473,6 +697,7 @@ function UploadSection({
             value={uploadArtist}
             onChange={(e) => setUploadArtist(e.target.value)}
             disabled={uploadBusy}
+            maxLength={200}
           />
           <input
             className="oly-input"
@@ -487,7 +712,7 @@ function UploadSection({
           <input
             ref={fileInputRef}
             type="file"
-            accept="audio/*"
+            accept="audio/*,.mp3,.wav,.flac,.ogg,.m4a,.aac,.opus"
             onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
             disabled={uploadBusy}
           />
@@ -496,7 +721,10 @@ function UploadSection({
           </button>
         </div>
         {uploadFile && (
-          <div className="muted">{uploadFile.name} ({Math.round(uploadFile.size / 1024)} KB)</div>
+          <div className="muted">
+            {uploadFile.name} ({Math.round(uploadFile.size / 1024)} KB)
+            {uploadFile.type ? ` · ${uploadFile.type}` : ''}
+          </div>
         )}
         {uploadMsg && (
           <div className={`oly-msg ${uploadMsg.kind === 'ok' ? 'ok' : 'err'}`}>{uploadMsg.text}</div>
