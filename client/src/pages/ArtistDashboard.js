@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { intelService, commerceService } from '../services/olympus';
+import { musicService } from '../services/music';
 import { getFeatures } from '../services/api';
 import './Olympus.css';
 
@@ -51,6 +52,15 @@ const ArtistDashboard = () => {
   const [commerceOff, setCommerceOff] = useState(null);
   const [loadError, setLoadError] = useState(null);
   const [features, setFeatures] = useState(null);
+
+  // Upload shell state
+  const [uploadTitle, setUploadTitle] = useState('');
+  const [uploadArtist, setUploadArtist] = useState('');
+  const [uploadGenre, setUploadGenre] = useState('');
+  const [uploadFile, setUploadFile] = useState(null);
+  const [uploadBusy, setUploadBusy] = useState(false);
+  const [uploadMsg, setUploadMsg] = useState(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -129,6 +139,80 @@ const ArtistDashboard = () => {
     return null;
   })();
 
+  const handleUpload = async (e) => {
+    e.preventDefault();
+    setUploadMsg(null);
+    if (!uploadFile) {
+      setUploadMsg({ kind: 'err', text: 'Choose an audio file.' });
+      return;
+    }
+    if (!uploadTitle.trim() || !uploadArtist.trim()) {
+      setUploadMsg({ kind: 'err', text: 'Title and artist are required.' });
+      return;
+    }
+
+    setUploadBusy(true);
+    try {
+      // duration is required by the API; estimate from file if the browser can
+      let durationSec = 0;
+      try {
+        durationSec = await new Promise((resolve) => {
+          const url = URL.createObjectURL(uploadFile);
+          const audio = new Audio();
+          audio.preload = 'metadata';
+          audio.onloadedmetadata = () => {
+            const d = Math.round(audio.duration) || 0;
+            URL.revokeObjectURL(url);
+            resolve(d);
+          };
+          audio.onerror = () => {
+            URL.revokeObjectURL(url);
+            resolve(0);
+          };
+          audio.src = url;
+        });
+      } catch {
+        durationSec = 0;
+      }
+      if (!durationSec || durationSec < 1) durationSec = 1;
+
+      const formData = new FormData();
+      formData.append('audio', uploadFile);
+      formData.append('title', uploadTitle.trim());
+      formData.append('artist', uploadArtist.trim());
+      formData.append('duration', String(durationSec));
+      if (uploadGenre.trim()) formData.append('genre', uploadGenre.trim());
+
+      const result = await musicService.uploadSong(formData);
+      const pipeline = result?.pipeline;
+      let extra = '';
+      if (pipeline?.status === 'queued') {
+        if (features?.workerLive === false || features?.worker === false) {
+          extra = ' Transcode job was queued but the background worker is not live — processing may stall.';
+        } else {
+          extra = ' Transcode job queued.';
+        }
+      } else if (pipeline?.status === 'unavailable') {
+        extra = ' Media pipeline could not enqueue jobs (upload still saved).';
+      }
+
+      setUploadMsg({
+        kind: 'ok',
+        text: `Uploaded “${result?.song?.title || uploadTitle}” (id ${result?.song?.id ?? '—'}).${extra}`,
+      });
+      setUploadTitle('');
+      setUploadArtist('');
+      setUploadGenre('');
+      setUploadFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    } catch (err) {
+      const text = err.response?.data?.error || err.message || 'Upload failed';
+      setUploadMsg({ kind: 'err', text });
+    } finally {
+      setUploadBusy(false);
+    }
+  };
+
   if (loading) return <div className="oly-page"><div className="oly-empty">Crunching your numbers…</div></div>;
 
   if (intelOff === true && commerceOff === true) {
@@ -138,6 +222,23 @@ const ArtistDashboard = () => {
         <div className="oly-empty">
           Artist Hub is not available on this server (intel and commerce feature flags off or routes missing).
         </div>
+        {/* Still allow upload when hub pillars are off — songs API is independent */}
+        <UploadSection
+          features={features}
+          mediaPipelineNote={mediaPipelineNote}
+          uploadTitle={uploadTitle}
+          setUploadTitle={setUploadTitle}
+          uploadArtist={uploadArtist}
+          setUploadArtist={setUploadArtist}
+          uploadGenre={uploadGenre}
+          setUploadGenre={setUploadGenre}
+          uploadFile={uploadFile}
+          setUploadFile={setUploadFile}
+          uploadBusy={uploadBusy}
+          uploadMsg={uploadMsg}
+          fileInputRef={fileInputRef}
+          handleUpload={handleUpload}
+        />
       </div>
     );
   }
@@ -147,6 +248,22 @@ const ArtistDashboard = () => {
       <div className="oly-page">
         <h1>Artist Intelligence</h1>
         <div className="oly-empty">{loadError}</div>
+        <UploadSection
+          features={features}
+          mediaPipelineNote={mediaPipelineNote}
+          uploadTitle={uploadTitle}
+          setUploadTitle={setUploadTitle}
+          uploadArtist={uploadArtist}
+          setUploadArtist={setUploadArtist}
+          uploadGenre={uploadGenre}
+          setUploadGenre={setUploadGenre}
+          uploadFile={uploadFile}
+          setUploadFile={setUploadFile}
+          uploadBusy={uploadBusy}
+          uploadMsg={uploadMsg}
+          fileInputRef={fileInputRef}
+          handleUpload={handleUpload}
+        />
       </div>
     );
   }
@@ -171,6 +288,23 @@ const ArtistDashboard = () => {
           {mediaPipelineNote}
         </div>
       )}
+
+      <UploadSection
+        features={features}
+        mediaPipelineNote={null}
+        uploadTitle={uploadTitle}
+        setUploadTitle={setUploadTitle}
+        uploadArtist={uploadArtist}
+        setUploadArtist={setUploadArtist}
+        uploadGenre={uploadGenre}
+        setUploadGenre={setUploadGenre}
+        uploadFile={uploadFile}
+        setUploadFile={setUploadFile}
+        uploadBusy={uploadBusy}
+        uploadMsg={uploadMsg}
+        fileInputRef={fileInputRef}
+        handleUpload={handleUpload}
+      />
 
       <div className="oly-stat-row">
         <div className="oly-stat"><div className="value">{overview?.plays ?? 0}</div><div className="label">Plays</div></div>
@@ -280,5 +414,96 @@ const ArtistDashboard = () => {
     </div>
   );
 };
+
+function UploadSection({
+  features,
+  mediaPipelineNote,
+  uploadTitle,
+  setUploadTitle,
+  uploadArtist,
+  setUploadArtist,
+  uploadGenre,
+  setUploadGenre,
+  uploadFile,
+  setUploadFile,
+  uploadBusy,
+  uploadMsg,
+  fileInputRef,
+  handleUpload,
+}) {
+  const workerNote = (() => {
+    if (!features) return null;
+    if (features.worker === false) {
+      return 'FEATURE_WORKER is off — file will save and stream, but transcode/embed jobs will not run.';
+    }
+    if (features.workerLive === false) {
+      return 'Job worker is not live — upload will save; queued transcode may stall until the worker starts.';
+    }
+    if (features.media === false) {
+      return 'Media pipeline flag is off — upload still works for progressive stream; no HLS/waveform jobs.';
+    }
+    return null;
+  })();
+
+  return (
+    <div className="oly-section">
+      <h2>Upload track</h2>
+      <div className="oly-sub" style={{ marginBottom: 12 }}>
+        Uses <code>POST /api/songs/upload</code>. Progressive stream works immediately; transcode depends on the worker.
+      </div>
+      {(mediaPipelineNote || workerNote) && (
+        <div className="oly-msg err" style={{ marginBottom: 12 }}>
+          {mediaPipelineNote || workerNote}
+        </div>
+      )}
+      <form onSubmit={handleUpload} className="oly-card" style={{ gap: 12 }}>
+        <div className="oly-row" style={{ flexWrap: 'wrap' }}>
+          <input
+            className="oly-input"
+            style={{ flex: 1, minWidth: 160 }}
+            placeholder="Title"
+            value={uploadTitle}
+            onChange={(e) => setUploadTitle(e.target.value)}
+            disabled={uploadBusy}
+          />
+          <input
+            className="oly-input"
+            style={{ flex: 1, minWidth: 160 }}
+            placeholder="Artist"
+            value={uploadArtist}
+            onChange={(e) => setUploadArtist(e.target.value)}
+            disabled={uploadBusy}
+          />
+          <input
+            className="oly-input"
+            style={{ flex: 1, minWidth: 120 }}
+            placeholder="Genre (optional)"
+            value={uploadGenre}
+            onChange={(e) => setUploadGenre(e.target.value)}
+            disabled={uploadBusy}
+          />
+        </div>
+        <div className="oly-row" style={{ flexWrap: 'wrap' }}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="audio/*"
+            onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+            disabled={uploadBusy}
+          />
+          <button type="submit" className="oly-btn" disabled={uploadBusy}>
+            {uploadBusy ? 'Uploading…' : 'Upload'}
+          </button>
+        </div>
+        {uploadFile && (
+          <div className="muted">{uploadFile.name} ({Math.round(uploadFile.size / 1024)} KB)</div>
+        )}
+        {uploadMsg && (
+          <div className={`oly-msg ${uploadMsg.kind === 'ok' ? 'ok' : 'err'}`}>{uploadMsg.text}</div>
+        )}
+      </form>
+    </div>
+  );
+}
 
 export default ArtistDashboard;
