@@ -213,6 +213,8 @@ export const PlayerProvider = ({ children }) => {
   /**
    * Dose 1.15: restore last song + position from server (Redis/DB) after login.
    * Does not autoplay (browser policy); user must press play.
+   * Dose 1.19: seed a one-item queue so Next/Prev and the queue panel work after hydrate
+   * (server only stores current_song_id, not the full queue).
    */
   useEffect(() => {
     if (!isAuthenticated || !user) {
@@ -253,6 +255,12 @@ export const PlayerProvider = ({ children }) => {
 
         await loadSong(song);
         if (cancelled) return;
+
+        // Server hydrate has no queue list — seed current track so controls work
+        setQueue([song]);
+        setQueueIndex(0);
+        setShuffleOrder([0]);
+        setShufflePos(0);
 
         const resumeAt = Math.max(0, state.position || 0);
         const onMeta = () => {

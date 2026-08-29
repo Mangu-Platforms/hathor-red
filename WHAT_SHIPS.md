@@ -15,6 +15,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Shuffle + repeat none**: natural end of the last track in the permutation **stops** (does not wrap forever); `repeat all` still loops; manual Next still advances/wraps
 - **Natural end persist**: when the last track ends under repeat-none (shuffle or sequential), client POSTs `isPlaying: false` and end position so Redis/DB do not leave `is_playing` true for multi-device hydrate
 - **Unload persist**: on `visibilitychange` (hidden) and `pagehide`, client flushes debounced playback state immediately so close/refresh does not lose the last position when the 800ms timer has not fired
+- **Hydrate seeds queue**: after login, restoring `current_song_id` also sets a one-item queue (`[song]`, index 0) so Next/Prev and the queue panel are usable (server does not store the full queue)
 - **Preload next**: opportunistic stream-url fetch uses the **next index in the shuffle permutation** when shuffle is on (not `queue[i+1]` sequential); sequential when shuffle is off; **re-warm on shuffle toggle both on and off**
 - Seek rejects invalid duration / non-finite times
 - Play after load awaits `audio.play()` (no fixed 100ms race)
@@ -65,7 +66,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## This run changed
 
-- **dose-1.18**: On `visibilitychange` (document hidden) and `pagehide`, `PlayerContext` flushes pending debounced `POST /playback/state` immediately so tab close/refresh does not drop the last position when the 800ms debounce has not fired.
+- **dose-1.19**: After playback hydrate restores `current_song_id`, `PlayerContext` seeds `queue = [song]`, `queueIndex = 0`, and a trivial shuffle order so Next/Prev and the queue panel work without requiring the user to start a new list first.
 
 ## Does not ship (honest)
 
@@ -77,8 +78,8 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Commerce/discovery/store UX when `FEATURE_COMMERCE` / `FEATURE_DISCOVERY` are off (nav items hidden; deep links now redirect Home)
 - Background job processing when `FEATURE_WORKER=false` or worker fails to start (`workerLive` false)
 - Dedicated upload **page** (upload lives on Artist Hub only; no separate route)
-- Full multi-device live queue/shuffle sync (hydrate restores last song + position only; queue is local to the tab)
+- Full multi-device live queue/shuffle sync (hydrate restores last song + position + one-item queue seed; multi-track queue is still local to the tab)
 
 ## Next item
 
-Residual Dose 1 only for new concrete playback bugs; Dose 2 account basics largely shipped. Optional: persist/restore queue list if a product need appears. No Dose 6+.
+Residual Dose 1 only for new concrete playback bugs; Dose 2 account basics largely shipped. Optional: persist/restore full multi-track queue if a product need appears. No Dose 6+.
