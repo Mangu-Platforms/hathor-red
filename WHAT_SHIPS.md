@@ -9,8 +9,10 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Song list, upload, **signed progressive stream** for `<audio>` (`stream-url` + `streamAuth` query token)
 - **Stream URL resolution**: when `REACT_APP_API_URL` is absolute, client rewrites relative `/api/songs/…/stream?t=` to the API origin so `<audio>` does not hit the SPA host
 - **CSP `mediaSrc`**: allows `'self'` + `blob:` always; in non-production (or `CSP_RELAX_MEDIA=1`) also `http:`/`https:` plus localhost API/client origins so split-origin dev playback is not blocked by Helmet; production same-origin still tight
+- **CORS media seek**: `exposedHeaders` includes `Accept-Ranges`, `Content-Range`, `Content-Length`, `ETag`, `Last-Modified` so cross-origin `<audio>` can use Range seeks when SPA and API origins differ
 - **`GET /api/songs/mine`**: current user's uploads (id, title, artist, …) for Artist Hub pipeline list when intel/commerce analytics are empty
 - Player: load/play/pause, volume, speed, progress, queue next/prev, repeat modes
+- **Player control icons**: shuffle uses crossed arrows; repeat uses circular arrows (no longer identical SVG paths)
 - Shuffle uses a Fisher-Yates permutation (not random-jump each skip)
 - **Shuffle + repeat none**: natural end of the last track in the permutation **stops** (does not wrap forever); `repeat all` still loops; manual Next still advances/wraps
 - **Natural end persist**: when the last track ends under repeat-none (shuffle or sequential), client POSTs `isPlaying: false` and end position so Redis/DB do not leave `is_playing` true for multi-device hydrate
@@ -66,7 +68,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## This run changed
 
-- **dose-1.19**: After playback hydrate restores `current_song_id`, `PlayerContext` seeds `queue = [song]`, `queueIndex = 0`, and a trivial shuffle order so Next/Prev and the queue panel work without requiring the user to start a new list first.
+- **dose-1.20**: CORS `exposedHeaders` now includes Accept-Ranges / Content-Range / Content-Length / ETag / Last-Modified so split-origin progressive streams can seek via Range. MusicPlayer shuffle and repeat buttons use distinct correct SVG paths (were identical arrow icons).
 
 ## Does not ship (honest)
 

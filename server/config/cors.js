@@ -29,6 +29,16 @@ const corsOptions = {
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID'],
+  // Cross-origin <audio> seek uses Range; browsers only surface these when exposed.
+  exposedHeaders: [
+    'Accept-Ranges',
+    'Content-Range',
+    'Content-Length',
+    'Content-Type',
+    'ETag',
+    'Last-Modified',
+    'X-Request-ID',
+  ],
 };
 
 module.exports = corsOptions;
