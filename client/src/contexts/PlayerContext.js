@@ -474,6 +474,9 @@ export const PlayerProvider = ({ children }) => {
         setShufflePos(0);
         // Warm the true next track in the new permutation
         preloadNext(queue, queueIndex, { shuffled: true, order, pos: 0 });
+      } else if (!next && queue.length > 0) {
+        // Shuffle off: warm sequential next (queueIndex + 1), not the old permutation next
+        preloadNext(queue, queueIndex, { shuffled: false });
       }
       return next;
     });
