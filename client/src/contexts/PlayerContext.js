@@ -631,18 +631,29 @@ export const PlayerProvider = ({ children }) => {
         if (shufflePos < shuffleOrder.length - 1) {
           playNext();
         } else {
+          // Last track in shuffle permutation ended — stop and persist paused so
+          // multi-device hydrate does not think playback is still running.
           setIsPlaying(false);
           setProgress(0);
           flushEvents();
+          persistPlaybackState({
+            isPlaying: false,
+            position: Number.isFinite(audio.duration) ? audio.duration : 0,
+          });
         }
         return;
       }
       if (queueIndex < queue.length - 1) {
         playNext();
       } else {
+        // Last sequential track ended — same persist for server state honesty.
         setIsPlaying(false);
         setProgress(0);
         flushEvents();
+        persistPlaybackState({
+          isPlaying: false,
+          position: Number.isFinite(audio.duration) ? audio.duration : 0,
+        });
       }
     };
     audio.addEventListener('ended', handleEnded);
@@ -658,6 +669,7 @@ export const PlayerProvider = ({ children }) => {
     isShuffled,
     shuffleOrder,
     shufflePos,
+    persistPlaybackState,
   ]);
 
   const setQueueAndPlay = useCallback(async (songs, startIndex = 0) => {
