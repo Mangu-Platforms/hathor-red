@@ -45,21 +45,25 @@ const getPlaybackState = async (req, res) => {
 const updatePlaybackState = async (req, res) => {
   try {
     const { userId } = req.user;
+    const body = req.body || {};
     const {
-      currentSongId,
       position,
       isPlaying,
       volume,
       playbackSpeed,
       pitchShift,
       stemsConfig
-    } = req.body;
+    } = body;
+
+    // Explicit null clears current_song_id (e.g. Clear queue). Omitted key leaves prior value.
+    const hasSongId = Object.prototype.hasOwnProperty.call(body, 'currentSongId');
+    const currentSongId = hasSongId ? body.currentSongId : undefined;
 
     const result = await db.query(
       `INSERT INTO playback_states (user_id, current_song_id, position, is_playing, volume, playback_speed, pitch_shift, stems_config)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        ON CONFLICT (user_id) DO UPDATE SET
-         current_song_id = COALESCE($2, playback_states.current_song_id),
+         current_song_id = CASE WHEN $9::boolean THEN $2 ELSE playback_states.current_song_id END,
          position = COALESCE($3, playback_states.position),
          is_playing = COALESCE($4, playback_states.is_playing),
          volume = COALESCE($5, playback_states.volume),
@@ -68,7 +72,17 @@ const updatePlaybackState = async (req, res) => {
          stems_config = COALESCE($8, playback_states.stems_config),
          updated_at = CURRENT_TIMESTAMP
        RETURNING *`,
-      [userId, currentSongId, position, isPlaying, volume, playbackSpeed, pitchShift, stemsConfig]
+      [
+        userId,
+        hasSongId ? currentSongId : null,
+        position,
+        isPlaying,
+        volume,
+        playbackSpeed,
+        pitchShift,
+        stemsConfig,
+        hasSongId,
+      ]
     );
 
     const state = result.rows[0];

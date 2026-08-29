@@ -290,8 +290,11 @@ export const PlayerProvider = ({ children }) => {
     if (!isAuthenticated) return;
     if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
     persistTimerRef.current = setTimeout(() => {
-      const song = overrides.currentSongId != null ? null : currentSong;
-      const songId = overrides.currentSongId ?? song?.id;
+      const song = overrides.currentSongId !== undefined ? null : currentSong;
+      const songId = overrides.currentSongId !== undefined
+        ? overrides.currentSongId
+        : song?.id;
+      // Allow explicit null (clear) — only skip when neither override nor current song
       if (songId == null && overrides.currentSongId === undefined) return;
       musicService
         .updatePlaybackState({
@@ -470,6 +473,12 @@ export const PlayerProvider = ({ children }) => {
       setDuration(0);
       audio.removeAttribute('src');
       audio.load();
+      // Persist cleared song so hydrate does not restore a removed track
+      persistPlaybackState({
+        currentSongId: null,
+        position: 0,
+        isPlaying: false,
+      });
       return;
     }
 
@@ -504,14 +513,20 @@ export const PlayerProvider = ({ children }) => {
             order: newShuffle,
             pos: newPos,
           });
+          persistPlaybackState({
+            currentSongId: nextSong?.id,
+            position: 0,
+            isPlaying: true,
+          });
         })
         .catch(() => setIsPlaying(false));
     }
-  }, [queue, queueIndex, shuffleOrder, isShuffled, audio, loadSong, preloadNext]);
+  }, [queue, queueIndex, shuffleOrder, isShuffled, audio, loadSong, preloadNext, persistPlaybackState]);
 
   /**
    * Clear the entire queue and stop playback (Dose 1 queue UI).
    * Bumps playGeneration so in-flight loadSong / stream retries are abandoned.
+   * Persists current_song_id = null so the next hydrate does not restore a cleared track.
    */
   const clearQueue = useCallback(() => {
     playGeneration.current += 1;
@@ -534,7 +549,12 @@ export const PlayerProvider = ({ children }) => {
       preloadRef.current.removeAttribute('src');
       preloadRef.current.load();
     }
-  }, [audio]);
+    persistPlaybackState({
+      currentSongId: null,
+      position: 0,
+      isPlaying: false,
+    });
+  }, [audio, persistPlaybackState]);
 
   /** Move queue item fromIndex -> toIndex; keeps current song playing if still present. */
   const moveInQueue = useCallback((fromIndex, toIndex) => {

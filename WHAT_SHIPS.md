@@ -19,7 +19,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Stream error recovery**: one automatic `stream-url` re-fetch + resume on `<audio>` error (expired token / blip); second failure pauses
 - Pitch/stem UI **hidden** (not implemented on the audio graph); dead legacy `Player.js` re-exports `MusicPlayer`
 - **Queue panel** on the player bar (list + jump via `playAtIndex` + **remove via `removeFromQueue`** + **reorder via up/down `moveInQueue` and native HTML5 drag-and-drop**; CSS styled)
-- **`clearQueue`**: empties queue, stops playback, clears audio/preload src, bumps play generation so in-flight loads are abandoned; queue panel **Clear** control
+- **`clearQueue`**: empties queue, stops playback, clears audio/preload src, bumps play generation so in-flight loads are abandoned; queue panel **Clear** control; **persists `current_song_id = null`** so hydrate does not restore a cleared track
 - **`addToQueue`**: append one or more songs to the end of the queue without stopping current playback; SongList has "Add to queue" action
 - `GET /api/songs/genres` wired (controller was present; route was missing)
 - **Home genre filter** passes `genre` query to `getSongs` and shows active filter + clear
@@ -29,6 +29,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Olympus modules mount when feature flags are on; degrade when OpenAI/worker missing
 - Socket `sync-state` writes DB **and** Redis `playback:${userId}` (matches HTTP update path)
 - **Client playback hydrate**: on authenticated mount, `PlayerContext` calls `GET /playback/state`, loads `current_song_id` via `getSong` + signed stream, seeks to saved `position`, restores volume/speed; **does not autoplay** (user gesture required). Debounced `POST /playback/state` on play/pause/seek/volume/speed and track changes
+- **`POST /playback/state`**: explicit `currentSongId: null` clears the saved track (COALESCE no longer traps null); omitted key still leaves prior value
 - **Settings profile**: display name form via existing `PUT /auth/profile`; shows username/email read-only; Sign out button; **avatar URL** field (http/https) via same PUT (`avatarUrl`); **empty avatar URL clears** `avatar_url` (no longer stuck via COALESCE); preview in Settings
 - **Sidebar avatar**: when `avatar_url` / `avatarUrl` is set, footer shows the image (object-fit cover); on load error falls back to initial letter
 - **`/playlists`**: dedicated list page (not Home shell); cards link to `/playlists/:id`
@@ -62,7 +63,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## This run changed
 
-- **dose-1.15**: Client hydrates last song/position/volume/speed from `GET /playback/state` after auth; debounced `POST /playback/state` on play/pause/seek/volume/speed and track changes. No autoplay after hydrate.
+- **dose-1.16**: `clearQueue` / last-track `removeFromQueue` POST `currentSongId: null` so server state matches an empty player; `updatePlaybackState` uses explicit null (not COALESCE) when the key is present so clears stick in DB + Redis.
 
 ## Does not ship (honest)
 
