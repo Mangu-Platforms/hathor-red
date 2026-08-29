@@ -310,6 +310,44 @@ export const PlayerProvider = ({ children }) => {
     }, 800);
   }, [isAuthenticated, currentSong, isPlaying, volume, playbackSpeed, audio]);
 
+  /**
+   * Immediate flush (no debounce) for pagehide / visibility hidden so the last
+   * position is not lost when the tab closes before the 800ms timer fires.
+   */
+  const flushPlaybackStateNow = useCallback(() => {
+    if (!isAuthenticated) return;
+    if (persistTimerRef.current) {
+      clearTimeout(persistTimerRef.current);
+      persistTimerRef.current = null;
+    }
+    const songId = currentSong?.id;
+    if (songId == null) return;
+    musicService
+      .updatePlaybackState({
+        currentSongId: songId,
+        position: Number.isFinite(audio.currentTime) ? audio.currentTime : 0,
+        isPlaying,
+        volume,
+        playbackSpeed,
+      })
+      .catch(() => {
+        // Best-effort on unload
+      });
+  }, [isAuthenticated, currentSong, isPlaying, volume, playbackSpeed, audio]);
+
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') flushPlaybackStateNow();
+    };
+    const onPageHide = () => flushPlaybackStateNow();
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pagehide', onPageHide);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pagehide', onPageHide);
+    };
+  }, [flushPlaybackStateNow]);
+
   useEffect(() => {
     return () => {
       if (persistTimerRef.current) clearTimeout(persistTimerRef.current);

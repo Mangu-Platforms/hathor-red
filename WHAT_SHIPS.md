@@ -14,6 +14,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Shuffle uses a Fisher-Yates permutation (not random-jump each skip)
 - **Shuffle + repeat none**: natural end of the last track in the permutation **stops** (does not wrap forever); `repeat all` still loops; manual Next still advances/wraps
 - **Natural end persist**: when the last track ends under repeat-none (shuffle or sequential), client POSTs `isPlaying: false` and end position so Redis/DB do not leave `is_playing` true for multi-device hydrate
+- **Unload persist**: on `visibilitychange` (hidden) and `pagehide`, client flushes debounced playback state immediately so close/refresh does not lose the last position when the 800ms timer has not fired
 - **Preload next**: opportunistic stream-url fetch uses the **next index in the shuffle permutation** when shuffle is on (not `queue[i+1]` sequential); sequential when shuffle is off; **re-warm on shuffle toggle both on and off**
 - Seek rejects invalid duration / non-finite times
 - Play after load awaits `audio.play()` (no fixed 100ms race)
@@ -64,7 +65,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## This run changed
 
-- **dose-1.17**: Natural end of the last track under repeat-none (shuffle permutation or sequential) now calls `persistPlaybackState({ isPlaying: false, position })` so Redis/DB `is_playing` is not left true after the queue finishes.
+- **dose-1.18**: On `visibilitychange` (document hidden) and `pagehide`, `PlayerContext` flushes pending debounced `POST /playback/state` immediately so tab close/refresh does not drop the last position when the 800ms debounce has not fired.
 
 ## Does not ship (honest)
 
