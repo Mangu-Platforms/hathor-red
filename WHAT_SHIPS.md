@@ -16,6 +16,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Preload next**: opportunistic stream-url fetch uses the **next index in the shuffle permutation** when shuffle is on (not `queue[i+1]` sequential); sequential when shuffle is off; **re-warm on shuffle toggle both on and off**
 - Seek rejects invalid duration / non-finite times
 - Play after load awaits `audio.play()` (no fixed 100ms race)
+- **Stream error recovery**: one automatic `stream-url` re-fetch + resume on `<audio>` error (expired token / blip); second failure pauses
 - Pitch/stem UI **hidden** (not implemented on the audio graph); dead legacy `Player.js` re-exports `MusicPlayer`
 - **Queue panel** on the player bar (list + jump via `playAtIndex` + **remove via `removeFromQueue`** + **reorder via up/down `moveInQueue` and native HTML5 drag-and-drop**; CSS styled)
 - **`addToQueue`**: append one or more songs to the end of the queue without stopping current playback; SongList has “Add to queue” action
@@ -59,7 +60,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## This run changed
 
-- **dose-1.12**: When shuffle is toggled **off**, opportunistic preload re-warms the **sequential** next track (`queueIndex + 1`) instead of leaving the previous permutation next loaded.
+- **dose-1.13**: On `<audio>` media error (expired signed stream token or transient network), PlayerContext re-fetches `stream-url` once per load generation, restores seek position after metadata, and retries `play()`. Second failure leaves the player paused.
 
 ## Does not ship (honest)
 
@@ -74,4 +75,4 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## Next item
 
-Residual Dose 1 polish only if a concrete gap appears; otherwise Dose 2 account basics already largely shipped — verify any remaining Settings/profile gaps (no Dose 6+).
+Dose 2 account basics already largely shipped — verify any remaining Settings/profile gaps; residual Dose 1 only if a new concrete playback gap appears (no Dose 6+).

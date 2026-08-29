@@ -55,6 +55,8 @@ export const PlayerProvider = ({ children }) => {
   const lastSegmentRef = useRef(-1);
   // Avoid overlapping play() calls while a load is in flight
   const playGeneration = useRef(0);
+  // One automatic stream-url refresh per load generation (expired token / network blip)
+  const streamRetryRef = useRef(0);
 
   const audio = audioRef.current;
 
@@ -83,6 +85,44 @@ export const PlayerProvider = ({ children }) => {
     }
     return () => clearInterval(progressInterval.current);
   }, [isPlaying, audio, currentSong]);
+
+  // Recover from media errors (expired signed stream token, transient network).
+  // At most one re-fetch of stream-url per loadSong generation; preserve seek position.
+  useEffect(() => {
+    const handleError = async () => {
+      const song = currentSong;
+      if (!song) return;
+      if (streamRetryRef.current >= 1) {
+        console.error('Stream failed after retry; leaving paused');
+        setIsPlaying(false);
+        return;
+      }
+      streamRetryRef.current += 1;
+      const gen = playGeneration.current;
+      const resumeAt = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+      try {
+        const { url } = await musicService.getStreamUrl(song.id);
+        if (gen !== playGeneration.current) return;
+        setAudioSrc(url);
+        audio.src = url;
+        const onMeta = () => {
+          audio.removeEventListener('loadedmetadata', onMeta);
+          if (gen !== playGeneration.current) return;
+          if (resumeAt > 0 && Number.isFinite(audio.duration) && audio.duration > 0) {
+            audio.currentTime = Math.min(resumeAt, audio.duration);
+          }
+          audio.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+        };
+        audio.addEventListener('loadedmetadata', onMeta);
+        audio.load();
+      } catch (err) {
+        console.error('Stream URL refresh failed:', err);
+        setIsPlaying(false);
+      }
+    };
+    audio.addEventListener('error', handleError);
+    return () => audio.removeEventListener('error', handleError);
+  }, [audio, currentSong]);
 
   const applyLoudness = useCallback(async (song) => {
     setWaveform(null);
@@ -129,6 +169,7 @@ export const PlayerProvider = ({ children }) => {
 
   const loadSong = useCallback(async (song) => {
     const gen = ++playGeneration.current;
+    streamRetryRef.current = 0;
     try {
       const { url } = await musicService.getStreamUrl(song.id);
       if (gen !== playGeneration.current) return; // superseded
