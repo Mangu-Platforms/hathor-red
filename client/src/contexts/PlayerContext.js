@@ -81,8 +81,14 @@ export const PlayerProvider = ({ children }) => {
   // Hydrate GET /playback/state only once per authenticated session
   const hydratedRef = useRef(false);
   const persistTimerRef = useRef(null);
+  // Snapshot of isPlaying for async remove-current so we do not force autoplay when paused
+  const isPlayingRef = useRef(false);
 
   const audio = audioRef.current;
+
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
 
   useEffect(() => {
     audio.volume = Math.max(0, Math.min(1, volume * loudnessGain));
@@ -559,12 +565,18 @@ export const PlayerProvider = ({ children }) => {
     }
   }, [queue, isShuffled, shuffleOrder, shufflePos, loadSong, audio, preloadNext, persistPlaybackState]);
 
-  /** Remove a track from the queue by index; keeps playback if current is not removed. */
+  /**
+   * Remove a track from the queue by index.
+   * Dose 1.23: when removing the *current* track, preserve prior play/pause —
+   * if the user had paused, load the replacement but do not call audio.play()
+   * (avoids forced autoplay and respects explicit pause).
+   */
   const removeFromQueue = useCallback((index) => {
     if (index < 0 || index >= queue.length) return;
 
     const newQueue = queue.filter((_, i) => i !== index);
     const newShuffle = remapShuffleAfterRemove(shuffleOrder, index);
+    const wasPlaying = isPlayingRef.current;
 
     if (newQueue.length === 0) {
       setQueue([]);
@@ -611,18 +623,31 @@ export const PlayerProvider = ({ children }) => {
     if (index === queueIndex) {
       const nextSong = newQueue[newIndex];
       loadSong(nextSong)
-        .then(() => audio.play())
         .then(() => {
-          setIsPlaying(true);
+          if (wasPlaying) {
+            return audio.play().then(() => {
+              setIsPlaying(true);
+              persistPlaybackState({
+                currentSongId: nextSong?.id,
+                position: 0,
+                isPlaying: true,
+              });
+            });
+          }
+          setIsPlaying(false);
+          audio.pause();
+          persistPlaybackState({
+            currentSongId: nextSong?.id,
+            position: 0,
+            isPlaying: false,
+          });
+          return undefined;
+        })
+        .then(() => {
           preloadNext(newQueue, newIndex, {
             shuffled: isShuffled,
             order: newShuffle,
             pos: newPos,
-          });
-          persistPlaybackState({
-            currentSongId: nextSong?.id,
-            position: 0,
-            isPlaying: true,
           });
         })
         .catch(() => setIsPlaying(false));

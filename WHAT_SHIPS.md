@@ -26,6 +26,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Logout clears player**: when auth ends, PlayerContext stops audio, clears queue/current song/src, bumps play generation (no leftover stream under an unauthenticated session)
 - Pitch/stem UI **hidden** (not implemented on the audio graph); dead legacy `Player.js` re-exports `MusicPlayer`
 - **Queue panel** on the player bar (list + jump via `playAtIndex` + **remove via `removeFromQueue`** + **reorder via up/down `moveInQueue` and native HTML5 drag-and-drop**; CSS styled)
+- **`removeFromQueue` preserves play/pause**: removing the *current* track loads the next slot but only calls `audio.play()` if playback was already active; if the user had paused, the replacement stays paused and Redis/DB get `isPlaying: false`
 - **`clearQueue`**: empties queue, stops playback, clears audio/preload src, bumps play generation so in-flight loads are abandoned; queue panel **Clear** control; **persists `current_song_id = null`** so hydrate does not restore a cleared track
 - **`addToQueue`**: append one or more songs to the end of the queue without stopping current playback; SongList has "Add to queue" action
 - `GET /api/songs/genres` wired (controller was present; route was missing)
@@ -70,7 +71,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## This run changed
 
-- **dose-1.22**: On logout (`isAuthenticated` false), PlayerContext stops audio, clears queue/current song/src/preload, resets hydrate flag, and bumps play generation so signed streams do not keep playing after sign-out.
+- **dose-1.23**: `removeFromQueue` no longer forces play when the removed row was the current track and the user had paused. Uses `isPlayingRef` so the async load path sees the pre-remove pause state; loads the next slot, keeps paused, and persists `isPlaying: false` when appropriate.
 
 ## Does not ship (honest)
 
