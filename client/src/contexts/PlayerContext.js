@@ -810,14 +810,17 @@ export const PlayerProvider = ({ children }) => {
         if (shufflePos < shuffleOrder.length - 1) {
           playNext();
         } else {
-          // Last track in shuffle permutation ended — stop and persist paused so
-          // multi-device hydrate does not think playback is still running.
+          // Last track in shuffle permutation ended — stop. Keep progress at end
+          // (do not force 0 while audio sits at duration) so the bar matches media.
           setIsPlaying(false);
-          setProgress(0);
+          const endPos = Number.isFinite(audio.duration) && audio.duration > 0
+            ? audio.duration
+            : (Number.isFinite(audio.currentTime) ? audio.currentTime : 0);
+          setProgress(endPos);
           flushEvents();
           persistPlaybackState({
             isPlaying: false,
-            position: Number.isFinite(audio.duration) ? audio.duration : 0,
+            position: endPos,
           });
         }
         return;
@@ -825,13 +828,16 @@ export const PlayerProvider = ({ children }) => {
       if (queueIndex < queue.length - 1) {
         playNext();
       } else {
-        // Last sequential track ended — same persist for server state honesty.
+        // Last sequential track ended — same end-position honesty for UI + server.
         setIsPlaying(false);
-        setProgress(0);
+        const endPos = Number.isFinite(audio.duration) && audio.duration > 0
+          ? audio.duration
+          : (Number.isFinite(audio.currentTime) ? audio.currentTime : 0);
+        setProgress(endPos);
         flushEvents();
         persistPlaybackState({
           isPlaying: false,
-          position: Number.isFinite(audio.duration) ? audio.duration : 0,
+          position: endPos,
         });
       }
     };

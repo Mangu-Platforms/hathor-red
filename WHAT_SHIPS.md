@@ -17,7 +17,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Shuffle uses a Fisher-Yates permutation (not random-jump each skip)
 - **Shuffle + repeat none**: natural end of the last track in the permutation **stops** (does not wrap forever); `repeat all` still loops; manual Next still advances/wraps
 - **Prev restart**: when `currentTime > 3s`, Previous seeks to 0 on the current track (and resumes if paused) instead of jumping to the prior queue item; under 3s still goes previous (standard music-player UX)
-- **Natural end persist**: when the last track ends under repeat-none (shuffle or sequential), client POSTs `isPlaying: false` and end position so Redis/DB do not leave `is_playing` true for multi-device hydrate
+- **Natural end persist**: when the last track ends under repeat-none (shuffle or sequential), client POSTs `isPlaying: false` and **end position** (duration when known) so Redis/DB do not leave `is_playing` true; **progress UI stays at end** (no forced `0` while media is still at the last frame)
 - **Unload persist**: on `visibilitychange` (hidden) and `pagehide`, client flushes debounced playback state immediately so close/refresh does not lose the last position when the 800ms timer has not fired
 - **Hydrate seeds queue**: after login, restoring `current_song_id` also sets a one-item queue (`[song]`, index 0) so Next/Prev and the queue panel are usable (server does not store the full queue)
 - **Preload next**: opportunistic stream-url fetch uses the **next index in the shuffle permutation** when shuffle is on (not `queue[i+1]` sequential); sequential when shuffle is off; **re-warm on shuffle toggle both on and off**
@@ -72,7 +72,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## This run changed
 
-- **dose-1.24**: `loadSong` now binds a generation-guarded `loadedmetadata` listener so the progress bar / seek use real `audio.duration` when catalog `song.duration` is missing or wrong; supersede/logout/clearQueue remove the listener; stream retry + hydrate paths also set duration from media when available.
+- **dose-1.25**: On natural end under repeat-none (shuffle or sequential last track), progress UI and persisted position use the **end** of the track (media duration when known) instead of forcing progress to `0` while `<audio>` is still at the last frame.
 
 ## Does not ship (honest)
 
