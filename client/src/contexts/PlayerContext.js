@@ -2,6 +2,7 @@ import React, { createContext, useState, useContext, useRef, useEffect, useCallb
 import { musicService } from '../services/music';
 import { mediaService } from '../services/olympus';
 import { recordEvent, flushEvents } from '../services/telemetry';
+import { useAuth } from './AuthContext';
 
 const PlayerContext = createContext();
 
@@ -26,6 +27,22 @@ function remapShuffleAfterRemove(shuffleOrder, removed) {
     .map((i) => (i > removed ? i - 1 : i));
 }
 
+/** Normalize playback_states row (snake or camel) into a plain object. */
+function normalizePlaybackState(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const songId = raw.current_song_id ?? raw.currentSongId ?? null;
+  if (songId == null) return null;
+  return {
+    currentSongId: Number(songId),
+    position: Number(raw.position) || 0,
+    isPlaying: Boolean(raw.is_playing ?? raw.isPlaying),
+    volume: typeof (raw.volume) === 'number' ? raw.volume : 1,
+    playbackSpeed: typeof (raw.playback_speed ?? raw.playbackSpeed) === 'number'
+      ? (raw.playback_speed ?? raw.playbackSpeed)
+      : 1,
+  };
+}
+
 export const usePlayer = () => {
   const context = useContext(PlayerContext);
   if (!context) throw new Error('usePlayer must be used within a PlayerProvider');
@@ -33,6 +50,7 @@ export const usePlayer = () => {
 };
 
 export const PlayerProvider = ({ children }) => {
+  const { user, isAuthenticated } = useAuth();
   const [currentSong, setCurrentSong] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(1);
@@ -57,6 +75,9 @@ export const PlayerProvider = ({ children }) => {
   const playGeneration = useRef(0);
   // One automatic stream-url refresh per load generation (expired token / network blip)
   const streamRetryRef = useRef(0);
+  // Hydrate GET /playback/state only once per authenticated session
+  const hydratedRef = useRef(false);
+  const persistTimerRef = useRef(null);
 
   const audio = audioRef.current;
 
@@ -189,6 +210,109 @@ export const PlayerProvider = ({ children }) => {
     }
   }, [audio, applyLoudness]);
 
+  /**
+   * Dose 1.15: restore last song + position from server (Redis/DB) after login.
+   * Does not autoplay (browser policy); user must press play.
+   */
+  useEffect(() => {
+    if (!isAuthenticated || !user) {
+      hydratedRef.current = false;
+      return;
+    }
+    if (hydratedRef.current) return;
+    hydratedRef.current = true;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await musicService.getPlaybackState();
+        const state = normalizePlaybackState(data?.state);
+        if (!state || cancelled) return;
+
+        // Apply volume / speed even if song fetch fails
+        if (Number.isFinite(state.volume)) {
+          setVolume(Math.max(0, Math.min(1, state.volume)));
+        }
+        if (Number.isFinite(state.playbackSpeed) && state.playbackSpeed > 0) {
+          setPlaybackSpeed(state.playbackSpeed);
+        }
+
+        let songPayload;
+        try {
+          songPayload = await musicService.getSong(state.currentSongId);
+        } catch {
+          return;
+        }
+        if (cancelled) return;
+
+        const song = songPayload?.song || songPayload;
+        if (!song?.id) return;
+
+        // Do not clobber a track the user already started this session
+        if (currentSong) return;
+
+        await loadSong(song);
+        if (cancelled) return;
+
+        const resumeAt = Math.max(0, state.position || 0);
+        const onMeta = () => {
+          audio.removeEventListener('loadedmetadata', onMeta);
+          if (cancelled || playGeneration.current === 0) return;
+          if (Number.isFinite(audio.duration) && audio.duration > 0 && resumeAt > 0) {
+            const clamped = Math.min(resumeAt, audio.duration);
+            audio.currentTime = clamped;
+            setProgress(clamped);
+          }
+          // Always leave paused after hydrate — user gesture required to play
+          setIsPlaying(false);
+          audio.pause();
+        };
+        if (audio.readyState >= 1) {
+          onMeta();
+        } else {
+          audio.addEventListener('loadedmetadata', onMeta);
+        }
+      } catch (err) {
+        // Hydrate is best-effort; empty/missing state is normal for new users
+        console.warn('Playback state hydrate skipped:', err?.message || err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // Intentionally omit currentSong / loadSong from deps: one-shot per auth session
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, user]);
+
+  /** Debounced persist of position / volume / speed for multi-device resume. */
+  const persistPlaybackState = useCallback((overrides = {}) => {
+    if (!isAuthenticated) return;
+    if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+    persistTimerRef.current = setTimeout(() => {
+      const song = overrides.currentSongId != null ? null : currentSong;
+      const songId = overrides.currentSongId ?? song?.id;
+      if (songId == null && overrides.currentSongId === undefined) return;
+      musicService
+        .updatePlaybackState({
+          currentSongId: songId ?? null,
+          position: overrides.position ?? (Number.isFinite(audio.currentTime) ? audio.currentTime : 0),
+          isPlaying: overrides.isPlaying ?? isPlaying,
+          volume: overrides.volume ?? volume,
+          playbackSpeed: overrides.playbackSpeed ?? playbackSpeed,
+        })
+        .catch(() => {
+          // Best-effort; do not surface to UI
+        });
+    }, 800);
+  }, [isAuthenticated, currentSong, isPlaying, volume, playbackSpeed, audio]);
+
+  useEffect(() => {
+    return () => {
+      if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+    };
+  }, []);
+
   const play = useCallback(async () => {
     try {
       if (!audio.src && currentSong) {
@@ -196,18 +320,20 @@ export const PlayerProvider = ({ children }) => {
       }
       await audio.play();
       setIsPlaying(true);
+      persistPlaybackState({ isPlaying: true });
     } catch (err) {
       // Autoplay policy or aborted load — leave paused
       console.error('Play error:', err);
       setIsPlaying(false);
     }
-  }, [audio, currentSong, loadSong]);
+  }, [audio, currentSong, loadSong, persistPlaybackState]);
 
   const pause = useCallback(() => {
     audio.pause();
     setIsPlaying(false);
     if (currentSong) recordEvent('pause', currentSong, audio.currentTime);
-  }, [audio, currentSong]);
+    persistPlaybackState({ isPlaying: false, position: audio.currentTime });
+  }, [audio, currentSong, persistPlaybackState]);
 
   const togglePlay = useCallback(() => {
     if (isPlaying) pause();
@@ -222,7 +348,8 @@ export const PlayerProvider = ({ children }) => {
     audio.currentTime = clamped;
     setProgress(clamped);
     if (currentSong) recordEvent('seek', currentSong, clamped);
-  }, [audio, currentSong]);
+    persistPlaybackState({ position: clamped });
+  }, [audio, currentSong, persistPlaybackState]);
 
   const resolveNextIndex = useCallback(() => {
     if (queue.length === 0) return null;
@@ -251,10 +378,15 @@ export const PlayerProvider = ({ children }) => {
         order: shuffleOrder,
         pos: next.shufflePos,
       });
+      persistPlaybackState({
+        currentSongId: queue[next.index]?.id,
+        position: 0,
+        isPlaying: true,
+      });
     } catch (err) {
       setIsPlaying(false);
     }
-  }, [queue, resolveNextIndex, isShuffled, shuffleOrder, loadSong, audio, currentSong, preloadNext]);
+  }, [queue, resolveNextIndex, isShuffled, shuffleOrder, loadSong, audio, currentSong, preloadNext, persistPlaybackState]);
 
   const playPrevious = useCallback(async () => {
     if (queue.length === 0) return;
@@ -277,10 +409,15 @@ export const PlayerProvider = ({ children }) => {
         order: shuffleOrder,
         pos: nextShufflePos,
       });
+      persistPlaybackState({
+        currentSongId: queue[prevIndex]?.id,
+        position: 0,
+        isPlaying: true,
+      });
     } catch (err) {
       setIsPlaying(false);
     }
-  }, [queue, queueIndex, isShuffled, shuffleOrder, shufflePos, loadSong, audio, preloadNext]);
+  }, [queue, queueIndex, isShuffled, shuffleOrder, shufflePos, loadSong, audio, preloadNext, persistPlaybackState]);
 
   /** Jump to a specific queue index (used by queue panel). */
   const playAtIndex = useCallback(async (index) => {
@@ -303,10 +440,15 @@ export const PlayerProvider = ({ children }) => {
         order: shuffleOrder,
         pos,
       });
+      persistPlaybackState({
+        currentSongId: queue[index]?.id,
+        position: 0,
+        isPlaying: true,
+      });
     } catch (err) {
       setIsPlaying(false);
     }
-  }, [queue, isShuffled, shuffleOrder, shufflePos, loadSong, audio, preloadNext]);
+  }, [queue, isShuffled, shuffleOrder, shufflePos, loadSong, audio, preloadNext, persistPlaybackState]);
 
   /** Remove a track from the queue by index; keeps playback if current is not removed. */
   const removeFromQueue = useCallback((index) => {
@@ -519,10 +661,15 @@ export const PlayerProvider = ({ children }) => {
         order,
         pos: startPos,
       });
+      persistPlaybackState({
+        currentSongId: songs[safeStart]?.id,
+        position: 0,
+        isPlaying: true,
+      });
     } catch (err) {
       setIsPlaying(false);
     }
-  }, [loadSong, audio, preloadNext]);
+  }, [loadSong, audio, preloadNext, persistPlaybackState]);
 
   const toggleShuffle = useCallback(() => {
     setIsShuffled((prev) => {
@@ -564,7 +711,14 @@ export const PlayerProvider = ({ children }) => {
     play, pause, togglePlay, seek, playNext, playPrevious, playAtIndex,
     removeFromQueue, clearQueue, moveInQueue, addToQueue,
     setQueueAndPlay, loadSong,
-    setVolume, setPlaybackSpeed,
+    setVolume: (v) => {
+      setVolume(v);
+      persistPlaybackState({ volume: v });
+    },
+    setPlaybackSpeed: (s) => {
+      setPlaybackSpeed(s);
+      persistPlaybackState({ playbackSpeed: s });
+    },
     toggleShuffle,
     cycleRepeat: () => setRepeatMode(prev => prev === 'none' ? 'all' : prev === 'all' ? 'one' : 'none'),
     formatTime,

@@ -28,6 +28,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Rooms / playlists / AI endpoints present; behavior depends on DB seed + API keys
 - Olympus modules mount when feature flags are on; degrade when OpenAI/worker missing
 - Socket `sync-state` writes DB **and** Redis `playback:${userId}` (matches HTTP update path)
+- **Client playback hydrate**: on authenticated mount, `PlayerContext` calls `GET /playback/state`, loads `current_song_id` via `getSong` + signed stream, seeks to saved `position`, restores volume/speed; **does not autoplay** (user gesture required). Debounced `POST /playback/state` on play/pause/seek/volume/speed and track changes
 - **Settings profile**: display name form via existing `PUT /auth/profile`; shows username/email read-only; Sign out button; **avatar URL** field (http/https) via same PUT (`avatarUrl`); **empty avatar URL clears** `avatar_url` (no longer stuck via COALESCE); preview in Settings
 - **Sidebar avatar**: when `avatar_url` / `avatarUrl` is set, footer shows the image (object-fit cover); on load error falls back to initial letter
 - **`/playlists`**: dedicated list page (not Home shell); cards link to `/playlists/:id`
@@ -61,7 +62,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## This run changed
 
-- **dose-1.14**: Queue panel **Clear** control; `PlayerContext.clearQueue` empties queue, stops playback, clears media/preload sources, and invalidates in-flight load generations.
+- **dose-1.15**: Client hydrates last song/position/volume/speed from `GET /playback/state` after auth; debounced `POST /playback/state` on play/pause/seek/volume/speed and track changes. No autoplay after hydrate.
 
 ## Does not ship (honest)
 
@@ -73,8 +74,8 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Commerce/discovery/store UX when `FEATURE_COMMERCE` / `FEATURE_DISCOVERY` are off (nav items hidden; deep links now redirect Home)
 - Background job processing when `FEATURE_WORKER=false` or worker fails to start (`workerLive` false)
 - Dedicated upload **page** (upload lives on Artist Hub only; no separate route)
-- Client restore of `GET /playback/state` on mount (server Redis+DB sync exists; player does not hydrate from it yet)
+- Full multi-device live queue/shuffle sync (hydrate restores last song + position only; queue is local to the tab)
 
 ## Next item
 
-Dose 2 account basics already largely shipped — optional client hydrate of playback state from `GET /playback/state` if a concrete multi-device gap appears; residual Dose 1 only for new concrete playback bugs (no Dose 6+).
+Residual Dose 1 only for new concrete playback bugs; Dose 2 account basics largely shipped. Optional: persist/restore queue list if a product need appears. No Dose 6+.
