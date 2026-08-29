@@ -9,7 +9,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Song list, upload, **signed progressive stream** for `<audio>` (`stream-url` + `streamAuth` query token)
 - **Stream URL resolution**: when `REACT_APP_API_URL` is absolute, client rewrites relative `/api/songs/…/stream?t=` to the API origin so `<audio>` does not hit the SPA host
 - **CSP `mediaSrc`**: allows `'self'` + `blob:` always; in non-production (or `CSP_RELAX_MEDIA=1`) also `http:`/`https:` plus localhost API/client origins so split-origin dev playback is not blocked by Helmet; production same-origin still tight
-- **`GET /api/songs/mine`**: current user’s uploads (id, title, artist, …) for Artist Hub pipeline list when intel/commerce analytics are empty
+- **`GET /api/songs/mine`**: current user's uploads (id, title, artist, …) for Artist Hub pipeline list when intel/commerce analytics are empty
 - Player: load/play/pause, volume, speed, progress, queue next/prev, repeat modes
 - Shuffle uses a Fisher-Yates permutation (not random-jump each skip)
 - **Shuffle + repeat none**: natural end of the last track in the permutation **stops** (does not wrap forever); `repeat all` still loops; manual Next still advances/wraps
@@ -19,7 +19,8 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Stream error recovery**: one automatic `stream-url` re-fetch + resume on `<audio>` error (expired token / blip); second failure pauses
 - Pitch/stem UI **hidden** (not implemented on the audio graph); dead legacy `Player.js` re-exports `MusicPlayer`
 - **Queue panel** on the player bar (list + jump via `playAtIndex` + **remove via `removeFromQueue`** + **reorder via up/down `moveInQueue` and native HTML5 drag-and-drop**; CSS styled)
-- **`addToQueue`**: append one or more songs to the end of the queue without stopping current playback; SongList has “Add to queue” action
+- **`clearQueue`**: empties queue, stops playback, clears audio/preload src, bumps play generation so in-flight loads are abandoned; queue panel **Clear** control
+- **`addToQueue`**: append one or more songs to the end of the queue without stopping current playback; SongList has "Add to queue" action
 - `GET /api/songs/genres` wired (controller was present; route was missing)
 - **Home genre filter** passes `genre` query to `getSongs` and shows active filter + clear
 - Soft logout: `auth:logout` / Sign Out clear user state without `window.location` hard reload (PrivateRoute navigates)
@@ -60,7 +61,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## This run changed
 
-- **dose-1.13**: On `<audio>` media error (expired signed stream token or transient network), PlayerContext re-fetches `stream-url` once per load generation, restores seek position after metadata, and retries `play()`. Second failure leaves the player paused.
+- **dose-1.14**: Queue panel **Clear** control; `PlayerContext.clearQueue` empties queue, stops playback, clears media/preload sources, and invalidates in-flight load generations.
 
 ## Does not ship (honest)
 
@@ -72,7 +73,8 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Commerce/discovery/store UX when `FEATURE_COMMERCE` / `FEATURE_DISCOVERY` are off (nav items hidden; deep links now redirect Home)
 - Background job processing when `FEATURE_WORKER=false` or worker fails to start (`workerLive` false)
 - Dedicated upload **page** (upload lives on Artist Hub only; no separate route)
+- Client restore of `GET /playback/state` on mount (server Redis+DB sync exists; player does not hydrate from it yet)
 
 ## Next item
 
-Dose 2 account basics already largely shipped — verify any remaining Settings/profile gaps; residual Dose 1 only if a new concrete playback gap appears (no Dose 6+).
+Dose 2 account basics already largely shipped — optional client hydrate of playback state from `GET /playback/state` if a concrete multi-device gap appears; residual Dose 1 only for new concrete playback bugs (no Dose 6+).

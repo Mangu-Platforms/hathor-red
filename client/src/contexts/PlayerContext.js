@@ -367,6 +367,33 @@ export const PlayerProvider = ({ children }) => {
     }
   }, [queue, queueIndex, shuffleOrder, isShuffled, audio, loadSong, preloadNext]);
 
+  /**
+   * Clear the entire queue and stop playback (Dose 1 queue UI).
+   * Bumps playGeneration so in-flight loadSong / stream retries are abandoned.
+   */
+  const clearQueue = useCallback(() => {
+    playGeneration.current += 1;
+    streamRetryRef.current = 0;
+    setQueue([]);
+    setQueueIndex(0);
+    setShuffleOrder([]);
+    setShufflePos(0);
+    audio.pause();
+    setIsPlaying(false);
+    setCurrentSong(null);
+    setAudioSrc(null);
+    setProgress(0);
+    setDuration(0);
+    setWaveform(null);
+    setLoudnessGain(1);
+    audio.removeAttribute('src');
+    audio.load();
+    if (preloadRef.current) {
+      preloadRef.current.removeAttribute('src');
+      preloadRef.current.load();
+    }
+  }, [audio]);
+
   /** Move queue item fromIndex -> toIndex; keeps current song playing if still present. */
   const moveInQueue = useCallback((fromIndex, toIndex) => {
     if (fromIndex === toIndex) return;
@@ -535,7 +562,7 @@ export const PlayerProvider = ({ children }) => {
     progress, duration, queue, queueIndex, isShuffled, repeatMode, audioSrc,
     loudnessGain, waveform,
     play, pause, togglePlay, seek, playNext, playPrevious, playAtIndex,
-    removeFromQueue, moveInQueue, addToQueue,
+    removeFromQueue, clearQueue, moveInQueue, addToQueue,
     setQueueAndPlay, loadSong,
     setVolume, setPlaybackSpeed,
     toggleShuffle,

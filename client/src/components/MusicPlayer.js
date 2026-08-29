@@ -6,7 +6,7 @@ const MusicPlayer = () => {
     currentSong, isPlaying, togglePlay, progress, duration, volume,
     setVolume, playbackSpeed, setPlaybackSpeed, playNext, playPrevious,
     isShuffled, toggleShuffle, repeatMode, cycleRepeat, seek, formatTime,
-    queue, queueIndex, playAtIndex, removeFromQueue, moveInQueue,
+    queue, queueIndex, playAtIndex, removeFromQueue, moveInQueue, clearQueue,
   } = usePlayer();
 
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -146,11 +146,26 @@ const MusicPlayer = () => {
         <div className="player-queue-panel" role="listbox" aria-label="Play queue">
           <div className="player-queue-header">
             <span>Up next ({queue.length})</span>
-            <button type="button" className="player-btn" onClick={() => setShowQueue(false)} title="Close queue">
-              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+            <div className="player-queue-header-actions">
+              {queue.length > 0 && (
+                <button
+                  type="button"
+                  className="player-btn player-queue-clear"
+                  onClick={() => {
+                    clearQueue();
+                    setShowQueue(false);
+                  }}
+                  title="Clear queue"
+                >
+                  Clear
+                </button>
+              )}
+              <button type="button" className="player-btn" onClick={() => setShowQueue(false)} title="Close queue">
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
           </div>
           {queue.length === 0 ? (
             <div className="player-queue-empty">Queue is empty</div>
