@@ -296,6 +296,42 @@ export const PlayerProvider = ({ children }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, user]);
 
+  /**
+   * Dose 1.22: on logout, stop audio and clear local player so signed stream
+   * URLs are not left playing under an unauthenticated session.
+   */
+  useEffect(() => {
+    if (isAuthenticated) return;
+
+    playGeneration.current += 1;
+    streamRetryRef.current = 0;
+    hydratedRef.current = false;
+    if (persistTimerRef.current) {
+      clearTimeout(persistTimerRef.current);
+      persistTimerRef.current = null;
+    }
+
+    audio.pause();
+    setIsPlaying(false);
+    setCurrentSong(null);
+    setAudioSrc(null);
+    setProgress(0);
+    setDuration(0);
+    setQueue([]);
+    setQueueIndex(0);
+    setShuffleOrder([]);
+    setShufflePos(0);
+    setIsShuffled(false);
+    setWaveform(null);
+    setLoudnessGain(1);
+    audio.removeAttribute('src');
+    audio.load();
+    if (preloadRef.current) {
+      preloadRef.current.removeAttribute('src');
+      preloadRef.current.load();
+    }
+  }, [isAuthenticated, audio]);
+
   /** Debounced persist of position / volume / speed for multi-device resume. */
   const persistPlaybackState = useCallback((overrides = {}) => {
     if (!isAuthenticated) return;

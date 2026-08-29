@@ -23,6 +23,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Seek rejects invalid duration / non-finite times
 - Play after load awaits `audio.play()` (no fixed 100ms race)
 - **Stream error recovery**: one automatic `stream-url` re-fetch + resume on `<audio>` error (expired token / blip); second failure pauses
+- **Logout clears player**: when auth ends, PlayerContext stops audio, clears queue/current song/src, bumps play generation (no leftover stream under an unauthenticated session)
 - Pitch/stem UI **hidden** (not implemented on the audio graph); dead legacy `Player.js` re-exports `MusicPlayer`
 - **Queue panel** on the player bar (list + jump via `playAtIndex` + **remove via `removeFromQueue`** + **reorder via up/down `moveInQueue` and native HTML5 drag-and-drop**; CSS styled)
 - **`clearQueue`**: empties queue, stops playback, clears audio/preload src, bumps play generation so in-flight loads are abandoned; queue panel **Clear** control; **persists `current_song_id = null`** so hydrate does not restore a cleared track
@@ -69,7 +70,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## This run changed
 
-- **dose-1.21**: Previous control restarts the current track when `currentTime > 3s` (seek 0 + optional resume); under 3s still advances to the previous queue item. Matches common music-player UX.
+- **dose-1.22**: On logout (`isAuthenticated` false), PlayerContext stops audio, clears queue/current song/src/preload, resets hydrate flag, and bumps play generation so signed streams do not keep playing after sign-out.
 
 ## Does not ship (honest)
 
