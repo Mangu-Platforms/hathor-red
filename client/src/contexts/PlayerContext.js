@@ -9,6 +9,9 @@ const PlayerContext = createContext();
 // ITU-R BS.1770 loudness normalization target (Spotify/YouTube ballpark).
 const TARGET_LUFS = -14;
 
+/** Seconds into a track after which Prev restarts the current song (standard player UX). */
+const PREV_RESTART_THRESHOLD_SEC = 3;
+
 function fisherYatesShuffle(length) {
   const order = Array.from({ length }, (_, i) => i);
   for (let i = length - 1; i > 0; i -= 1) {
@@ -439,6 +442,27 @@ export const PlayerProvider = ({ children }) => {
 
   const playPrevious = useCallback(async () => {
     if (queue.length === 0) return;
+
+    // Standard player UX: if more than ~3s into the track, Prev restarts current
+    // instead of jumping to the previous queue item.
+    const t = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+    if (t > PREV_RESTART_THRESHOLD_SEC) {
+      if (currentSong) recordEvent('seek', currentSong, 0);
+      audio.currentTime = 0;
+      setProgress(0);
+      persistPlaybackState({ position: 0 });
+      if (!isPlaying) {
+        try {
+          await audio.play();
+          setIsPlaying(true);
+          persistPlaybackState({ position: 0, isPlaying: true });
+        } catch {
+          setIsPlaying(false);
+        }
+      }
+      return;
+    }
+
     let prevIndex;
     let nextShufflePos = shufflePos;
     if (isShuffled && shuffleOrder.length === queue.length) {
@@ -466,7 +490,7 @@ export const PlayerProvider = ({ children }) => {
     } catch (err) {
       setIsPlaying(false);
     }
-  }, [queue, queueIndex, isShuffled, shuffleOrder, shufflePos, loadSong, audio, preloadNext, persistPlaybackState]);
+  }, [queue, queueIndex, isShuffled, shuffleOrder, shufflePos, loadSong, audio, preloadNext, persistPlaybackState, currentSong, isPlaying]);
 
   /** Jump to a specific queue index (used by queue panel). */
   const playAtIndex = useCallback(async (index) => {

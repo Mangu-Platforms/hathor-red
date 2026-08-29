@@ -15,6 +15,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Player control icons**: shuffle uses crossed arrows; repeat uses circular arrows (no longer identical SVG paths)
 - Shuffle uses a Fisher-Yates permutation (not random-jump each skip)
 - **Shuffle + repeat none**: natural end of the last track in the permutation **stops** (does not wrap forever); `repeat all` still loops; manual Next still advances/wraps
+- **Prev restart**: when `currentTime > 3s`, Previous seeks to 0 on the current track (and resumes if paused) instead of jumping to the prior queue item; under 3s still goes previous (standard music-player UX)
 - **Natural end persist**: when the last track ends under repeat-none (shuffle or sequential), client POSTs `isPlaying: false` and end position so Redis/DB do not leave `is_playing` true for multi-device hydrate
 - **Unload persist**: on `visibilitychange` (hidden) and `pagehide`, client flushes debounced playback state immediately so close/refresh does not lose the last position when the 800ms timer has not fired
 - **Hydrate seeds queue**: after login, restoring `current_song_id` also sets a one-item queue (`[song]`, index 0) so Next/Prev and the queue panel are usable (server does not store the full queue)
@@ -68,7 +69,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## This run changed
 
-- **dose-1.20**: CORS `exposedHeaders` now includes Accept-Ranges / Content-Range / Content-Length / ETag / Last-Modified so split-origin progressive streams can seek via Range. MusicPlayer shuffle and repeat buttons use distinct correct SVG paths (were identical arrow icons).
+- **dose-1.21**: Previous control restarts the current track when `currentTime > 3s` (seek 0 + optional resume); under 3s still advances to the previous queue item. Matches common music-player UX.
 
 ## Does not ship (honest)
 
