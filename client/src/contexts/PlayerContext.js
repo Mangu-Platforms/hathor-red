@@ -83,6 +83,8 @@ export const PlayerProvider = ({ children }) => {
   const persistTimerRef = useRef(null);
   // Snapshot of isPlaying for async remove-current so we do not force autoplay when paused
   const isPlayingRef = useRef(false);
+  // Drop prior loadedmetadata listener when a newer loadSong supersedes it
+  const durationMetaCleanupRef = useRef(null);
 
   const audio = audioRef.current;
 
@@ -138,6 +140,9 @@ export const PlayerProvider = ({ children }) => {
         const onMeta = () => {
           audio.removeEventListener('loadedmetadata', onMeta);
           if (gen !== playGeneration.current) return;
+          if (Number.isFinite(audio.duration) && audio.duration > 0) {
+            setDuration(audio.duration);
+          }
           if (resumeAt > 0 && Number.isFinite(audio.duration) && audio.duration > 0) {
             audio.currentTime = Math.min(resumeAt, audio.duration);
           }
@@ -200,6 +205,10 @@ export const PlayerProvider = ({ children }) => {
   const loadSong = useCallback(async (song) => {
     const gen = ++playGeneration.current;
     streamRetryRef.current = 0;
+    if (durationMetaCleanupRef.current) {
+      durationMetaCleanupRef.current();
+      durationMetaCleanupRef.current = null;
+    }
     try {
       const { url } = await musicService.getStreamUrl(song.id);
       if (gen !== playGeneration.current) return; // superseded
@@ -207,8 +216,32 @@ export const PlayerProvider = ({ children }) => {
       audio.src = url;
       setCurrentSong(song);
       setProgress(0);
-      setDuration(song.duration || 0);
+      // Prefer catalog duration immediately; replace with real media duration when ready
+      const catalogDuration = Number(song.duration);
+      setDuration(Number.isFinite(catalogDuration) && catalogDuration > 0 ? catalogDuration : 0);
       lastSegmentRef.current = -1;
+
+      const applyMediaDuration = () => {
+        if (gen !== playGeneration.current) return;
+        const d = audio.duration;
+        if (Number.isFinite(d) && d > 0) {
+          setDuration(d);
+        }
+      };
+      if (audio.readyState >= 1 && Number.isFinite(audio.duration) && audio.duration > 0) {
+        applyMediaDuration();
+      } else {
+        const onMeta = () => {
+          audio.removeEventListener('loadedmetadata', onMeta);
+          if (durationMetaCleanupRef.current === cleanup) {
+            durationMetaCleanupRef.current = null;
+          }
+          applyMediaDuration();
+        };
+        const cleanup = () => audio.removeEventListener('loadedmetadata', onMeta);
+        durationMetaCleanupRef.current = cleanup;
+        audio.addEventListener('loadedmetadata', onMeta);
+      }
 
       recordEvent('play', song, 0);
       applyLoudness(song);
@@ -275,6 +308,9 @@ export const PlayerProvider = ({ children }) => {
         const onMeta = () => {
           audio.removeEventListener('loadedmetadata', onMeta);
           if (cancelled || playGeneration.current === 0) return;
+          if (Number.isFinite(audio.duration) && audio.duration > 0) {
+            setDuration(audio.duration);
+          }
           if (Number.isFinite(audio.duration) && audio.duration > 0 && resumeAt > 0) {
             const clamped = Math.min(resumeAt, audio.duration);
             audio.currentTime = clamped;
@@ -312,6 +348,10 @@ export const PlayerProvider = ({ children }) => {
     playGeneration.current += 1;
     streamRetryRef.current = 0;
     hydratedRef.current = false;
+    if (durationMetaCleanupRef.current) {
+      durationMetaCleanupRef.current();
+      durationMetaCleanupRef.current = null;
+    }
     if (persistTimerRef.current) {
       clearTimeout(persistTimerRef.current);
       persistTimerRef.current = null;
@@ -404,6 +444,10 @@ export const PlayerProvider = ({ children }) => {
   useEffect(() => {
     return () => {
       if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+      if (durationMetaCleanupRef.current) {
+        durationMetaCleanupRef.current();
+        durationMetaCleanupRef.current = null;
+      }
     };
   }, []);
 
@@ -662,6 +706,10 @@ export const PlayerProvider = ({ children }) => {
   const clearQueue = useCallback(() => {
     playGeneration.current += 1;
     streamRetryRef.current = 0;
+    if (durationMetaCleanupRef.current) {
+      durationMetaCleanupRef.current();
+      durationMetaCleanupRef.current = null;
+    }
     setQueue([]);
     setQueueIndex(0);
     setShuffleOrder([]);

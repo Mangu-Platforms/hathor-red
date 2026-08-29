@@ -12,6 +12,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **CORS media seek**: `exposedHeaders` includes `Accept-Ranges`, `Content-Range`, `Content-Length`, `ETag`, `Last-Modified` so cross-origin `<audio>` can use Range seeks when SPA and API origins differ
 - **`GET /api/songs/mine`**: current user's uploads (id, title, artist, …) for Artist Hub pipeline list when intel/commerce analytics are empty
 - Player: load/play/pause, volume, speed, progress, queue next/prev, repeat modes
+- **Player duration from media**: `loadSong` seeds duration from catalog `song.duration`, then replaces it with `audio.duration` on `loadedmetadata` (generation-guarded; listener cleaned on supersede/logout/clearQueue); stream-error recovery and hydrate also apply media duration when available
 - **Player control icons**: shuffle uses crossed arrows; repeat uses circular arrows (no longer identical SVG paths)
 - Shuffle uses a Fisher-Yates permutation (not random-jump each skip)
 - **Shuffle + repeat none**: natural end of the last track in the permutation **stops** (does not wrap forever); `repeat all` still loops; manual Next still advances/wraps
@@ -71,7 +72,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## This run changed
 
-- **dose-1.23**: `removeFromQueue` no longer forces play when the removed row was the current track and the user had paused. Uses `isPlayingRef` so the async load path sees the pre-remove pause state; loads the next slot, keeps paused, and persists `isPlaying: false` when appropriate.
+- **dose-1.24**: `loadSong` now binds a generation-guarded `loadedmetadata` listener so the progress bar / seek use real `audio.duration` when catalog `song.duration` is missing or wrong; supersede/logout/clearQueue remove the listener; stream retry + hydrate paths also set duration from media when available.
 
 ## Does not ship (honest)
 
