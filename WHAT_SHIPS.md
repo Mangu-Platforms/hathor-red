@@ -15,7 +15,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Player duration from media**: `loadSong` seeds duration from catalog `song.duration`, then replaces it with `audio.duration` on `loadedmetadata` (generation-guarded; listener cleaned on supersede/logout/clearQueue); stream-error recovery and hydrate also apply media duration when available
 - **Player control icons**: shuffle uses crossed arrows; repeat uses circular arrows (no longer identical SVG paths)
 - Shuffle uses a Fisher-Yates permutation (not random-jump each skip)
-- **Shuffle + repeat none**: natural end of the last track in the permutation **stops** (does not wrap forever); `repeat all` still loops; manual Next still advances/wraps
+- **Shuffle + repeat none**: natural end of the last track in the permutation **stops** (does not wrap forever); `repeat all` still loops; **manual Next under repeat-none also stops at end of order** (does not wrap); `repeat all` still wraps on Next
 - **Prev restart**: when `currentTime > 3s`, Previous seeks to 0 on the current track (and resumes if paused) instead of jumping to the prior queue item; under 3s still goes previous (standard music-player UX)
 - **Natural end persist**: when the last track ends under repeat-none (shuffle or sequential), client POSTs `isPlaying: false` and **end position** (duration when known) so Redis/DB do not leave `is_playing` true; **progress UI stays at end** (no forced `0` while media is still at the last frame)
 - **Play after natural end**: when paused at EOF (`audio.ended` or within ~0.35s of duration), Play seeks to 0 and starts the same track (standard player UX; avoids stuck-at-end / immediate re-ended)
@@ -73,7 +73,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## This run changed
 
-- **dose-1.30**: `addToQueue` now re-warms opportunistic preload when the queue grows to 2+ tracks and a current song is set (sequential or shuffle next), matching remove/move/setQueueAndPlay/toggleShuffle.
+- **dose-1.31**: Manual Next under `repeatMode === 'none'` stops at the end of the sequential queue or shuffle permutation (pauses, persists end position) instead of wrapping forever — matches natural-end behavior. `repeat all` still wraps on Next; `resolveNextIndex(wrap)` gates both paths.
 
 ## Does not ship (honest)
 
