@@ -21,7 +21,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Play after natural end**: when paused at EOF (`audio.ended` or within ~0.35s of duration), Play seeks to 0 and starts the same track (standard player UX; avoids stuck-at-end / immediate re-ended)
 - **Unload persist**: on `visibilitychange` (hidden) and `pagehide`, client flushes debounced playback state immediately so close/refresh does not lose the last position when the 800ms timer has not fired
 - **Hydrate seeds queue**: after login, restoring `current_song_id` also sets a one-item queue (`[song]`, index 0) so Next/Prev and the queue panel are usable (server does not store the full queue)
-- **Preload next**: opportunistic stream-url fetch uses the **next index in the shuffle permutation** when shuffle is on (not `queue[i+1]` sequential); sequential when shuffle is off; **re-warm on shuffle toggle both on and off**; **re-warm after non-current `removeFromQueue` and after `moveInQueue`**; **`setQueueAndPlay` respects `isShuffled`** (warm permutation next when shuffle is already on); clears preload src when queue length drops below 2
+- **Preload next**: opportunistic stream-url fetch uses the **next index in the shuffle permutation** when shuffle is on (not `queue[i+1]` sequential); sequential when shuffle is off; **re-warm on shuffle toggle both on and off**; **re-warm after non-current `removeFromQueue` and after `moveInQueue`**; **`setQueueAndPlay` respects `isShuffled`** (warm permutation next when shuffle is already on); **`addToQueue` re-warms preload when queue reaches 2+ and a current track is set**; clears preload src when queue length drops below 2
 - Seek rejects invalid duration / non-finite times
 - Play after load awaits `audio.play()` (no fixed 100ms race)
 - **Stream error recovery**: one automatic `stream-url` re-fetch + resume on `<audio>` error (expired token / blip); second failure pauses
@@ -30,7 +30,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Queue panel** on the player bar (list + jump via `playAtIndex` + **remove via `removeFromQueue`** + **reorder via up/down `moveInQueue` and native HTML5 drag-and-drop**; CSS styled)
 - **`removeFromQueue` preserves play/pause**: removing the *current* track loads the next slot but only calls `audio.play()` if playback was already active; if the user had paused, the replacement stays paused and Redis/DB get `isPlaying: false`
 - **`clearQueue`**: empties queue, stops playback, clears audio/preload src, bumps play generation so in-flight loads are abandoned; queue panel **Clear** control; **persists `current_song_id = null`** so hydrate does not restore a cleared track
-- **`addToQueue`**: append one or more songs to the end of the queue without stopping current playback; SongList has "Add to queue" action; **when the queue was empty, seeds a full sequential or Fisher-Yates `shuffleOrder`** so shuffle Next/Prev/preload stay valid after the first add
+- **`addToQueue`**: append one or more songs to the end of the queue without stopping current playback; SongList has "Add to queue" action; **when the queue was empty, seeds a full sequential or Fisher-Yates `shuffleOrder`** so shuffle Next/Prev/preload stay valid after the first add; **re-warms preload when length becomes ≥2**
 - `GET /api/songs/genres` wired (controller was present; route was missing)
 - **Home genre filter** passes `genre` query to `getSongs` and shows active filter + clear
 - Soft logout: `auth:logout` / Sign Out clear user state without `window.location` hard reload (PrivateRoute navigates)
@@ -73,7 +73,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## This run changed
 
-- **dose-1.29**: `setQueueAndPlay` opportunistic preload now passes `shuffled: isShuffled` (and the new Fisher-Yates order + start pos) so when shuffle is already on, the next stream-url is the permutation next track — not sequential `queueIndex+1`.
+- **dose-1.30**: `addToQueue` now re-warms opportunistic preload when the queue grows to 2+ tracks and a current song is set (sequential or shuffle next), matching remove/move/setQueueAndPlay/toggleShuffle.
 
 ## Does not ship (honest)
 

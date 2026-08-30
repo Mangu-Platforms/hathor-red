@@ -822,42 +822,54 @@ export const PlayerProvider = ({ children }) => {
    * Append song(s) to the end of the queue without interrupting current playback.
    * Dose 1.27: when the queue (and thus shuffleOrder) was empty, seed a full
    * permutation (or sequential indices) so shuffle Next/Prev/preload stay valid.
+   * Dose 1.30: when the queue grows to 2+ tracks, re-warm opportunistic preload
+   * so the next stream-url matches sequential or shuffle order (previously only
+   * remove/move/setQueueAndPlay/toggleShuffle warmed preload).
    */
   const addToQueue = useCallback((songs) => {
     const list = Array.isArray(songs) ? songs.filter(Boolean) : (songs ? [songs] : []);
     if (!list.length) return;
 
-    setQueue((prev) => {
-      const start = prev.length;
-      const next = [...prev, ...list];
+    const start = queue.length;
+    const next = [...queue, ...list];
+    const sequentialTail = list.map((_, i) => start + i);
 
-      setShuffleOrder((ord) => {
-        const sequentialTail = list.map((_, i) => start + i);
-        if (!isShuffled) {
-          // Keep a sequential map in sync for when shuffle is toggled later
-          if (ord.length === 0) {
-            return next.map((_, i) => i);
-          }
-          return [...ord, ...sequentialTail];
-        }
-        // Shuffle on
-        if (ord.length === 0) {
-          // Empty queue → full Fisher-Yates over the new list
-          return fisherYatesShuffle(next.length);
-        }
-        if (ord.length !== start) {
-          // Order was out of sync with queue; rebuild then append shuffled tail
-          const base = fisherYatesShuffle(start);
-          const extra = fisherYatesShuffle(list.length).map((i) => start + i);
-          return [...base, ...extra];
-        }
-        const extra = fisherYatesShuffle(list.length).map((i) => start + i);
-        return [...ord, ...extra];
+    let newOrder;
+    if (!isShuffled) {
+      if (shuffleOrder.length === 0) {
+        newOrder = next.map((_, i) => i);
+      } else {
+        newOrder = [...shuffleOrder, ...sequentialTail];
+      }
+    } else if (shuffleOrder.length === 0) {
+      newOrder = fisherYatesShuffle(next.length);
+    } else if (shuffleOrder.length !== start) {
+      const base = fisherYatesShuffle(start);
+      const extra = fisherYatesShuffle(list.length).map((i) => start + i);
+      newOrder = [...base, ...extra];
+    } else {
+      const extra = fisherYatesShuffle(list.length).map((i) => start + i);
+      newOrder = [...shuffleOrder, ...extra];
+    }
+
+    setQueue(next);
+    setShuffleOrder(newOrder);
+
+    // Only preload when there is a current track and at least two in queue
+    if (next.length >= 2 && currentSong) {
+      const idx = Math.min(queueIndex, next.length - 1);
+      let pos = shufflePos;
+      if (isShuffled && newOrder.length === next.length) {
+        const found = newOrder.indexOf(idx);
+        if (found >= 0) pos = found;
+      }
+      preloadNext(next, idx, {
+        shuffled: isShuffled,
+        order: newOrder,
+        pos,
       });
-
-      return next;
-    });
-  }, [isShuffled]);
+    }
+  }, [queue, queueIndex, shuffleOrder, shufflePos, isShuffled, currentSong, preloadNext]);
 
   useEffect(() => {
     const handleEnded = () => {
