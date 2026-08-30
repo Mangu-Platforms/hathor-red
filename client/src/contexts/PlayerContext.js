@@ -392,9 +392,14 @@ export const PlayerProvider = ({ children }) => {
     const wrap = repeatMode !== 'none';
     const next = resolveNextIndex(wrap);
     if (next == null) {
+      // Dose-1.34: under repeat-none at queue end, force audio element to end position
+      // so progress UI and <audio> stay in sync (symmetric with Prev-at-start → 0).
       setIsPlaying(false);
       audio.pause();
       const endPos = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : (Number.isFinite(audio.currentTime) ? audio.currentTime : 0);
+      if (Number.isFinite(endPos) && endPos >= 0) {
+        try { audio.currentTime = endPos; } catch (_) { /* ignore seek on unloaded media */ }
+      }
       setProgress(endPos);
       persistPlaybackState({ isPlaying: false, position: endPos });
       return;
