@@ -184,7 +184,13 @@ export const PlayerProvider = ({ children }) => {
    */
   const preloadNext = useCallback(async (songs, currentQueueIndex, opts = {}) => {
     try {
-      if (!songs || songs.length < 2) return;
+      if (!songs || songs.length < 2) {
+        if (preloadRef.current) {
+          preloadRef.current.removeAttribute('src');
+          preloadRef.current.load();
+        }
+        return;
+      }
       const { shuffled, order, pos } = opts;
       let nextIndex;
       if (shuffled && Array.isArray(order) && order.length === songs.length) {
@@ -632,6 +638,9 @@ export const PlayerProvider = ({ children }) => {
    * Dose 1.23: when removing the *current* track, preserve prior play/pause —
    * if the user had paused, load the replacement but do not call audio.play()
    * (avoids forced autoplay and respects explicit pause).
+   * Dose 1.28: when removing a *non-current* track, re-warm preload so the
+   * opportunistic next URL matches the new order (stale preload of a removed
+   * track is cleared when length < 2).
    */
   const removeFromQueue = useCallback((index) => {
     if (index < 0 || index >= queue.length) return;
@@ -653,6 +662,10 @@ export const PlayerProvider = ({ children }) => {
       setDuration(0);
       audio.removeAttribute('src');
       audio.load();
+      if (preloadRef.current) {
+        preloadRef.current.removeAttribute('src');
+        preloadRef.current.load();
+      }
       // Persist cleared song so hydrate does not restore a removed track
       persistPlaybackState({
         currentSongId: null,
@@ -713,6 +726,13 @@ export const PlayerProvider = ({ children }) => {
           });
         })
         .catch(() => setIsPlaying(false));
+    } else {
+      // Non-current remove: next track in order may have changed — re-warm
+      preloadNext(newQueue, newIndex, {
+        shuffled: isShuffled,
+        order: newShuffle,
+        pos: newPos,
+      });
     }
   }, [queue, queueIndex, shuffleOrder, isShuffled, audio, loadSong, preloadNext, persistPlaybackState]);
 
@@ -753,7 +773,10 @@ export const PlayerProvider = ({ children }) => {
     });
   }, [audio, persistPlaybackState]);
 
-  /** Move queue item fromIndex -> toIndex; keeps current song playing if still present. */
+  /**
+   * Move queue item fromIndex -> toIndex; keeps current song playing if still present.
+   * Dose 1.28: re-warm preload after reorder so sequential/shuffle next stays correct.
+   */
   const moveInQueue = useCallback((fromIndex, toIndex) => {
     if (fromIndex === toIndex) return;
     if (fromIndex < 0 || fromIndex >= queue.length) return;
@@ -775,15 +798,25 @@ export const PlayerProvider = ({ children }) => {
 
     let newQueueIndex = remap(queueIndex);
     const newShuffle = shuffleOrder.map(remap);
+    let newPos = shufflePos;
+    if (isShuffled && newShuffle.length > 0) {
+      const pos = newShuffle.indexOf(newQueueIndex);
+      newPos = pos >= 0 ? pos : 0;
+    }
 
     setQueue(newQueue);
     setQueueIndex(newQueueIndex);
     setShuffleOrder(newShuffle);
     if (isShuffled && newShuffle.length > 0) {
-      const pos = newShuffle.indexOf(newQueueIndex);
-      setShufflePos(pos >= 0 ? pos : 0);
+      setShufflePos(newPos);
     }
-  }, [queue, queueIndex, shuffleOrder, isShuffled]);
+
+    preloadNext(newQueue, newQueueIndex, {
+      shuffled: isShuffled,
+      order: newShuffle,
+      pos: newPos,
+    });
+  }, [queue, queueIndex, shuffleOrder, shufflePos, isShuffled, preloadNext]);
 
   /**
    * Append song(s) to the end of the queue without interrupting current playback.

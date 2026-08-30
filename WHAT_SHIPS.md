@@ -21,7 +21,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Play after natural end**: when paused at EOF (`audio.ended` or within ~0.35s of duration), Play seeks to 0 and starts the same track (standard player UX; avoids stuck-at-end / immediate re-ended)
 - **Unload persist**: on `visibilitychange` (hidden) and `pagehide`, client flushes debounced playback state immediately so close/refresh does not lose the last position when the 800ms timer has not fired
 - **Hydrate seeds queue**: after login, restoring `current_song_id` also sets a one-item queue (`[song]`, index 0) so Next/Prev and the queue panel are usable (server does not store the full queue)
-- **Preload next**: opportunistic stream-url fetch uses the **next index in the shuffle permutation** when shuffle is on (not `queue[i+1]` sequential); sequential when shuffle is off; **re-warm on shuffle toggle both on and off**
+- **Preload next**: opportunistic stream-url fetch uses the **next index in the shuffle permutation** when shuffle is on (not `queue[i+1]` sequential); sequential when shuffle is off; **re-warm on shuffle toggle both on and off**; **re-warm after non-current `removeFromQueue` and after `moveInQueue`**; clears preload src when queue length drops below 2
 - Seek rejects invalid duration / non-finite times
 - Play after load awaits `audio.play()` (no fixed 100ms race)
 - **Stream error recovery**: one automatic `stream-url` re-fetch + resume on `<audio>` error (expired token / blip); second failure pauses
@@ -73,7 +73,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## This run changed
 
-- **dose-1.27**: `addToQueue` now seeds a full sequential or Fisher-Yates `shuffleOrder` when the queue was empty (or order was out of sync), so shuffle Next/Prev/preload work after the first add-to-queue.
+- **dose-1.28**: Re-warm opportunistic next-track preload after non-current `removeFromQueue` and after `moveInQueue` (up/down or drag-drop); clear preload src when queue length &lt; 2 so a removed next track is not left cached.
 
 ## Does not ship (honest)
 
