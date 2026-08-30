@@ -942,9 +942,10 @@ export const PlayerProvider = ({ children }) => {
       await loadSong(songs[safeStart]);
       await audio.play();
       setIsPlaying(true);
-      // Shuffle may still be off; preload sequential until user toggles shuffle
+      // Dose 1.29: when shuffle is already on, warm the true next in the new
+      // permutation (not sequential queueIndex+1), matching playNext/preloadNext.
       preloadNext(songs, safeStart, {
-        shuffled: false,
+        shuffled: isShuffled,
         order,
         pos: startPos,
       });
@@ -956,7 +957,7 @@ export const PlayerProvider = ({ children }) => {
     } catch (err) {
       setIsPlaying(false);
     }
-  }, [loadSong, audio, preloadNext, persistPlaybackState]);
+  }, [loadSong, audio, preloadNext, persistPlaybackState, isShuffled]);
 
   const toggleShuffle = useCallback(() => {
     setIsShuffled((prev) => {
