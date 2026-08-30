@@ -30,7 +30,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Queue panel** on the player bar (list + jump via `playAtIndex` + **remove via `removeFromQueue`** + **reorder via up/down `moveInQueue` and native HTML5 drag-and-drop**; CSS styled)
 - **`removeFromQueue` preserves play/pause**: removing the *current* track loads the next slot but only calls `audio.play()` if playback was already active; if the user had paused, the replacement stays paused and Redis/DB get `isPlaying: false`
 - **`clearQueue`**: empties queue, stops playback, clears audio/preload src, bumps play generation so in-flight loads are abandoned; queue panel **Clear** control; **persists `current_song_id = null`** so hydrate does not restore a cleared track
-- **`addToQueue`**: append one or more songs to the end of the queue without stopping current playback; SongList has "Add to queue" action
+- **`addToQueue`**: append one or more songs to the end of the queue without stopping current playback; SongList has "Add to queue" action; **when the queue was empty, seeds a full sequential or Fisher-Yates `shuffleOrder`** so shuffle Next/Prev/preload stay valid after the first add
 - `GET /api/songs/genres` wired (controller was present; route was missing)
 - **Home genre filter** passes `genre` query to `getSongs` and shows active filter + clear
 - Soft logout: `auth:logout` / Sign Out clear user state without `window.location` hard reload (PrivateRoute navigates)
@@ -73,7 +73,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## This run changed
 
-- **dose-1.26**: When Play is pressed after natural end under repeat-none (media at EOF / `audio.ended`), seek to 0 and start the same track so playback is not stuck at the last frame.
+- **dose-1.27**: `addToQueue` now seeds a full sequential or Fisher-Yates `shuffleOrder` when the queue was empty (or order was out of sync), so shuffle Next/Prev/preload work after the first add-to-queue.
 
 ## Does not ship (honest)
 

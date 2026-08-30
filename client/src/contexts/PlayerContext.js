@@ -785,7 +785,11 @@ export const PlayerProvider = ({ children }) => {
     }
   }, [queue, queueIndex, shuffleOrder, isShuffled]);
 
-  /** Append song(s) to the end of the queue without interrupting current playback. */
+  /**
+   * Append song(s) to the end of the queue without interrupting current playback.
+   * Dose 1.27: when the queue (and thus shuffleOrder) was empty, seed a full
+   * permutation (or sequential indices) so shuffle Next/Prev/preload stay valid.
+   */
   const addToQueue = useCallback((songs) => {
     const list = Array.isArray(songs) ? songs.filter(Boolean) : (songs ? [songs] : []);
     if (!list.length) return;
@@ -795,9 +799,24 @@ export const PlayerProvider = ({ children }) => {
       const next = [...prev, ...list];
 
       setShuffleOrder((ord) => {
-        if (!isShuffled || ord.length === 0) {
-          // Keep order in sync for when shuffle is toggled later
-          return ord.length === 0 ? ord : [...ord, ...list.map((_, i) => start + i)];
+        const sequentialTail = list.map((_, i) => start + i);
+        if (!isShuffled) {
+          // Keep a sequential map in sync for when shuffle is toggled later
+          if (ord.length === 0) {
+            return next.map((_, i) => i);
+          }
+          return [...ord, ...sequentialTail];
+        }
+        // Shuffle on
+        if (ord.length === 0) {
+          // Empty queue → full Fisher-Yates over the new list
+          return fisherYatesShuffle(next.length);
+        }
+        if (ord.length !== start) {
+          // Order was out of sync with queue; rebuild then append shuffled tail
+          const base = fisherYatesShuffle(start);
+          const extra = fisherYatesShuffle(list.length).map((i) => start + i);
+          return [...base, ...extra];
         }
         const extra = fisherYatesShuffle(list.length).map((i) => start + i);
         return [...ord, ...extra];
