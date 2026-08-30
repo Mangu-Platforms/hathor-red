@@ -12,6 +12,9 @@ const TARGET_LUFS = -14;
 /** Seconds into a track after which Prev restarts the current song (standard player UX). */
 const PREV_RESTART_THRESHOLD_SEC = 3;
 
+/** Near end of track: Play after natural stop should restart, not stay stuck at EOF. */
+const END_RESTART_EPSILON_SEC = 0.35;
+
 function fisherYatesShuffle(length) {
   const order = Array.from({ length }, (_, i) => i);
   for (let i = length - 1; i > 0; i -= 1) {
@@ -456,9 +459,24 @@ export const PlayerProvider = ({ children }) => {
       if (!audio.src && currentSong) {
         await loadSong(currentSong);
       }
+      // After natural end (repeat-none), media sits at EOF / ended.
+      // Pressing Play must restart from 0 — otherwise play() no-ops or
+      // immediately re-fires ended in some browsers.
+      const d = audio.duration;
+      const t = audio.currentTime;
+      const atEnd =
+        audio.ended ||
+        (Number.isFinite(d) && d > 0 && Number.isFinite(t) && t >= d - END_RESTART_EPSILON_SEC);
+      if (atEnd) {
+        audio.currentTime = 0;
+        setProgress(0);
+      }
       await audio.play();
       setIsPlaying(true);
-      persistPlaybackState({ isPlaying: true });
+      persistPlaybackState({
+        isPlaying: true,
+        position: atEnd ? 0 : (Number.isFinite(audio.currentTime) ? audio.currentTime : 0),
+      });
     } catch (err) {
       // Autoplay policy or aborted load — leave paused
       console.error('Play error:', err);
