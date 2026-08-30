@@ -427,11 +427,12 @@ export const PlayerProvider = ({ children }) => {
     const wrap = repeatMode !== 'none';
     const prev = resolvePrevIndex(wrap);
     if (prev == null) {
+      // Dose-1.33: under repeat-none at queue start, stop at position 0 (symmetric with Next-at-end).
       setIsPlaying(false);
       audio.pause();
-      const endPos = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
-      setProgress(endPos);
-      persistPlaybackState({ isPlaying: false, position: endPos });
+      audio.currentTime = 0;
+      setProgress(0);
+      persistPlaybackState({ isPlaying: false, position: 0 });
       return;
     }
     setQueueIndex(prev.index);
