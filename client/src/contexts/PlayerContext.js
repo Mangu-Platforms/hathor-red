@@ -424,16 +424,25 @@ export const PlayerProvider = ({ children }) => {
     const prevShufflePos = shufflePos;
     setQueueIndex(next.index);
     if (isShuffled) setShufflePos(next.shufflePos);
+    // Dose-1.40: only roll back indices when loadSong fails. If load succeeds but
+    // play() rejects (autoplay policy, etc.), keep advanced track + paused state.
     try {
       await loadSong(queue[next.index]);
+    } catch (err) {
+      setQueueIndex(prevQueueIndex);
+      if (isShuffled) setShufflePos(prevShufflePos);
+      setIsPlaying(false);
+      return;
+    }
+    try {
       await audio.play();
       setIsPlaying(true);
       preloadNext(queue, next.index, { shuffled: isShuffled, order: shuffleOrder, pos: next.shufflePos });
       persistPlaybackState({ currentSongId: queue[next.index]?.id, position: 0, isPlaying: true });
     } catch (err) {
-      setQueueIndex(prevQueueIndex);
-      if (isShuffled) setShufflePos(prevShufflePos);
       setIsPlaying(false);
+      preloadNext(queue, next.index, { shuffled: isShuffled, order: shuffleOrder, pos: next.shufflePos });
+      persistPlaybackState({ currentSongId: queue[next.index]?.id, position: 0, isPlaying: false });
     }
   }, [queue, queueIndex, shufflePos, resolveNextIndex, isShuffled, shuffleOrder, loadSong, audio, currentSong, preloadNext, persistPlaybackState, repeatMode]);
 
@@ -469,16 +478,24 @@ export const PlayerProvider = ({ children }) => {
     const prevShufflePos = shufflePos;
     setQueueIndex(prev.index);
     if (isShuffled) setShufflePos(prev.shufflePos);
+    // Dose-1.40: only roll back on loadSong failure
     try {
       await loadSong(queue[prev.index]);
+    } catch (err) {
+      setQueueIndex(prevQueueIndex);
+      if (isShuffled) setShufflePos(prevShufflePos);
+      setIsPlaying(false);
+      return;
+    }
+    try {
       await audio.play();
       setIsPlaying(true);
       preloadNext(queue, prev.index, { shuffled: isShuffled, order: shuffleOrder, pos: prev.shufflePos });
       persistPlaybackState({ currentSongId: queue[prev.index]?.id, position: 0, isPlaying: true });
     } catch (err) {
-      setQueueIndex(prevQueueIndex);
-      if (isShuffled) setShufflePos(prevShufflePos);
       setIsPlaying(false);
+      preloadNext(queue, prev.index, { shuffled: isShuffled, order: shuffleOrder, pos: prev.shufflePos });
+      persistPlaybackState({ currentSongId: queue[prev.index]?.id, position: 0, isPlaying: false });
     }
   }, [queue, queueIndex, shufflePos, resolvePrevIndex, isShuffled, shuffleOrder, loadSong, audio, preloadNext, persistPlaybackState, currentSong, isPlaying, repeatMode]);
 
@@ -492,17 +509,24 @@ export const PlayerProvider = ({ children }) => {
       const found = shuffleOrder.indexOf(index);
       if (found >= 0) { pos = found; setShufflePos(found); }
     }
+    // Dose-1.40: only roll back on loadSong failure
     try {
       await loadSong(queue[index]);
+    } catch (err) {
+      setQueueIndex(prevQueueIndex);
+      if (isShuffled) setShufflePos(prevShufflePos);
+      setIsPlaying(false);
+      return;
+    }
+    try {
       await audio.play();
       setIsPlaying(true);
       preloadNext(queue, index, { shuffled: isShuffled, order: shuffleOrder, pos });
       persistPlaybackState({ currentSongId: queue[index]?.id, position: 0, isPlaying: true });
     } catch (err) {
-      // Dose-1.37: keep queue highlight aligned with currentSong on load failure
-      setQueueIndex(prevQueueIndex);
-      if (isShuffled) setShufflePos(prevShufflePos);
       setIsPlaying(false);
+      preloadNext(queue, index, { shuffled: isShuffled, order: shuffleOrder, pos });
+      persistPlaybackState({ currentSongId: queue[index]?.id, position: 0, isPlaying: false });
     }
   }, [queue, queueIndex, isShuffled, shuffleOrder, shufflePos, loadSong, audio, preloadNext, persistPlaybackState]);
 
@@ -541,6 +565,10 @@ export const PlayerProvider = ({ children }) => {
           return audio.play().then(() => {
             setIsPlaying(true);
             persistPlaybackState({ currentSongId: nextSong?.id, position: 0, isPlaying: true });
+          }).catch(() => {
+            // Dose-1.40: load ok, play rejected — keep currentSong, stay paused
+            setIsPlaying(false);
+            persistPlaybackState({ currentSongId: nextSong?.id, position: 0, isPlaying: false });
           });
         }
         setIsPlaying(false); audio.pause();
@@ -687,10 +715,6 @@ export const PlayerProvider = ({ children }) => {
     setShufflePos(startPos);
     try {
       await loadSong(songs[safeStart]);
-      await audio.play();
-      setIsPlaying(true);
-      preloadNext(songs, safeStart, { shuffled: isShuffled, order, pos: startPos });
-      persistPlaybackState({ currentSongId: songs[safeStart]?.id, position: 0, isPlaying: true });
     } catch (err) {
       // Dose-1.39: start-track load failed after queue was replaced — clear
       // currentSong/audio so UI does not show a stale previous track (or a
@@ -703,6 +727,18 @@ export const PlayerProvider = ({ children }) => {
       setDuration(0);
       try { audio.pause(); audio.removeAttribute('src'); audio.load(); } catch (_) {}
       persistPlaybackState({ currentSongId: null, position: 0, isPlaying: false });
+      return;
+    }
+    // Dose-1.40: load ok; play may still reject — keep track, stay paused
+    try {
+      await audio.play();
+      setIsPlaying(true);
+      preloadNext(songs, safeStart, { shuffled: isShuffled, order, pos: startPos });
+      persistPlaybackState({ currentSongId: songs[safeStart]?.id, position: 0, isPlaying: true });
+    } catch (err) {
+      setIsPlaying(false);
+      preloadNext(songs, safeStart, { shuffled: isShuffled, order, pos: startPos });
+      persistPlaybackState({ currentSongId: songs[safeStart]?.id, position: 0, isPlaying: false });
     }
   }, [loadSong, audio, preloadNext, persistPlaybackState, isShuffled]);
 
