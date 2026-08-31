@@ -40,6 +40,16 @@ function normalizePlaybackState(raw) {
   };
 }
 
+/** Safe seek — HTMLMediaElement can throw on unloaded/empty media. */
+function safeSetCurrentTime(audio, time) {
+  if (!Number.isFinite(time) || time < 0) return;
+  try {
+    audio.currentTime = time;
+  } catch (_) {
+    /* ignore seek on unloaded media */
+  }
+}
+
 export const usePlayer = () => {
   const context = useContext(PlayerContext);
   if (!context) throw new Error('usePlayer must be used within a PlayerProvider');
@@ -115,7 +125,7 @@ export const PlayerProvider = ({ children }) => {
           if (gen !== playGeneration.current) return;
           if (Number.isFinite(audio.duration) && audio.duration > 0) setDuration(audio.duration);
           if (resumeAt > 0 && Number.isFinite(audio.duration) && audio.duration > 0) {
-            audio.currentTime = Math.min(resumeAt, audio.duration);
+            safeSetCurrentTime(audio, Math.min(resumeAt, audio.duration));
           }
           audio.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
         };
@@ -237,7 +247,7 @@ export const PlayerProvider = ({ children }) => {
           if (Number.isFinite(audio.duration) && audio.duration > 0) setDuration(audio.duration);
           if (Number.isFinite(audio.duration) && audio.duration > 0 && resumeAt > 0) {
             const clamped = Math.min(resumeAt, audio.duration);
-            audio.currentTime = clamped;
+            safeSetCurrentTime(audio, clamped);
             setProgress(clamped);
           }
           setIsPlaying(false);
@@ -331,7 +341,11 @@ export const PlayerProvider = ({ children }) => {
       const d = audio.duration;
       const t = audio.currentTime;
       const atEnd = audio.ended || (Number.isFinite(d) && d > 0 && Number.isFinite(t) && t >= d - END_RESTART_EPSILON_SEC);
-      if (atEnd) { audio.currentTime = 0; setProgress(0); }
+      if (atEnd) {
+        // Dose-1.36: safe seek when restarting from natural end
+        safeSetCurrentTime(audio, 0);
+        setProgress(0);
+      }
       await audio.play();
       setIsPlaying(true);
       persistPlaybackState({ isPlaying: true, position: atEnd ? 0 : (Number.isFinite(audio.currentTime) ? audio.currentTime : 0) });
@@ -355,7 +369,7 @@ export const PlayerProvider = ({ children }) => {
     if (!Number.isFinite(time) || time < 0) return;
     if (!Number.isFinite(d) || d <= 0) return;
     const clamped = Math.min(time, d);
-    audio.currentTime = clamped;
+    safeSetCurrentTime(audio, clamped);
     setProgress(clamped);
     if (currentSong) recordEvent('seek', currentSong, clamped);
     persistPlaybackState({ position: clamped });
@@ -398,7 +412,7 @@ export const PlayerProvider = ({ children }) => {
       audio.pause();
       const endPos = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : (Number.isFinite(audio.currentTime) ? audio.currentTime : 0);
       if (Number.isFinite(endPos) && endPos >= 0) {
-        try { audio.currentTime = endPos; } catch (_) { /* ignore seek on unloaded media */ }
+        safeSetCurrentTime(audio, endPos);
       }
       setProgress(endPos);
       persistPlaybackState({ isPlaying: false, position: endPos });
@@ -420,7 +434,8 @@ export const PlayerProvider = ({ children }) => {
     const t = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
     if (t > PREV_RESTART_THRESHOLD_SEC) {
       if (currentSong) recordEvent('seek', currentSong, 0);
-      audio.currentTime = 0;
+      // Dose-1.36: safe seek when restarting current track (>3s threshold)
+      safeSetCurrentTime(audio, 0);
       setProgress(0);
       persistPlaybackState({ position: 0 });
       if (!isPlaying) {
@@ -432,10 +447,11 @@ export const PlayerProvider = ({ children }) => {
     const wrap = repeatMode !== 'none';
     const prev = resolvePrevIndex(wrap);
     if (prev == null) {
-      // Dose-1.33: under repeat-none at queue start, stop at position 0 (symmetric with Next-at-end).
+      // Dose-1.33/1.36: under repeat-none at queue start, stop at position 0
+      // with try/catch (symmetric with Next-at-end / natural ended).
       setIsPlaying(false);
       audio.pause();
-      audio.currentTime = 0;
+      safeSetCurrentTime(audio, 0);
       setProgress(0);
       persistPlaybackState({ isPlaying: false, position: 0 });
       return;
@@ -595,7 +611,7 @@ export const PlayerProvider = ({ children }) => {
         ? audio.duration
         : (Number.isFinite(audio.currentTime) ? audio.currentTime : 0);
       if (Number.isFinite(endPos) && endPos >= 0) {
-        try { audio.currentTime = endPos; } catch (_) { /* ignore seek on unloaded media */ }
+        safeSetCurrentTime(audio, endPos);
       }
       setProgress(endPos);
       flushEvents();
@@ -609,7 +625,7 @@ export const PlayerProvider = ({ children }) => {
         });
       }
       if (repeatMode === 'one') {
-        audio.currentTime = 0;
+        safeSetCurrentTime(audio, 0);
         audio.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
         return;
       }
