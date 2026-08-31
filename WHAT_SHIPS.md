@@ -18,12 +18,13 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Remove-current load failure clears player** (dose-1.38): removing the playing track then failing to load the replacement clears `currentSong` / audio src (removal sticks; no phantom playable current)
 - **setQueueAndPlay load failure clears player** (dose-1.39): replacing the queue and failing to load the start track clears `currentSong` / audio src (queue + indices remain for retry via playAtIndex)
 - **Play-fail keeps advanced track** (dose-1.40): if `loadSong` succeeds but `audio.play()` rejects, queue indices and `currentSong` stay on the new track (paused); only `loadSong` failure rolls indices back — avoids highlight vs currentSong divergence
+- **loadSong throws only on stream failure** (dose-1.41): `recordListening` is fire-and-forget; a history POST error must not throw after `currentSong`/src were set (would desync index rollback)
 - Queue panel, stream error recovery, logout clears player, playback hydrate
 - Playlists, rooms, AI with fallbacks, Olympus flags honesty
 
 ## This run changed
 
-- **dose-1.40**: Split load vs play error paths in `playNext` / `playPrevious` / `playAtIndex`. Index rollback only when `loadSong` throws. When the stream loads but autoplay/`play()` fails, keep the advanced `queueIndex`/`shufflePos`/`currentSong` and leave the player paused so the UI stays consistent.
+- **dose-1.41**: In `loadSong`, await only `getStreamUrl` for failure. After mutating player state, call `recordListening` without awaiting / with `.catch` so telemetry/history outages cannot mark the load as failed and leave `currentSong` advanced while callers roll `queueIndex` back.
 
 ## Does not ship (honest)
 

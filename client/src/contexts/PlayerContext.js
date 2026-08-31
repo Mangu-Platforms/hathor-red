@@ -181,6 +181,8 @@ export const PlayerProvider = ({ children }) => {
     streamRetryRef.current = 0;
     if (durationMetaCleanupRef.current) { durationMetaCleanupRef.current(); durationMetaCleanupRef.current = null; }
     try {
+      // Fail before mutating player state so callers (playNext/playPrevious/playAtIndex)
+      // can roll back queue indices without currentSong diverging from the highlight.
       const { url } = await musicService.getStreamUrl(song.id);
       if (gen !== playGeneration.current) return;
       setAudioSrc(url);
@@ -209,7 +211,9 @@ export const PlayerProvider = ({ children }) => {
       }
       recordEvent('play', song, 0);
       applyLoudness(song);
-      await musicService.recordListening(song.id, 0);
+      // Dose-1.41: history write must not fail the load. A throw here would leave
+      // currentSong already set while playNext/playPrevious roll indices back.
+      musicService.recordListening(song.id, 0).catch(() => {});
     } catch (err) {
       console.error('Failed to load song:', err);
       throw err;
