@@ -533,6 +533,9 @@ export const PlayerProvider = ({ children }) => {
     }
     if (index === queueIndex) {
       const nextSong = newQueue[newIndex];
+      // Dose-1.38: if replacement load fails after removing current track, clear
+      // currentSong/audio so UI does not show a playable current that never loaded
+      // (removal sticks; queue highlight remains on newIndex with no active track).
       loadSong(nextSong).then(() => {
         if (wasPlaying) {
           return audio.play().then(() => {
@@ -545,7 +548,15 @@ export const PlayerProvider = ({ children }) => {
         return undefined;
       }).then(() => {
         preloadNext(newQueue, newIndex, { shuffled: isShuffled, order: newShuffle, pos: newPos });
-      }).catch(() => setIsPlaying(false));
+      }).catch(() => {
+        setIsPlaying(false);
+        setCurrentSong(null);
+        setAudioSrc(null);
+        setProgress(0);
+        setDuration(0);
+        try { audio.pause(); audio.removeAttribute('src'); audio.load(); } catch (_) {}
+        persistPlaybackState({ currentSongId: null, position: 0, isPlaying: false });
+      });
     } else {
       preloadNext(newQueue, newIndex, { shuffled: isShuffled, order: newShuffle, pos: newPos });
     }
