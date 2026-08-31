@@ -16,12 +16,13 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Safe forced seeks** (dose-1.36): shared `safeSetCurrentTime` try/catch for Prev restart, Prev-at-start → 0, Next-at-end, natural ended, play-from-end, seek, hydrate resume, error recovery — no throw on unloaded media
 - **Queue index rollback on load failure** (dose-1.37): Next / Previous / playAtIndex snapshot `queueIndex` + `shufflePos` before advance; on `loadSong` failure restore prior indices so queue highlight stays aligned with `currentSong`
 - **Remove-current load failure clears player** (dose-1.38): removing the playing track then failing to load the replacement clears `currentSong` / audio src (removal sticks; no phantom playable current)
+- **setQueueAndPlay load failure clears player** (dose-1.39): replacing the queue and failing to load the start track clears `currentSong` / audio src (queue + indices remain for retry via playAtIndex)
 - Queue panel, stream error recovery, logout clears player, playback hydrate
 - Playlists, rooms, AI with fallbacks, Olympus flags honesty
 
 ## This run changed
 
-- **dose-1.38**: When `removeFromQueue` removes the currently playing track and `loadSong` of the replacement fails, clear `currentSong`, audio src, progress, and persist null playback state so the UI does not imply a loaded track that never streamed.
+- **dose-1.39**: When `setQueueAndPlay` replaces the queue and `loadSong` of the start track fails, clear `currentSong`, audio src, progress, and persist null playback state so the UI does not keep a stale previous track or imply a loaded track that never streamed. Queue and indices stay so the user can retry.
 
 ## Does not ship (honest)
 

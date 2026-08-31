@@ -691,7 +691,19 @@ export const PlayerProvider = ({ children }) => {
       setIsPlaying(true);
       preloadNext(songs, safeStart, { shuffled: isShuffled, order, pos: startPos });
       persistPlaybackState({ currentSongId: songs[safeStart]?.id, position: 0, isPlaying: true });
-    } catch (err) { setIsPlaying(false); }
+    } catch (err) {
+      // Dose-1.39: start-track load failed after queue was replaced — clear
+      // currentSong/audio so UI does not show a stale previous track (or a
+      // phantom current that never streamed). Queue + indices stay so the
+      // user can retry via playAtIndex.
+      setIsPlaying(false);
+      setCurrentSong(null);
+      setAudioSrc(null);
+      setProgress(0);
+      setDuration(0);
+      try { audio.pause(); audio.removeAttribute('src'); audio.load(); } catch (_) {}
+      persistPlaybackState({ currentSongId: null, position: 0, isPlaying: false });
+    }
   }, [loadSong, audio, preloadNext, persistPlaybackState, isShuffled]);
 
   const toggleShuffle = useCallback(() => {
