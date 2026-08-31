@@ -586,6 +586,22 @@ export const PlayerProvider = ({ children }) => {
   }, [queue, queueIndex, shuffleOrder, shufflePos, isShuffled, currentSong, preloadNext]);
 
   useEffect(() => {
+    const stopAtNaturalEnd = () => {
+      // Dose-1.35: natural 'ended' under repeat-none at queue tail — force
+      // audio.currentTime to endPos so element matches progress UI + persist
+      // (same contract as playNext boundary in dose-1.34).
+      setIsPlaying(false);
+      const endPos = Number.isFinite(audio.duration) && audio.duration > 0
+        ? audio.duration
+        : (Number.isFinite(audio.currentTime) ? audio.currentTime : 0);
+      if (Number.isFinite(endPos) && endPos >= 0) {
+        try { audio.currentTime = endPos; } catch (_) { /* ignore seek on unloaded media */ }
+      }
+      setProgress(endPos);
+      flushEvents();
+      persistPlaybackState({ isPlaying: false, position: endPos });
+    };
+
     const handleEnded = () => {
       if (currentSong) {
         recordEvent('complete', currentSong, audio.duration || duration, {
@@ -600,23 +616,11 @@ export const PlayerProvider = ({ children }) => {
       if (repeatMode === 'all') { playNext(); return; }
       if (isShuffled && shuffleOrder.length === queue.length) {
         if (shufflePos < shuffleOrder.length - 1) playNext();
-        else {
-          setIsPlaying(false);
-          const endPos = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : (Number.isFinite(audio.currentTime) ? audio.currentTime : 0);
-          setProgress(endPos);
-          flushEvents();
-          persistPlaybackState({ isPlaying: false, position: endPos });
-        }
+        else stopAtNaturalEnd();
         return;
       }
       if (queueIndex < queue.length - 1) playNext();
-      else {
-        setIsPlaying(false);
-        const endPos = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : (Number.isFinite(audio.currentTime) ? audio.currentTime : 0);
-        setProgress(endPos);
-        flushEvents();
-        persistPlaybackState({ isPlaying: false, position: endPos });
-      }
+      else stopAtNaturalEnd();
     };
     audio.addEventListener('ended', handleEnded);
     return () => audio.removeEventListener('ended', handleEnded);

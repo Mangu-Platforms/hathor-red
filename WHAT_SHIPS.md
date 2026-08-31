@@ -12,12 +12,13 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Prev under repeat-none**: at first track under 3s threshold, Previous **stops** (does not wrap) — dose-1.32; restart current when `currentTime > 3s`
 - **Prev stop-at-start**: when blocked at queue head, position is forced to **0** and progress UI matches (dose-1.33)
 - **Next stop-at-end**: when blocked at queue tail under repeat-none, `audio.currentTime` is forced to **end** so the element matches progress UI (dose-1.34)
+- **Natural ended at tail**: under repeat-none, the `ended` event also forces `audio.currentTime` to endPos (dose-1.35) — same contract as Next boundary
 - Queue panel, stream error recovery, logout clears player, playback hydrate
 - Playlists, rooms, AI with fallbacks, Olympus flags honesty
 
 ## This run changed
 
-- **dose-1.34**: When `playNext` hits the no-wrap boundary under `repeatMode === 'none'`, set `audio.currentTime` to the computed end position (same value written to progress + persist). Symmetric with Prev-at-start forcing position 0 (dose-1.33).
+- **dose-1.35**: Extract shared `stopAtNaturalEnd` for the `ended` handler under repeat-none at queue/shuffle tail; force `audio.currentTime` to endPos (try/catch) so `<audio>` matches progress UI and persist — symmetric with playNext boundary (dose-1.34).
 
 ## Does not ship (honest)
 
