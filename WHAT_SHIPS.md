@@ -14,12 +14,13 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Next stop-at-end**: when blocked at queue tail under repeat-none, `audio.currentTime` is forced to **end** so the element matches progress UI (dose-1.34)
 - **Natural ended at tail**: under repeat-none, the `ended` event also forces `audio.currentTime` to endPos (dose-1.35) — same contract as Next boundary
 - **Safe forced seeks** (dose-1.36): shared `safeSetCurrentTime` try/catch for Prev restart, Prev-at-start → 0, Next-at-end, natural ended, play-from-end, seek, hydrate resume, error recovery — no throw on unloaded media
+- **Queue index rollback on load failure** (dose-1.37): Next / Previous / playAtIndex snapshot `queueIndex` + `shufflePos` before advance; on `loadSong` failure restore prior indices so queue highlight stays aligned with `currentSong`
 - Queue panel, stream error recovery, logout clears player, playback hydrate
 - Playlists, rooms, AI with fallbacks, Olympus flags honesty
 
 ## This run changed
 
-- **dose-1.36**: Extract `safeSetCurrentTime` and use it for all forced `audio.currentTime` writes (Prev restart >3s, Prev stop-at-start, play restart from end, seek, hydrate, stream error recovery, repeat-one, Next/ended endPos). Closes residual asymmetry where only Next/ended used try/catch.
+- **dose-1.37**: Roll back `queueIndex` / `shufflePos` when Next, Previous, or playAtIndex fails to load the target stream. Closes desync where the queue UI advanced while `currentSong` remained the previous track.
 
 ## Does not ship (honest)
 
