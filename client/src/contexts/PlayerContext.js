@@ -107,8 +107,8 @@ export const PlayerProvider = ({ children }) => {
     return () => clearInterval(progressInterval.current);
   }, [isPlaying, audio, currentSong]);
 
-  // Stream error recovery — dose-1.45/1.46: safe-seek + play-reject contract;
-  // terminal failure (retry exhausted or re-fetch fail) persists paused state.
+  // Stream error recovery — dose-1.45/1.46/1.48: safe-seek + play-reject contract;
+  // success path persists isPlaying true; terminal failure persists paused.
   useEffect(() => {
     const handleError = async () => {
       const song = currentSong;
@@ -148,6 +148,14 @@ export const PlayerProvider = ({ children }) => {
           audio.play().then(() => {
             if (gen !== playGeneration.current) return;
             setIsPlaying(true);
+            // Dose-1.48: successful stream recovery must persist playing so
+            // hydrate/other clients match the live UI (mirrors play-reject persist).
+            const pos = Number.isFinite(audio.currentTime) ? audio.currentTime : resumeAt;
+            musicService.updatePlaybackState({
+              currentSongId: song.id,
+              position: pos,
+              isPlaying: true,
+            }).catch(() => {});
           }).catch(() => {
             // Dose-1.45/1.46: stream-retry play reject — keep track, pause, sync UI + persist
             if (gen !== playGeneration.current) return;
