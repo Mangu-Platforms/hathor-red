@@ -107,9 +107,8 @@ export const PlayerProvider = ({ children }) => {
     return () => clearInterval(progressInterval.current);
   }, [isPlaying, audio, currentSong]);
 
-  // Stream error recovery — dose-1.45: same safe-seek + play-reject contract as
-  // load/play paths. Resume seek uses safeSetCurrentTime; play() reject leaves
-  // element + progress UI + persist aligned (paused at resume position).
+  // Stream error recovery — dose-1.45/1.46: safe-seek + play-reject contract;
+  // terminal failure (retry exhausted or re-fetch fail) persists paused state.
   useEffect(() => {
     const handleError = async () => {
       const song = currentSong;
@@ -119,6 +118,12 @@ export const PlayerProvider = ({ children }) => {
         try { audio.pause(); } catch (_) {}
         const pos = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
         setProgress(pos);
+        // Dose-1.46: terminal stream failure must persist paused state
+        musicService.updatePlaybackState({
+          currentSongId: song.id,
+          position: pos,
+          isPlaying: false,
+        }).catch(() => {});
         return;
       }
       streamRetryRef.current += 1;
@@ -144,12 +149,17 @@ export const PlayerProvider = ({ children }) => {
             if (gen !== playGeneration.current) return;
             setIsPlaying(true);
           }).catch(() => {
-            // Dose-1.45: stream-retry play reject — keep track, pause, sync UI
+            // Dose-1.45/1.46: stream-retry play reject — keep track, pause, sync UI + persist
             if (gen !== playGeneration.current) return;
             setIsPlaying(false);
             try { audio.pause(); } catch (_) {}
             const pos = Number.isFinite(audio.currentTime) ? audio.currentTime : resumeAt;
             setProgress(pos);
+            musicService.updatePlaybackState({
+              currentSongId: song.id,
+              position: pos,
+              isPlaying: false,
+            }).catch(() => {});
           });
         };
         audio.addEventListener('loadedmetadata', onMeta);
@@ -157,6 +167,14 @@ export const PlayerProvider = ({ children }) => {
       } catch (err) {
         setIsPlaying(false);
         try { audio.pause(); } catch (_) {}
+        const pos = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+        setProgress(pos);
+        // Dose-1.46: re-fetch failed — persist paused state
+        musicService.updatePlaybackState({
+          currentSongId: song.id,
+          position: pos,
+          isPlaying: false,
+        }).catch(() => {});
       }
     };
     audio.addEventListener('error', handleError);
@@ -254,7 +272,7 @@ export const PlayerProvider = ({ children }) => {
         const data = await musicService.getPlaybackState();
         const state = normalizePlaybackState(data?.state);
         if (!state || cancelled) return;
-        if (Number.isFinite(state.volume)) setVolume(Math.max(0, Math.min(1, state.volume)));
+        if (Number.isFinite(state.volume)) setVolume(Math.max(0, Math.min(1, state.volume));
         if (Number.isFinite(state.playbackSpeed) && state.playbackSpeed > 0) setPlaybackSpeed(state.playbackSpeed);
         let songPayload;
         try { songPayload = await musicService.getSong(state.currentSongId); } catch { return; }
