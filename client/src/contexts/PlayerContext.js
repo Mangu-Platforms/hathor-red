@@ -107,11 +107,20 @@ export const PlayerProvider = ({ children }) => {
     return () => clearInterval(progressInterval.current);
   }, [isPlaying, audio, currentSong]);
 
+  // Stream error recovery — dose-1.45: same safe-seek + play-reject contract as
+  // load/play paths. Resume seek uses safeSetCurrentTime; play() reject leaves
+  // element + progress UI + persist aligned (paused at resume position).
   useEffect(() => {
     const handleError = async () => {
       const song = currentSong;
       if (!song) return;
-      if (streamRetryRef.current >= 1) { setIsPlaying(false); return; }
+      if (streamRetryRef.current >= 1) {
+        setIsPlaying(false);
+        try { audio.pause(); } catch (_) {}
+        const pos = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+        setProgress(pos);
+        return;
+      }
       streamRetryRef.current += 1;
       const gen = playGeneration.current;
       const resumeAt = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
@@ -125,14 +134,29 @@ export const PlayerProvider = ({ children }) => {
           if (gen !== playGeneration.current) return;
           if (Number.isFinite(audio.duration) && audio.duration > 0) setDuration(audio.duration);
           if (resumeAt > 0 && Number.isFinite(audio.duration) && audio.duration > 0) {
-            safeSetCurrentTime(audio, Math.min(resumeAt, audio.duration));
+            const clamped = Math.min(resumeAt, audio.duration);
+            safeSetCurrentTime(audio, clamped);
+            setProgress(clamped);
+          } else {
+            setProgress(Number.isFinite(audio.currentTime) ? audio.currentTime : 0);
           }
-          audio.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+          audio.play().then(() => {
+            if (gen !== playGeneration.current) return;
+            setIsPlaying(true);
+          }).catch(() => {
+            // Dose-1.45: stream-retry play reject — keep track, pause, sync UI
+            if (gen !== playGeneration.current) return;
+            setIsPlaying(false);
+            try { audio.pause(); } catch (_) {}
+            const pos = Number.isFinite(audio.currentTime) ? audio.currentTime : resumeAt;
+            setProgress(pos);
+          });
         };
         audio.addEventListener('loadedmetadata', onMeta);
         audio.load();
       } catch (err) {
         setIsPlaying(false);
+        try { audio.pause(); } catch (_) {}
       }
     };
     audio.addEventListener('error', handleError);
