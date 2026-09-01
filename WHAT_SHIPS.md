@@ -19,12 +19,13 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **setQueueAndPlay load failure clears player** (dose-1.39): replacing the queue and failing to load the start track clears `currentSong` / audio src (queue + indices remain for retry via playAtIndex)
 - **Play-fail keeps advanced track** (dose-1.40): if `loadSong` succeeds but `audio.play()` rejects, queue indices and `currentSong` stay on the new track (paused); only `loadSong` failure rolls indices back — avoids highlight vs currentSong divergence
 - **loadSong throws only on stream failure** (dose-1.41): `recordListening` is fire-and-forget; a history POST error must not throw after `currentSong`/src were set (would desync index rollback)
+- **Repeat-one restart sync** (dose-1.42): on natural `ended` with repeat-one, set progress UI to 0 and persist position 0 / isPlaying after play() resolves or rejects — same boundary contract as other forced seeks
 - Queue panel, stream error recovery, logout clears player, playback hydrate
 - Playlists, rooms, AI with fallbacks, Olympus flags honesty
 
 ## This run changed
 
-- **dose-1.41**: In `loadSong`, await only `getStreamUrl` for failure. After mutating player state, call `recordListening` without awaiting / with `.catch` so telemetry/history outages cannot mark the load as failed and leave `currentSong` advanced while callers roll `queueIndex` back.
+- **dose-1.42**: In `handleEnded` repeat-one path, after `safeSetCurrentTime(0)` also `setProgress(0)` and `persistPlaybackState` so the progress bar and server hydrate match the element (previously only audio.currentTime was reset).
 
 ## Does not ship (honest)
 

@@ -690,8 +690,17 @@ export const PlayerProvider = ({ children }) => {
         });
       }
       if (repeatMode === 'one') {
+        // Dose-1.42: same contract as other boundary seeks — progress UI + persist
+        // must match the element after restart (not only currentTime).
         safeSetCurrentTime(audio, 0);
-        audio.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+        setProgress(0);
+        audio.play().then(() => {
+          setIsPlaying(true);
+          persistPlaybackState({ isPlaying: true, position: 0 });
+        }).catch(() => {
+          setIsPlaying(false);
+          persistPlaybackState({ isPlaying: false, position: 0 });
+        });
         return;
       }
       if (repeatMode === 'all') { playNext(); return; }
