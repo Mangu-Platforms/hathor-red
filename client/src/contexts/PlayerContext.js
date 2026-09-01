@@ -340,29 +340,34 @@ export const PlayerProvider = ({ children }) => {
   }, []);
 
   const play = useCallback(async () => {
+    // Dose-1.44: remember whether this invocation is a natural-end restart so a
+    // rejected play() always forces element + progress UI to 0 (not only when
+    // currentTime happens to land in (0, 0.5)).
+    let restartedFromEnd = false;
     try {
       if (!audio.src && currentSong) await loadSong(currentSong);
       const d = audio.duration;
       const t = audio.currentTime;
       const atEnd = audio.ended || (Number.isFinite(d) && d > 0 && Number.isFinite(t) && t >= d - END_RESTART_EPSILON_SEC);
       if (atEnd) {
+        restartedFromEnd = true;
         // Dose-1.36: safe seek when restarting from natural end
         safeSetCurrentTime(audio, 0);
         setProgress(0);
       }
       await audio.play();
       setIsPlaying(true);
-      persistPlaybackState({ isPlaying: true, position: atEnd ? 0 : (Number.isFinite(audio.currentTime) ? audio.currentTime : 0) });
+      persistPlaybackState({ isPlaying: true, position: restartedFromEnd ? 0 : (Number.isFinite(audio.currentTime) ? audio.currentTime : 0) });
     } catch (err) {
       console.error('Play error:', err);
       setIsPlaying(false);
-      // Dose-1.43: play() reject must not leave progress mid-track after a 0-seek restart
-      const t = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
-      if (t > 0 && t < 0.5) {
+      if (restartedFromEnd) {
+        // Dose-1.44: end-restart play() reject must leave bar + element at 0
         safeSetCurrentTime(audio, 0);
         setProgress(0);
         persistPlaybackState({ isPlaying: false, position: 0 });
       } else {
+        // Non-restart play reject: keep reported position (may be mid-track pause)
         persistPlaybackState({ isPlaying: false, position: Number.isFinite(audio.currentTime) ? audio.currentTime : 0 });
       }
     }
