@@ -20,12 +20,13 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Play-fail keeps advanced track** (dose-1.40): if `loadSong` succeeds but `audio.play()` rejects, queue indices and `currentSong` stay on the new track (paused); only `loadSong` failure rolls indices back — avoids highlight vs currentSong divergence
 - **loadSong throws only on stream failure** (dose-1.41): `recordListening` is fire-and-forget; a history POST error must not throw after `currentSong`/src were set (would desync index rollback)
 - **Repeat-one restart sync** (dose-1.42): on natural `ended` with repeat-one, set progress UI to 0 and persist position 0 / isPlaying after play() resolves or rejects — same boundary contract as other forced seeks
+- **Play-reject forces position 0** (dose-1.43): when `loadSong` succeeds but `audio.play()` rejects (autoplay, etc.), force `safeSetCurrentTime(0)` + progress UI 0 on the advanced track so a partial start cannot leave the bar mid-track while paused
 - Queue panel, stream error recovery, logout clears player, playback hydrate
 - Playlists, rooms, AI with fallbacks, Olympus flags honesty
 
 ## This run changed
 
-- **dose-1.42**: In `handleEnded` repeat-one path, after `safeSetCurrentTime(0)` also `setProgress(0)` and `persistPlaybackState` so the progress bar and server hydrate match the element (previously only audio.currentTime was reset).
+- **dose-1.43**: After successful `loadSong` when `audio.play()` rejects (playNext / playPrevious / playAtIndex / setQueueAndPlay / remove-current / generic play), force element + progress UI to 0 and persist position 0 so the paused advanced track cannot show a mid-track bar from a partial start.
 
 ## Does not ship (honest)
 

@@ -356,6 +356,15 @@ export const PlayerProvider = ({ children }) => {
     } catch (err) {
       console.error('Play error:', err);
       setIsPlaying(false);
+      // Dose-1.43: play() reject must not leave progress mid-track after a 0-seek restart
+      const t = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+      if (t > 0 && t < 0.5) {
+        safeSetCurrentTime(audio, 0);
+        setProgress(0);
+        persistPlaybackState({ isPlaying: false, position: 0 });
+      } else {
+        persistPlaybackState({ isPlaying: false, position: Number.isFinite(audio.currentTime) ? audio.currentTime : 0 });
+      }
     }
   }, [audio, currentSong, loadSong, persistPlaybackState]);
 
@@ -444,7 +453,10 @@ export const PlayerProvider = ({ children }) => {
       preloadNext(queue, next.index, { shuffled: isShuffled, order: shuffleOrder, pos: next.shufflePos });
       persistPlaybackState({ currentSongId: queue[next.index]?.id, position: 0, isPlaying: true });
     } catch (err) {
+      // Dose-1.43: load ok, play rejected — keep advanced track; force element + progress to 0
       setIsPlaying(false);
+      safeSetCurrentTime(audio, 0);
+      setProgress(0);
       preloadNext(queue, next.index, { shuffled: isShuffled, order: shuffleOrder, pos: next.shufflePos });
       persistPlaybackState({ currentSongId: queue[next.index]?.id, position: 0, isPlaying: false });
     }
@@ -497,7 +509,10 @@ export const PlayerProvider = ({ children }) => {
       preloadNext(queue, prev.index, { shuffled: isShuffled, order: shuffleOrder, pos: prev.shufflePos });
       persistPlaybackState({ currentSongId: queue[prev.index]?.id, position: 0, isPlaying: true });
     } catch (err) {
+      // Dose-1.43: load ok, play rejected — force element + progress to 0
       setIsPlaying(false);
+      safeSetCurrentTime(audio, 0);
+      setProgress(0);
       preloadNext(queue, prev.index, { shuffled: isShuffled, order: shuffleOrder, pos: prev.shufflePos });
       persistPlaybackState({ currentSongId: queue[prev.index]?.id, position: 0, isPlaying: false });
     }
@@ -528,7 +543,10 @@ export const PlayerProvider = ({ children }) => {
       preloadNext(queue, index, { shuffled: isShuffled, order: shuffleOrder, pos });
       persistPlaybackState({ currentSongId: queue[index]?.id, position: 0, isPlaying: true });
     } catch (err) {
+      // Dose-1.43: load ok, play rejected — force element + progress to 0
       setIsPlaying(false);
+      safeSetCurrentTime(audio, 0);
+      setProgress(0);
       preloadNext(queue, index, { shuffled: isShuffled, order: shuffleOrder, pos });
       persistPlaybackState({ currentSongId: queue[index]?.id, position: 0, isPlaying: false });
     }
@@ -570,8 +588,10 @@ export const PlayerProvider = ({ children }) => {
             setIsPlaying(true);
             persistPlaybackState({ currentSongId: nextSong?.id, position: 0, isPlaying: true });
           }).catch(() => {
-            // Dose-1.40: load ok, play rejected — keep currentSong, stay paused
+            // Dose-1.40/1.43: load ok, play rejected — keep currentSong, force progress 0
             setIsPlaying(false);
+            safeSetCurrentTime(audio, 0);
+            setProgress(0);
             persistPlaybackState({ currentSongId: nextSong?.id, position: 0, isPlaying: false });
           });
         }
@@ -749,7 +769,10 @@ export const PlayerProvider = ({ children }) => {
       preloadNext(songs, safeStart, { shuffled: isShuffled, order, pos: startPos });
       persistPlaybackState({ currentSongId: songs[safeStart]?.id, position: 0, isPlaying: true });
     } catch (err) {
+      // Dose-1.43: load ok, play rejected — force element + progress to 0
       setIsPlaying(false);
+      safeSetCurrentTime(audio, 0);
+      setProgress(0);
       preloadNext(songs, safeStart, { shuffled: isShuffled, order, pos: startPos });
       persistPlaybackState({ currentSongId: songs[safeStart]?.id, position: 0, isPlaying: false });
     }
