@@ -23,12 +23,13 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Play-reject forces position 0** (dose-1.43): when `loadSong` succeeds but `audio.play()` rejects (autoplay, etc.), force `safeSetCurrentTime(0)` + progress UI 0 on the advanced track so a partial start cannot leave the bar mid-track while paused
 - **At-end play() reject forces 0** (dose-1.44): when `play()` restarts from natural end (`ended` or near duration) and `audio.play()` then rejects, always force element + progress UI + persist to 0 (not gated on partial currentTime)
 - **Stream error recovery play-reject** (dose-1.45): on `<audio>` error, one re-fetch of signed URL + `safeSetCurrentTime` resume; if `play()` rejects after reload, pause element, sync progress UI to resume position, leave `currentSong` (same contract as other play-reject paths)
+- **Terminal stream recovery persist** (dose-1.46): when stream retry is exhausted, stream-url re-fetch fails, or play() rejects after a successful re-fetch, call `updatePlaybackState` with `isPlaying: false` and the last known position so server/hydrate state matches the paused UI
 - Queue panel, stream error recovery, logout clears player, playback hydrate
 - Playlists, rooms, AI with fallbacks, Olympus flags honesty
 
 ## This run changed
 
-- **dose-1.45**: Stream error recovery path in `PlayerContext` now uses `safeSetCurrentTime` for resume, clamps to duration, and on `audio.play()` reject after re-fetch: pause, set progress to the resume position (or currentTime), keep the track — no silent desync between element and progress bar after a failed auto-retry.
+- **dose-1.46**: Stream error recovery terminal paths in `PlayerContext` now persist paused position via `musicService.updatePlaybackState` (retry exhausted, re-fetch failure, and play-reject after re-fetch).
 
 ## Does not ship (honest)
 
