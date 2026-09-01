@@ -729,6 +729,8 @@ export const PlayerProvider = ({ children }) => {
         });
       }
       if (repeatMode === 'one') {
+        // Dose-1.47: same play-reject contract as 1.43/1.44 — force element + UI to 0
+        // when restart-from-end play() rejects so a partial start cannot leave the bar mid-track.
         safeSetCurrentTime(audio, 0);
         setProgress(0);
         audio.play().then(() => {
@@ -736,6 +738,8 @@ export const PlayerProvider = ({ children }) => {
           persistPlaybackState({ isPlaying: true, position: 0 });
         }).catch(() => {
           setIsPlaying(false);
+          safeSetCurrentTime(audio, 0);
+          setProgress(0);
           persistPlaybackState({ isPlaying: false, position: 0 });
         });
         return;

@@ -24,12 +24,13 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **At-end play() reject forces 0** (dose-1.44): when `play()` restarts from natural end (`ended` or near duration) and `audio.play()` then rejects, always force element + progress UI + persist to 0 (not gated on partial currentTime)
 - **Stream error recovery play-reject** (dose-1.45): on `<audio>` error, one re-fetch of signed URL + `safeSetCurrentTime` resume; if `play()` rejects after reload, pause element, sync progress UI to resume position, leave `currentSong` (same contract as other play-reject paths)
 - **Terminal stream recovery persist** (dose-1.46): when stream retry is exhausted, stream-url re-fetch fails, or play() rejects after a successful re-fetch, call `updatePlaybackState` with `isPlaying: false` and the last known position so server/hydrate state matches the paused UI
+- **Repeat-one play-reject forces 0** (dose-1.47): on natural `ended` with repeat-one, if `audio.play()` rejects after restart-to-0, force `safeSetCurrentTime(0)` + progress UI 0 again (same partial-start contract as dose-1.43/1.44)
 - Queue panel, stream error recovery, logout clears player, playback hydrate
 - Playlists, rooms, AI with fallbacks, Olympus flags honesty
 
 ## This run changed
 
-- **dose-1.46**: Stream error recovery terminal paths in `PlayerContext` now persist paused position via `musicService.updatePlaybackState` (retry exhausted, re-fetch failure, and play-reject after re-fetch).
+- **dose-1.47**: Repeat-one natural-ended path forces element + progress to 0 when restart `play()` rejects (matches dose-1.43/1.44 partial-start contract).
 
 ## Does not ship (honest)
 
