@@ -272,7 +272,7 @@ export const PlayerProvider = ({ children }) => {
         const data = await musicService.getPlaybackState();
         const state = normalizePlaybackState(data?.state);
         if (!state || cancelled) return;
-        if (Number.isFinite(state.volume)) setVolume(Math.max(0, Math.min(1, state.volume));
+        if (Number.isFinite(state.volume)) setVolume(Math.max(0, Math.min(1, state.volume)));
         if (Number.isFinite(state.playbackSpeed) && state.playbackSpeed > 0) setPlaybackSpeed(state.playbackSpeed);
         let songPayload;
         try { songPayload = await musicService.getSong(state.currentSongId); } catch { return; }
@@ -382,9 +382,6 @@ export const PlayerProvider = ({ children }) => {
   }, []);
 
   const play = useCallback(async () => {
-    // Dose-1.44: remember whether this invocation is a natural-end restart so a
-    // rejected play() always forces element + progress UI to 0 (not only when
-    // currentTime happens to land in (0, 0.5)).
     let restartedFromEnd = false;
     try {
       if (!audio.src && currentSong) await loadSong(currentSong);
@@ -393,7 +390,6 @@ export const PlayerProvider = ({ children }) => {
       const atEnd = audio.ended || (Number.isFinite(d) && d > 0 && Number.isFinite(t) && t >= d - END_RESTART_EPSILON_SEC);
       if (atEnd) {
         restartedFromEnd = true;
-        // Dose-1.36: safe seek when restarting from natural end
         safeSetCurrentTime(audio, 0);
         setProgress(0);
       }
@@ -404,12 +400,10 @@ export const PlayerProvider = ({ children }) => {
       console.error('Play error:', err);
       setIsPlaying(false);
       if (restartedFromEnd) {
-        // Dose-1.44: end-restart play() reject must leave bar + element at 0
         safeSetCurrentTime(audio, 0);
         setProgress(0);
         persistPlaybackState({ isPlaying: false, position: 0 });
       } else {
-        // Non-restart play reject: keep reported position (may be mid-track pause)
         persistPlaybackState({ isPlaying: false, position: Number.isFinite(audio.currentTime) ? audio.currentTime : 0 });
       }
     }
@@ -466,8 +460,6 @@ export const PlayerProvider = ({ children }) => {
     const wrap = repeatMode !== 'none';
     const next = resolveNextIndex(wrap);
     if (next == null) {
-      // Dose-1.34: under repeat-none at queue end, force audio element to end position
-      // so progress UI and <audio> stay in sync (symmetric with Prev-at-start → 0).
       setIsPlaying(false);
       audio.pause();
       const endPos = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : (Number.isFinite(audio.currentTime) ? audio.currentTime : 0);
@@ -478,14 +470,10 @@ export const PlayerProvider = ({ children }) => {
       persistPlaybackState({ isPlaying: false, position: endPos });
       return;
     }
-    // Dose-1.37: snapshot indices before advance so a failed loadSong can roll back
-    // (otherwise queue highlight advances while currentSong stays on the previous track).
     const prevQueueIndex = queueIndex;
     const prevShufflePos = shufflePos;
     setQueueIndex(next.index);
     if (isShuffled) setShufflePos(next.shufflePos);
-    // Dose-1.40: only roll back indices when loadSong fails. If load succeeds but
-    // play() rejects (autoplay policy, etc.), keep advanced track + paused state.
     try {
       await loadSong(queue[next.index]);
     } catch (err) {
@@ -500,7 +488,6 @@ export const PlayerProvider = ({ children }) => {
       preloadNext(queue, next.index, { shuffled: isShuffled, order: shuffleOrder, pos: next.shufflePos });
       persistPlaybackState({ currentSongId: queue[next.index]?.id, position: 0, isPlaying: true });
     } catch (err) {
-      // Dose-1.43: load ok, play rejected — keep advanced track; force element + progress to 0
       setIsPlaying(false);
       safeSetCurrentTime(audio, 0);
       setProgress(0);
@@ -514,7 +501,6 @@ export const PlayerProvider = ({ children }) => {
     const t = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
     if (t > PREV_RESTART_THRESHOLD_SEC) {
       if (currentSong) recordEvent('seek', currentSong, 0);
-      // Dose-1.36: safe seek when restarting current track (>3s threshold)
       safeSetCurrentTime(audio, 0);
       setProgress(0);
       persistPlaybackState({ position: 0 });
@@ -527,8 +513,6 @@ export const PlayerProvider = ({ children }) => {
     const wrap = repeatMode !== 'none';
     const prev = resolvePrevIndex(wrap);
     if (prev == null) {
-      // Dose-1.33/1.36: under repeat-none at queue start, stop at position 0
-      // with try/catch (symmetric with Next-at-end / natural ended).
       setIsPlaying(false);
       audio.pause();
       safeSetCurrentTime(audio, 0);
@@ -536,12 +520,10 @@ export const PlayerProvider = ({ children }) => {
       persistPlaybackState({ isPlaying: false, position: 0 });
       return;
     }
-    // Dose-1.37: snapshot before advance; roll back if loadSong fails
     const prevQueueIndex = queueIndex;
     const prevShufflePos = shufflePos;
     setQueueIndex(prev.index);
     if (isShuffled) setShufflePos(prev.shufflePos);
-    // Dose-1.40: only roll back on loadSong failure
     try {
       await loadSong(queue[prev.index]);
     } catch (err) {
@@ -556,7 +538,6 @@ export const PlayerProvider = ({ children }) => {
       preloadNext(queue, prev.index, { shuffled: isShuffled, order: shuffleOrder, pos: prev.shufflePos });
       persistPlaybackState({ currentSongId: queue[prev.index]?.id, position: 0, isPlaying: true });
     } catch (err) {
-      // Dose-1.43: load ok, play rejected — force element + progress to 0
       setIsPlaying(false);
       safeSetCurrentTime(audio, 0);
       setProgress(0);
@@ -575,7 +556,6 @@ export const PlayerProvider = ({ children }) => {
       const found = shuffleOrder.indexOf(index);
       if (found >= 0) { pos = found; setShufflePos(found); }
     }
-    // Dose-1.40: only roll back on loadSong failure
     try {
       await loadSong(queue[index]);
     } catch (err) {
@@ -590,7 +570,6 @@ export const PlayerProvider = ({ children }) => {
       preloadNext(queue, index, { shuffled: isShuffled, order: shuffleOrder, pos });
       persistPlaybackState({ currentSongId: queue[index]?.id, position: 0, isPlaying: true });
     } catch (err) {
-      // Dose-1.43: load ok, play rejected — force element + progress to 0
       setIsPlaying(false);
       safeSetCurrentTime(audio, 0);
       setProgress(0);
@@ -626,16 +605,12 @@ export const PlayerProvider = ({ children }) => {
     }
     if (index === queueIndex) {
       const nextSong = newQueue[newIndex];
-      // Dose-1.38: if replacement load fails after removing current track, clear
-      // currentSong/audio so UI does not show a playable current that never loaded
-      // (removal sticks; queue highlight remains on newIndex with no active track).
       loadSong(nextSong).then(() => {
         if (wasPlaying) {
           return audio.play().then(() => {
             setIsPlaying(true);
             persistPlaybackState({ currentSongId: nextSong?.id, position: 0, isPlaying: true });
           }).catch(() => {
-            // Dose-1.40/1.43: load ok, play rejected — keep currentSong, force progress 0
             setIsPlaying(false);
             safeSetCurrentTime(audio, 0);
             setProgress(0);
@@ -735,9 +710,6 @@ export const PlayerProvider = ({ children }) => {
 
   useEffect(() => {
     const stopAtNaturalEnd = () => {
-      // Dose-1.35: natural 'ended' under repeat-none at queue tail — force
-      // audio.currentTime to endPos so element matches progress UI + persist
-      // (same contract as playNext boundary in dose-1.34).
       setIsPlaying(false);
       const endPos = Number.isFinite(audio.duration) && audio.duration > 0
         ? audio.duration
@@ -757,8 +729,6 @@ export const PlayerProvider = ({ children }) => {
         });
       }
       if (repeatMode === 'one') {
-        // Dose-1.42: same contract as other boundary seeks — progress UI + persist
-        // must match the element after restart (not only currentTime).
         safeSetCurrentTime(audio, 0);
         setProgress(0);
         audio.play().then(() => {
@@ -796,10 +766,6 @@ export const PlayerProvider = ({ children }) => {
     try {
       await loadSong(songs[safeStart]);
     } catch (err) {
-      // Dose-1.39: start-track load failed after queue was replaced — clear
-      // currentSong/audio so UI does not show a stale previous track (or a
-      // phantom current that never streamed). Queue + indices stay so the
-      // user can retry via playAtIndex.
       setIsPlaying(false);
       setCurrentSong(null);
       setAudioSrc(null);
@@ -809,14 +775,12 @@ export const PlayerProvider = ({ children }) => {
       persistPlaybackState({ currentSongId: null, position: 0, isPlaying: false });
       return;
     }
-    // Dose-1.40: load ok; play may still reject — keep track, stay paused
     try {
       await audio.play();
       setIsPlaying(true);
       preloadNext(songs, safeStart, { shuffled: isShuffled, order, pos: startPos });
       persistPlaybackState({ currentSongId: songs[safeStart]?.id, position: 0, isPlaying: true });
     } catch (err) {
-      // Dose-1.43: load ok, play rejected — force element + progress to 0
       setIsPlaying(false);
       safeSetCurrentTime(audio, 0);
       setProgress(0);
