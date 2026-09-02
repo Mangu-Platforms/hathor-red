@@ -33,12 +33,13 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Explicit play restores stream retry budget** (dose-1.53): `play()` sets `streamRetryRef = 0` so a prior terminal media-error recovery does not permanently block a later re-fetch when the user presses Play again on the same track
 - **Pause syncs progress UI** (dose-1.54): explicit `pause()` reads finite `audio.currentTime`, sets progress UI to that position, and persists the same value — closes up-to-~250ms lag from the progress interval only running while playing
 - **Play success syncs progress UI** (dose-1.55): explicit `play()` after `audio.play()` resolves sets progress UI + persist to finite `audio.currentTime` (0 when restarted from end) — mirrors pause so resume does not leave the bar one tick behind the element
+- **Advance play-success syncs progress UI** (dose-1.56): after `loadSong` + successful `audio.play()` on Next / Previous / playAtIndex / setQueueAndPlay, set progress UI + persist to finite `audio.currentTime` (not hard-coded 0 only) — same contract as dose-1.55 so the bar matches the element before the 250ms interval starts
 - Queue panel, stream error recovery, logout clears player, playback hydrate
 - Playlists, rooms, AI with fallbacks, Olympus flags honesty
 
 ## This run changed
 
-- **dose-1.55**: Explicit `play()` success path syncs progress UI + persist to finite `audio.currentTime` (mirrors dose-1.54 pause).
+- **dose-1.56**: Advance play-success paths (Next / Previous / playAtIndex / setQueueAndPlay) sync progress UI + persist to finite `audio.currentTime` after `audio.play()` resolves (mirrors dose-1.55 explicit play).
 
 ## Does not ship (honest)
 

@@ -545,8 +545,12 @@ export const PlayerProvider = ({ children }) => {
     try {
       await audio.play();
       setIsPlaying(true);
+      // Dose-1.56: advance play-success syncs progress UI to finite element time
+      // (mirrors dose-1.55). Interval only starts after isPlaying flips.
+      const pos = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+      setProgress(pos);
       preloadNext(queue, next.index, { shuffled: isShuffled, order: shuffleOrder, pos: next.shufflePos });
-      persistPlaybackState({ currentSongId: queue[next.index]?.id, position: 0, isPlaying: true });
+      persistPlaybackState({ currentSongId: queue[next.index]?.id, position: pos, isPlaying: true });
     } catch (err) {
       setIsPlaying(false);
       safeSetCurrentTime(audio, 0);
@@ -595,8 +599,11 @@ export const PlayerProvider = ({ children }) => {
     try {
       await audio.play();
       setIsPlaying(true);
+      // Dose-1.56: advance play-success syncs progress UI
+      const pos = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+      setProgress(pos);
       preloadNext(queue, prev.index, { shuffled: isShuffled, order: shuffleOrder, pos: prev.shufflePos });
-      persistPlaybackState({ currentSongId: queue[prev.index]?.id, position: 0, isPlaying: true });
+      persistPlaybackState({ currentSongId: queue[prev.index]?.id, position: pos, isPlaying: true });
     } catch (err) {
       setIsPlaying(false);
       safeSetCurrentTime(audio, 0);
@@ -627,8 +634,11 @@ export const PlayerProvider = ({ children }) => {
     try {
       await audio.play();
       setIsPlaying(true);
+      // Dose-1.56: advance play-success syncs progress UI
+      const t = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+      setProgress(t);
       preloadNext(queue, index, { shuffled: isShuffled, order: shuffleOrder, pos });
-      persistPlaybackState({ currentSongId: queue[index]?.id, position: 0, isPlaying: true });
+      persistPlaybackState({ currentSongId: queue[index]?.id, position: t, isPlaying: true });
     } catch (err) {
       setIsPlaying(false);
       safeSetCurrentTime(audio, 0);
@@ -669,7 +679,10 @@ export const PlayerProvider = ({ children }) => {
         if (wasPlaying) {
           return audio.play().then(() => {
             setIsPlaying(true);
-            persistPlaybackState({ currentSongId: nextSong?.id, position: 0, isPlaying: true });
+            // Dose-1.56: remove-current play-success syncs progress UI
+            const t = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+            setProgress(t);
+            persistPlaybackState({ currentSongId: nextSong?.id, position: t, isPlaying: true });
           }).catch(() => {
             setIsPlaying(false);
             safeSetCurrentTime(audio, 0);
@@ -842,8 +855,11 @@ export const PlayerProvider = ({ children }) => {
     try {
       await audio.play();
       setIsPlaying(true);
+      // Dose-1.56: setQueueAndPlay success syncs progress UI
+      const t = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+      setProgress(t);
       preloadNext(songs, safeStart, { shuffled: isShuffled, order, pos: startPos });
-      persistPlaybackState({ currentSongId: songs[safeStart]?.id, position: 0, isPlaying: true });
+      persistPlaybackState({ currentSongId: songs[safeStart]?.id, position: t, isPlaying: true });
     } catch (err) {
       setIsPlaying(false);
       safeSetCurrentTime(audio, 0);
