@@ -111,6 +111,8 @@ export const PlayerProvider = ({ children }) => {
   // success path persists isPlaying true and resets retry counter; terminal failure persists paused;
   // clear pending loadSong metadata listener before re-binding src; track recovery metadata cleanup;
   // dose-1.52: if readyState already has metadata after re-bind, apply resume immediately (same as hydrate).
+  // dose-1.53: explicit play() restores retry budget so a prior terminal recovery does not
+  // permanently block a later media-error re-fetch on the same track.
   useEffect(() => {
     const handleError = async () => {
       const song = currentSong;
@@ -425,6 +427,10 @@ export const PlayerProvider = ({ children }) => {
 
   const play = useCallback(async () => {
     let restartedFromEnd = false;
+    // Dose-1.53: user-initiated play restores stream recovery budget. After a
+    // terminal media-error recovery (streamRetryRef >= 1), pressing Play on the
+    // same track must still allow one re-fetch if the element errors again.
+    streamRetryRef.current = 0;
     try {
       if (!audio.src && currentSong) await loadSong(currentSong);
       const d = audio.duration;
