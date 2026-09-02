@@ -460,8 +460,13 @@ export const PlayerProvider = ({ children }) => {
   const pause = useCallback(() => {
     audio.pause();
     setIsPlaying(false);
-    if (currentSong) recordEvent('pause', currentSong, audio.currentTime);
-    persistPlaybackState({ isPlaying: false, position: audio.currentTime });
+    // Dose-1.54: progress interval only runs while playing (up to ~250ms lag).
+    // On explicit pause, force progress UI + persist to the element position
+    // with a finite guard so the bar matches the paused media element.
+    const pos = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+    setProgress(pos);
+    if (currentSong) recordEvent('pause', currentSong, pos);
+    persistPlaybackState({ isPlaying: false, position: pos });
   }, [audio, currentSong, persistPlaybackState]);
 
   const togglePlay = useCallback(() => { if (isPlaying) pause(); else play(); }, [isPlaying, pause, play]);
