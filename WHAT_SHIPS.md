@@ -27,12 +27,13 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Repeat-one play-reject forces 0** (dose-1.47): on natural `ended` with repeat-one, if `audio.play()` rejects after restart-to-0, force `safeSetCurrentTime(0)` + progress UI 0 again (same partial-start contract as dose-1.43/1.44)
 - **Stream recovery success persist** (dose-1.48): when stream re-fetch + `play()` succeeds, call `updatePlaybackState` with `isPlaying: true` and resume position so server/hydrate matches the live playing UI (mirrors the play-reject persist path)
 - **Stream recovery clears loadSong metadata listener** (dose-1.49): on `<audio>` error recovery, drop any pending `loadedmetadata` cleanup from `loadSong` so a stale listener cannot overwrite duration after src re-bind
+- **Stream recovery resets retry + tracks recovery metadata** (dose-1.50): after successful re-fetch + play, reset `streamRetryRef` so a later media error can retry once more; recovery `loadedmetadata` handler is registered via `durationMetaCleanupRef` so concurrent loadSong can clear it
 - Queue panel, stream error recovery, logout clears player, playback hydrate
 - Playlists, rooms, AI with fallbacks, Olympus flags honesty
 
 ## This run changed
 
-- **dose-1.49**: Stream-error recovery path clears `durationMetaCleanupRef` before re-binding `audio.src`, preventing a stale loadSong `loadedmetadata` handler from clobbering duration after recovery.
+- **dose-1.50**: Stream-error recovery success path resets `streamRetryRef` to 0 (so a later error can still recover once) and stores the recovery `loadedmetadata` cleanup on `durationMetaCleanupRef` for parity with `loadSong`.
 
 ## Does not ship (honest)
 

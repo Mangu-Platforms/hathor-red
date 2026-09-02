@@ -107,9 +107,9 @@ export const PlayerProvider = ({ children }) => {
     return () => clearInterval(progressInterval.current);
   }, [isPlaying, audio, currentSong]);
 
-  // Stream error recovery — dose-1.45/1.46/1.48/1.49: safe-seek + play-reject contract;
-  // success path persists isPlaying true; terminal failure persists paused;
-  // clear pending loadSong metadata listener before re-binding src.
+  // Stream error recovery — dose-1.45/1.46/1.48/1.49/1.50: safe-seek + play-reject contract;
+  // success path persists isPlaying true and resets retry counter; terminal failure persists paused;
+  // clear pending loadSong metadata listener before re-binding src; track recovery metadata cleanup.
   useEffect(() => {
     const handleError = async () => {
       const song = currentSong;
@@ -143,6 +143,7 @@ export const PlayerProvider = ({ children }) => {
         audio.src = url;
         const onMeta = () => {
           audio.removeEventListener('loadedmetadata', onMeta);
+          if (durationMetaCleanupRef.current === cleanup) durationMetaCleanupRef.current = null;
           if (gen !== playGeneration.current) return;
           if (Number.isFinite(audio.duration) && audio.duration > 0) setDuration(audio.duration);
           if (resumeAt > 0 && Number.isFinite(audio.duration) && audio.duration > 0) {
@@ -155,6 +156,9 @@ export const PlayerProvider = ({ children }) => {
           audio.play().then(() => {
             if (gen !== playGeneration.current) return;
             setIsPlaying(true);
+            // Dose-1.50: successful recovery restores retry budget so a later
+            // media error can still attempt one re-fetch.
+            streamRetryRef.current = 0;
             // Dose-1.48: successful stream recovery must persist playing so
             // hydrate/other clients match the live UI (mirrors play-reject persist).
             const pos = Number.isFinite(audio.currentTime) ? audio.currentTime : resumeAt;
@@ -177,6 +181,9 @@ export const PlayerProvider = ({ children }) => {
             }).catch(() => {});
           });
         };
+        const cleanup = () => audio.removeEventListener('loadedmetadata', onMeta);
+        // Dose-1.50: track recovery metadata listener so concurrent loadSong can clear it
+        durationMetaCleanupRef.current = cleanup;
         audio.addEventListener('loadedmetadata', onMeta);
         audio.load();
       } catch (err) {
