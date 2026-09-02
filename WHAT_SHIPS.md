@@ -29,12 +29,13 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Stream recovery clears loadSong metadata listener** (dose-1.49): on `<audio>` error recovery, drop any pending `loadedmetadata` cleanup from `loadSong` so a stale listener cannot overwrite duration after src re-bind
 - **Stream recovery resets retry + tracks recovery metadata** (dose-1.50): after successful re-fetch + play, reset `streamRetryRef` so a later media error can retry once more; recovery `loadedmetadata` handler is registered via `durationMetaCleanupRef` so concurrent loadSong can clear it
 - **Hydrate resume metadata via durationMetaCleanupRef** (dose-1.51): playback-state hydrate registers its resume `loadedmetadata` on the shared cleanup ref so concurrent `loadSong` / stream recovery cannot leave a stale seek listener
+- **Stream recovery readyState fast path** (dose-1.52): after re-binding signed stream URL on media error, if `readyState >= 1` and duration is already finite, apply resume seek + play immediately (do not only wait for `loadedmetadata`) — same contract as hydrate / loadSong
 - Queue panel, stream error recovery, logout clears player, playback hydrate
 - Playlists, rooms, AI with fallbacks, Olympus flags honesty
 
 ## This run changed
 
-- **dose-1.51**: Playback-state hydrate registers the resume-position `loadedmetadata` listener via `durationMetaCleanupRef` (and clears any prior cleanup) so concurrent `loadSong` / stream recovery drop a stale hydrate seek, matching the loadSong/recovery contract.
+- **dose-1.52**: Stream error recovery applies resume + play immediately when metadata is already available after src re-bind (`readyState >= 1`), matching hydrate and loadSong; avoids hanging recovery when `loadedmetadata` does not re-fire for a cached resource.
 
 ## Does not ship (honest)
 

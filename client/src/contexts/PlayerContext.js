@@ -107,9 +107,10 @@ export const PlayerProvider = ({ children }) => {
     return () => clearInterval(progressInterval.current);
   }, [isPlaying, audio, currentSong]);
 
-  // Stream error recovery — dose-1.45/1.46/1.48/1.49/1.50: safe-seek + play-reject contract;
+  // Stream error recovery — dose-1.45/1.46/1.48/1.49/1.50/1.52: safe-seek + play-reject contract;
   // success path persists isPlaying true and resets retry counter; terminal failure persists paused;
-  // clear pending loadSong metadata listener before re-binding src; track recovery metadata cleanup.
+  // clear pending loadSong metadata listener before re-binding src; track recovery metadata cleanup;
+  // dose-1.52: if readyState already has metadata after re-bind, apply resume immediately (same as hydrate).
   useEffect(() => {
     const handleError = async () => {
       const song = currentSong;
@@ -182,10 +183,17 @@ export const PlayerProvider = ({ children }) => {
           });
         };
         const cleanup = () => audio.removeEventListener('loadedmetadata', onMeta);
-        // Dose-1.50: track recovery metadata listener so concurrent loadSong can clear it
-        durationMetaCleanupRef.current = cleanup;
-        audio.addEventListener('loadedmetadata', onMeta);
+        // Dose-1.52: when metadata is already available after src re-bind (cached
+        // resource / fast path), apply resume + play immediately — do not only
+        // wait for loadedmetadata, matching hydrate and loadSong contracts.
         audio.load();
+        if (audio.readyState >= 1 && Number.isFinite(audio.duration) && audio.duration > 0) {
+          onMeta();
+        } else {
+          // Dose-1.50: track recovery metadata listener so concurrent loadSong can clear it
+          durationMetaCleanupRef.current = cleanup;
+          audio.addEventListener('loadedmetadata', onMeta);
+        }
       } catch (err) {
         setIsPlaying(false);
         try { audio.pause(); } catch (_) {}
