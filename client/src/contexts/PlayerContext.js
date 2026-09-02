@@ -107,12 +107,19 @@ export const PlayerProvider = ({ children }) => {
     return () => clearInterval(progressInterval.current);
   }, [isPlaying, audio, currentSong]);
 
-  // Stream error recovery — dose-1.45/1.46/1.48: safe-seek + play-reject contract;
-  // success path persists isPlaying true; terminal failure persists paused.
+  // Stream error recovery — dose-1.45/1.46/1.48/1.49: safe-seek + play-reject contract;
+  // success path persists isPlaying true; terminal failure persists paused;
+  // clear pending loadSong metadata listener before re-binding src.
   useEffect(() => {
     const handleError = async () => {
       const song = currentSong;
       if (!song) return;
+      // Dose-1.49: drop any pending loadSong metadata listener so a stale
+      // loadedmetadata cannot overwrite duration after we re-bind src.
+      if (durationMetaCleanupRef.current) {
+        durationMetaCleanupRef.current();
+        durationMetaCleanupRef.current = null;
+      }
       if (streamRetryRef.current >= 1) {
         setIsPlaying(false);
         try { audio.pause(); } catch (_) {}
