@@ -32,12 +32,13 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Stream recovery readyState fast path** (dose-1.52): after re-binding signed stream URL on media error, if `readyState >= 1` and duration is already finite, apply resume seek + play immediately (do not only wait for `loadedmetadata`) — same contract as hydrate / loadSong
 - **Explicit play restores stream retry budget** (dose-1.53): `play()` sets `streamRetryRef = 0` so a prior terminal media-error recovery does not permanently block a later re-fetch when the user presses Play again on the same track
 - **Pause syncs progress UI** (dose-1.54): explicit `pause()` reads finite `audio.currentTime`, sets progress UI to that position, and persists the same value — closes up-to-~250ms lag from the progress interval only running while playing
+- **Play success syncs progress UI** (dose-1.55): explicit `play()` after `audio.play()` resolves sets progress UI + persist to finite `audio.currentTime` (0 when restarted from end) — mirrors pause so resume does not leave the bar one tick behind the element
 - Queue panel, stream error recovery, logout clears player, playback hydrate
 - Playlists, rooms, AI with fallbacks, Olympus flags honesty
 
 ## This run changed
 
-- **dose-1.54**: Explicit `pause()` syncs progress UI + persist to finite `audio.currentTime` so the bar matches the paused element (progress interval only updates while playing).
+- **dose-1.55**: Explicit `play()` success path syncs progress UI + persist to finite `audio.currentTime` (mirrors dose-1.54 pause).
 
 ## Does not ship (honest)
 

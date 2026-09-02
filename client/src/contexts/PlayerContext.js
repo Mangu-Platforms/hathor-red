@@ -443,7 +443,14 @@ export const PlayerProvider = ({ children }) => {
       }
       await audio.play();
       setIsPlaying(true);
-      persistPlaybackState({ isPlaying: true, position: restartedFromEnd ? 0 : (Number.isFinite(audio.currentTime) ? audio.currentTime : 0) });
+      // Dose-1.55: success path syncs progress UI to finite audio.currentTime
+      // (mirrors dose-1.54 pause). Interval only starts after isPlaying flips;
+      // without this, a resume can leave the bar one tick behind the element.
+      const pos = restartedFromEnd
+        ? 0
+        : (Number.isFinite(audio.currentTime) ? audio.currentTime : 0);
+      setProgress(pos);
+      persistPlaybackState({ isPlaying: true, position: pos });
     } catch (err) {
       console.error('Play error:', err);
       setIsPlaying(false);
