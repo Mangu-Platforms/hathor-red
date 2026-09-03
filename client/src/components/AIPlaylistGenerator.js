@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { musicService } from '../services/music';
 import { usePlayer } from '../contexts/PlayerContext';
 import { getFeatures } from '../services/api';
+import './AIPlaylistGenerator.css';
 
 const AIPlaylistGenerator = () => {
   const [prompt, setPrompt] = useState('');

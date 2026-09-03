@@ -18,7 +18,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **authService soft logout event (dose-2.65)**: `authService.logout` dispatches `auth:logout` (same path as 401 interceptor) so token clear always notifies AuthContext without hard reload
 - **Room host controls (dose-4.66)**: host play/pause sends real player `progress` (seconds) instead of always 0; song picker has client-side title/artist search filter; picker CSS for list + search
 - **Rooms list listener counts (dose-4.67)**: `GET /api/rooms` prefers live unique-user socket presence counts when this process has members for a room, otherwise falls back to `room_participants` COUNT — multi-tab refcounted, recent disconnects reflected on the 15s poll without sticky ghosts
-- **Olympus fallback empty states (dose-5.68)**: AI Playlist Generator shows a clear banner when `aiLive` is false (rule-based library match, not LLM); Radar notes when `workerLive` is false so empty/stale mixes are not mysterious
+- **Olympus fallback empty states (dose-5.68)**: AI Playlist Generator shows a clear banner when `aiLive` is false (rule-based library match, not LLM); Radar notes when `workerLive` is false so empty/stale mixes are not mysterious; CSS import fixed in 5.68b
 
 ## Does not ship (honest)
 
@@ -30,4 +30,4 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## Next item
 
-Dose 5.68 Olympus AI/worker fallback banners closed. Next: tighten room detail participant list to prefer live socket presence (same pattern as rooms list 4.67), or remove any remaining dead nav labels. No Dose 6+.
+Dose 5.68/5.68b Olympus AI/worker fallback banners closed. Next: tighten room detail participant list to prefer live socket presence (same pattern as rooms list 4.67), or remove any remaining dead nav labels. No Dose 6+.
