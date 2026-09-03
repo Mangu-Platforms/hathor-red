@@ -68,6 +68,17 @@ function getRoomPresenceCounts() {
   return out;
 }
 
+/**
+ * Live unique-user roster for room detail (dose-4.69).
+ * Same presence map as counts; returns [{ userId, username, joinedAt }] or [].
+ * When non-empty for this process, HTTP room detail prefers this over DB rows.
+ */
+function getRoomPresenceRoster(roomId) {
+  const id = typeof roomId === 'string' ? parseInt(roomId, 10) : roomId;
+  if (!Number.isFinite(id) || id < 1) return [];
+  return presenceRoster(id);
+}
+
 // Lightweight per-socket event throttle: `max` events per rolling second.
 // Protects fan-out (chat/reactions to up to 100 clients) and per-event DB
 // writes from a hostile or broken client; REST routes have express-rate-limit,
@@ -544,5 +555,7 @@ setupSocketHandlers.resetStateForTests = () => {
 
 // Expose live presence counts for HTTP Rooms list honesty (dose-4.67).
 setupSocketHandlers.getRoomPresenceCounts = getRoomPresenceCounts;
+// Expose live roster for HTTP room detail participants (dose-4.69).
+setupSocketHandlers.getRoomPresenceRoster = getRoomPresenceRoster;
 
 module.exports = setupSocketHandlers;

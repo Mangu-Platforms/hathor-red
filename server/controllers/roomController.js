@@ -71,9 +71,35 @@ const getRoomById = async (req, res) => {
       [id]
     );
 
+    let participants = participantsResult.rows;
+
+    // dose-4.69: when this process has live socket presence for the room,
+    // prefer that unique-user roster over room_participants so the detail
+    // page matches list counts (4.67) and does not show sticky ghosts after
+    // disconnect before DB cleanup. Fall back to DB when presence is empty
+    // (cold process / no sockets yet).
+    try {
+      if (typeof setupSocketHandlers.getRoomPresenceRoster === 'function') {
+        const live = setupSocketHandlers.getRoomPresenceRoster(id);
+        if (Array.isArray(live) && live.length > 0) {
+          participants = live.map((m) => ({
+            id: m.userId,
+            username: m.username,
+            display_name: m.username,
+            avatar_url: null,
+            joined_at: m.joinedAt
+              ? new Date(m.joinedAt).toISOString()
+              : new Date().toISOString(),
+          }));
+        }
+      }
+    } catch {
+      // keep DB participants
+    }
+
     res.json({
       room: result.rows[0],
-      participants: participantsResult.rows
+      participants,
     });
   } catch (error) {
     console.error('Get room error:', error);
