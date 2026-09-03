@@ -93,12 +93,16 @@ export const PlayerProvider = ({ children }) => {
   useEffect(() => {
     if (isPlaying) {
       progressInterval.current = setInterval(() => {
-        setProgress(audio.currentTime);
-        setDuration(audio.duration || 0);
-        const segment = Math.floor(audio.currentTime / 10);
+        // Dose-1.57: never push non-finite values into progress/duration state
+        // (HTMLMediaElement can report NaN during load/seek/error edges).
+        const t = audio.currentTime;
+        const d = audio.duration;
+        setProgress(Number.isFinite(t) ? t : 0);
+        setDuration(Number.isFinite(d) && d > 0 ? d : 0);
+        const segment = Math.floor((Number.isFinite(t) ? t : 0) / 10);
         if (segment !== lastSegmentRef.current && currentSong) {
           lastSegmentRef.current = segment;
-          recordEvent('segment', currentSong, audio.currentTime, { durationMs: 10000 });
+          recordEvent('segment', currentSong, Number.isFinite(t) ? t : 0, { durationMs: 10000 });
         }
       }, 250);
     } else {

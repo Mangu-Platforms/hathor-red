@@ -34,12 +34,13 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Pause syncs progress UI** (dose-1.54): explicit `pause()` reads finite `audio.currentTime`, sets progress UI to that position, and persists the same value — closes up-to-~250ms lag from the progress interval only running while playing
 - **Play success syncs progress UI** (dose-1.55): explicit `play()` after `audio.play()` resolves sets progress UI + persist to finite `audio.currentTime` (0 when restarted from end) — mirrors pause so resume does not leave the bar one tick behind the element
 - **Advance play-success syncs progress UI** (dose-1.56): after `loadSong` + successful `audio.play()` on Next / Previous / playAtIndex / setQueueAndPlay, set progress UI + persist to finite `audio.currentTime` (not hard-coded 0 only) — same contract as dose-1.55 so the bar matches the element before the 250ms interval starts
+- **Progress interval finite guards** (dose-1.57): while playing, the 250ms tick only writes finite `currentTime` / positive finite `duration` into React state (and segment telemetry) so load/seek/error edges cannot push NaN into the progress bar or duration display
 - Queue panel, stream error recovery, logout clears player, playback hydrate
 - Playlists, rooms, AI with fallbacks, Olympus flags honesty
 
 ## This run changed
 
-- **dose-1.56**: Advance play-success paths (Next / Previous / playAtIndex / setQueueAndPlay) sync progress UI + persist to finite `audio.currentTime` after `audio.play()` resolves (mirrors dose-1.55 explicit play).
+- **dose-1.57**: Progress interval finite guards for `currentTime` / `duration` (and segment events) so non-finite media element values never reach progress UI state.
 
 ## Does not ship (honest)
 
