@@ -2,13 +2,29 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { discoveryService } from '../services/olympus';
 import { musicService } from '../services/music';
 import { usePlayer } from '../contexts/PlayerContext';
+import { getFeatures } from '../services/api';
 import './Olympus.css';
 
 const Radar = () => {
   const [radar, setRadar] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [workerLive, setWorkerLive] = useState(null);
   const { setQueueAndPlay } = usePlayer();
+
+  useEffect(() => {
+    let cancelled = false;
+    getFeatures()
+      .then((f) => {
+        if (!cancelled) setWorkerLive(Boolean(f?.workerLive));
+      })
+      .catch(() => {
+        if (!cancelled) setWorkerLive(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const load = useCallback(async (refresh = false) => {
     setLoading(true);
@@ -49,6 +65,14 @@ const Radar = () => {
         {radar?.generatedAt && ` Updated ${new Date(radar.generatedAt).toLocaleString()}.`}
       </div>
 
+      {/* Dose 5.68: honest note when background worker is not live (refresh jobs stall) */}
+      {workerLive === false && (
+        <div className="oly-empty" style={{ marginBottom: 16 }} role="status">
+          Background job worker is not running — Radar refresh may serve a cached or empty
+          mix until the worker is up (see Settings → Platform status).
+        </div>
+      )}
+
       <div className="oly-row" style={{ marginBottom: 20 }}>
         <button className="oly-btn" onClick={playAll} disabled={!radar?.tracks?.length}>Play the mix</button>
         <button className="oly-btn-ghost" onClick={() => load(true)}>Refresh</button>
@@ -61,6 +85,9 @@ const Radar = () => {
       ) : !radar?.tracks?.length ? (
         <div className="oly-empty">
           Not enough listening history yet — play a few tracks and check back.
+          {workerLive === false && (
+            <> If you already have history, a stalled worker may also leave this list empty.</>
+          )}
         </div>
       ) : (
         <div className="oly-grid">

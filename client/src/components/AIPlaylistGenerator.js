@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { musicService } from '../services/music';
 import { usePlayer } from '../contexts/PlayerContext';
+import { getFeatures } from '../services/api';
 
 const AIPlaylistGenerator = () => {
   const [prompt, setPrompt] = useState('');
@@ -9,7 +10,22 @@ const AIPlaylistGenerator = () => {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  const [aiLive, setAiLive] = useState(null);
   const { setQueueAndPlay } = usePlayer();
+
+  useEffect(() => {
+    let cancelled = false;
+    getFeatures()
+      .then((f) => {
+        if (!cancelled) setAiLive(Boolean(f?.aiLive));
+      })
+      .catch(() => {
+        if (!cancelled) setAiLive(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const quickPrompts = [
     'Upbeat workout songs with high energy',
@@ -47,6 +63,14 @@ const AIPlaylistGenerator = () => {
         <h2>AI Playlist Generator</h2>
         <p>Describe the vibe and let Hathor create the perfect playlist</p>
       </div>
+
+      {/* Dose 5.68: honest empty/fallback banner when live model is not connected */}
+      {aiLive === false && (
+        <div className="ai-fallback-banner" role="status">
+          Live AI model is offline — generation uses the rule-based fallback (library
+          match on mood/genre keywords). Results still play; they are not LLM-planned.
+        </div>
+      )}
 
       <div className="ai-input-area">
         <textarea

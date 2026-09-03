@@ -1,119 +1,193 @@
-.ai-generator-container {
-  background: white;
-  border-radius: 16px;
-  padding: 30px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-  margin: 20px 0;
+.ai-playlist-generator {
+  max-width: 720px;
 }
 
-.ai-generator-container h2 {
-  margin: 0 0 10px;
-  color: #333;
+.ai-header h2 {
+  margin: 0 0 4px;
 }
 
-.ai-generator-container .subtitle {
-  color: #666;
-  margin: 0 0 30px;
+.ai-header p {
+  margin: 0 0 16px;
+  opacity: 0.75;
+  font-size: 0.95rem;
 }
 
-.form-group {
-  margin-bottom: 20px;
+.ai-fallback-banner {
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(255, 180, 60, 0.12);
+  border: 1px solid rgba(255, 180, 60, 0.35);
+  color: #e8c070;
+  font-size: 0.9rem;
+  line-height: 1.4;
 }
 
-.form-group label {
-  display: block;
-  margin-bottom: 8px;
-  color: #333;
-  font-weight: 500;
+.ai-input-area {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
 }
 
-.form-group input,
-.form-group textarea {
+.ai-prompt-input {
   width: 100%;
+  min-height: 72px;
   padding: 12px;
-  border: 2px solid #e0e0e0;
   border-radius: 8px;
-  font-size: 16px;
-  font-family: inherit;
-  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.25);
+  color: inherit;
+  font: inherit;
+  resize: vertical;
 }
 
-.form-group input:focus,
-.form-group textarea:focus {
-  outline: none;
-  border-color: #667eea;
+.ai-options {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
-.btn-generate {
-  width: 100%;
-  padding: 16px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+.ai-name-input,
+.ai-count-select {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.25);
+  color: inherit;
+  font: inherit;
+}
+
+.ai-name-input {
+  flex: 1;
+  min-width: 160px;
+}
+
+.ai-generate-btn {
+  align-self: flex-start;
+  padding: 10px 18px;
+  border-radius: 8px;
   border: none;
-  border-radius: 8px;
-  font-size: 18px;
+  background: var(--accent, #e11d48);
+  color: #fff;
   font-weight: 600;
   cursor: pointer;
-  transition: transform 0.2s;
 }
 
-.btn-generate:hover:not(:disabled) {
-  transform: translateY(-2px);
-}
-
-.btn-generate:disabled {
-  opacity: 0.6;
+.ai-generate-btn:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
-.error-message {
-  background: #fee;
-  color: #c33;
-  padding: 12px;
-  border-radius: 8px;
-  margin-bottom: 20px;
-  font-size: 14px;
-}
-
-.success-message {
-  background: #efe;
-  color: #3c3;
-  padding: 12px;
-  border-radius: 8px;
-  margin-bottom: 20px;
-  font-size: 14px;
-}
-
-.examples {
-  margin-top: 30px;
-  padding-top: 30px;
-  border-top: 1px solid #e0e0e0;
-}
-
-.examples h4 {
-  margin: 0 0 15px;
-  color: #333;
-  font-size: 16px;
-}
-
-.example-tags {
+.ai-quick-prompts {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 16px;
 }
 
-.example-tag {
-  padding: 10px 16px;
-  background: #f5f7ff;
-  color: #667eea;
-  border: 2px solid #667eea;
-  border-radius: 20px;
-  font-size: 14px;
+.quick-label {
+  font-size: 0.85rem;
+  opacity: 0.7;
+}
+
+.quick-prompt-btn {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: transparent;
+  color: inherit;
+  font-size: 0.8rem;
   cursor: pointer;
-  transition: all 0.3s;
 }
 
-.example-tag:hover {
-  background: #667eea;
-  color: white;
+.ai-error {
+  color: #f87171;
+  margin-bottom: 12px;
+}
+
+.ai-result-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.ai-result-desc {
+  opacity: 0.75;
+  font-size: 0.9rem;
+}
+
+.ai-analysis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.ai-tag {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.ai-song-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 4px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.ai-song-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.ai-song-num {
+  width: 24px;
+  text-align: right;
+  opacity: 0.5;
+  font-size: 0.85rem;
+}
+
+.ai-song-cover-placeholder {
+  width: 36px;
+  height: 36px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+}
+
+.ai-song-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.ai-song-title {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ai-song-artist {
+  font-size: 0.85rem;
+  opacity: 0.7;
+}
+
+.ai-song-genre {
+  margin-left: 6px;
+  opacity: 0.6;
+}
+
+.ai-song-duration {
+  font-size: 0.85rem;
+  opacity: 0.55;
 }
