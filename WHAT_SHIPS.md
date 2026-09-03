@@ -16,6 +16,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Playlists, rooms, AI with fallbacks, Olympus flags honesty
 - **Docs honesty (dose-0.64)**: DEEP_DIVE no longer claims Web Audio stems/pitch as shipping features
 - **authService soft logout event (dose-2.65)**: `authService.logout` dispatches `auth:logout` (same path as 401 interceptor) so token clear always notifies AuthContext without hard reload
+- **Room host controls (dose-4.66)**: host play/pause sends real player `progress` (seconds) instead of always 0; song picker has client-side title/artist search filter; picker CSS for list + search
 
 ## Does not ship (honest)
 
@@ -26,4 +27,4 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## Next item
 
-Dose 2 soft-logout event closed. Next: Dose 3 home/playlists filters verification under real data, else Dose 4 rooms host song picker UX polish / honest listener counts under multi-tab. No Dose 6+.
+Dose 4 host song-picker search + honest play/pause position closed. Next: Dose 3 genre filter smoke under real catalog data if needed, else Dose 4 multi-tab listener-count honesty on Rooms list (DB vs presence), or Dose 5 dead-nav / Olympus fallback polish. No Dose 6+.

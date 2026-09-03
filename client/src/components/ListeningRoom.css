@@ -223,3 +223,106 @@
   font-size: 20px;
   color: #666;
 }
+
+/* Host song picker (Dose 4) */
+.room-song-picker {
+  margin-top: 16px;
+  padding: 16px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  max-height: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.room-song-picker-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.room-song-picker-header h4 {
+  margin: 0;
+}
+
+.room-song-picker-search {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.room-song-picker-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  max-height: 260px;
+}
+
+.room-song-picker-item {
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.room-song-picker-item:hover {
+  background: #f5f7ff;
+}
+
+.room-song-picker-title {
+  font-weight: 600;
+  color: #333;
+}
+
+.room-song-picker-artist {
+  font-size: 13px;
+  color: #666;
+}
+
+.room-song-picker-empty {
+  margin: 8px 0;
+  color: #888;
+  font-size: 14px;
+}
+
+.room-host-controls {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.room-host-controls button {
+  padding: 10px 16px;
+  background: #667eea;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.room-host-controls button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.room-listener-count {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #555;
+  font-size: 14px;
+}

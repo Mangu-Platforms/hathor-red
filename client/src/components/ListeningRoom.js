@@ -9,7 +9,7 @@ const ListeningRoom = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { loadSong, play, pause, isPlaying, currentSong } = usePlayer();
+  const { loadSong, play, pause, isPlaying, currentSong, progress } = usePlayer();
 
   const [room, setRoom] = useState(null);
   const [participants, setParticipants] = useState([]);
@@ -20,6 +20,7 @@ const ListeningRoom = () => {
   const [showSongPicker, setShowSongPicker] = useState(false);
   const [pickerSongs, setPickerSongs] = useState([]);
   const [pickerLoading, setPickerLoading] = useState(false);
+  const [pickerSearch, setPickerSearch] = useState('');
   const [hostId, setHostId] = useState(null);
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
@@ -181,6 +182,7 @@ const ListeningRoom = () => {
 
   const openSongPicker = async () => {
     setShowSongPicker(true);
+    setPickerSearch('');
     setPickerLoading(true);
     try {
       const res = await musicService.getSongs({ limit: 50 });
@@ -218,7 +220,8 @@ const ListeningRoom = () => {
     if (!socket || !room) return;
     const data = { roomId: parseInt(id, 10), action };
     if (action === 'play' || action === 'pause') {
-      data.position = Math.floor(currentSong ? 0 : 0);
+      const pos = Number.isFinite(progress) ? Math.floor(progress) : 0;
+      data.position = Math.max(0, pos);
     }
     socket.emit('room-control', data);
   };
@@ -295,21 +298,46 @@ const ListeningRoom = () => {
                   Close
                 </button>
               </div>
+              {!pickerLoading && pickerSongs.length > 0 && (
+                <input
+                  type="search"
+                  className="room-song-picker-search"
+                  placeholder="Search title or artist…"
+                  value={pickerSearch}
+                  onChange={(e) => setPickerSearch(e.target.value)}
+                  aria-label="Filter songs"
+                />
+              )}
               {pickerLoading ? (
                 <p className="room-song-picker-empty">Loading songs…</p>
               ) : pickerSongs.length === 0 ? (
                 <p className="room-song-picker-empty">No songs available. Upload tracks first.</p>
               ) : (
-                <ul className="room-song-picker-list">
-                  {pickerSongs.map((song) => (
-                    <li key={song.id}>
-                      <button type="button" className="room-song-picker-item" onClick={() => pickSong(song)}>
-                        <span className="room-song-picker-title">{song.title}</span>
-                        <span className="room-song-picker-artist">{song.artist}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+                (() => {
+                  const q = pickerSearch.trim().toLowerCase();
+                  const filtered = q
+                    ? pickerSongs.filter(
+                        (s) =>
+                          (s.title || '').toLowerCase().includes(q) ||
+                          (s.artist || '').toLowerCase().includes(q)
+                      )
+                    : pickerSongs;
+                  if (filtered.length === 0) {
+                    return <p className="room-song-picker-empty">No matches for “{pickerSearch.trim()}”.</p>;
+                  }
+                  return (
+                    <ul className="room-song-picker-list">
+                      {filtered.map((song) => (
+                        <li key={song.id}>
+                          <button type="button" className="room-song-picker-item" onClick={() => pickSong(song)}>
+                            <span className="room-song-picker-title">{song.title}</span>
+                            <span className="room-song-picker-artist">{song.artist}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  );
+                })()
               )}
             </div>
           )}
