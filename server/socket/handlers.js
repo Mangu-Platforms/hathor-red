@@ -54,6 +54,20 @@ function removePresence(roomId, userId, socketId) {
   return true;
 }
 
+/**
+ * Live unique-user presence counts for the Rooms list (dose-4.67).
+ * Prefer these over room_participants when this process has sockets for a room
+ * so multi-tab and recent disconnects are not double-counted or sticky.
+ * Returns a plain object { [roomId]: number }.
+ */
+function getRoomPresenceCounts() {
+  const out = {};
+  for (const [roomId, members] of roomPresence.entries()) {
+    out[roomId] = members.size;
+  }
+  return out;
+}
+
 // Lightweight per-socket event throttle: `max` events per rolling second.
 // Protects fan-out (chat/reactions to up to 100 clients) and per-event DB
 // writes from a hostile or broken client; REST routes have express-rate-limit,
@@ -527,5 +541,8 @@ setupSocketHandlers.resetStateForTests = () => {
   roomHosts.clear();
   roomPresence.clear();
 };
+
+// Expose live presence counts for HTTP Rooms list honesty (dose-4.67).
+setupSocketHandlers.getRoomPresenceCounts = getRoomPresenceCounts;
 
 module.exports = setupSocketHandlers;

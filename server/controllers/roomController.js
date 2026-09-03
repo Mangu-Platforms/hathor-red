@@ -1,4 +1,5 @@
 const db = require('../config/database');
+const setupSocketHandlers = require('../socket/handlers');
 
 const getRooms = async (req, res) => {
   try {
@@ -15,7 +16,28 @@ const getRooms = async (req, res) => {
        ORDER BY lr.created_at DESC`
     );
 
-    res.json({ rooms: result.rows });
+    // dose-4.67: when this process has live socket presence for a room, prefer
+    // unique connected users over room_participants (handles multi-tab refcount
+    // and recent disconnects before the next DB cleanup lands on the list poll).
+    let presenceCounts = {};
+    try {
+      if (typeof setupSocketHandlers.getRoomPresenceCounts === 'function') {
+        presenceCounts = setupSocketHandlers.getRoomPresenceCounts() || {};
+      }
+    } catch {
+      presenceCounts = {};
+    }
+
+    const rooms = result.rows.map((row) => {
+      const id = row.id;
+      const live = presenceCounts[id];
+      if (live != null && Number.isFinite(Number(live))) {
+        return { ...row, listener_count: String(Number(live)) };
+      }
+      return row;
+    });
+
+    res.json({ rooms });
   } catch (error) {
     console.error('Get rooms error:', error);
     res.status(500).json({ error: 'Internal server error' });

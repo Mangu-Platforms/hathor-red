@@ -17,6 +17,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Docs honesty (dose-0.64)**: DEEP_DIVE no longer claims Web Audio stems/pitch as shipping features
 - **authService soft logout event (dose-2.65)**: `authService.logout` dispatches `auth:logout` (same path as 401 interceptor) so token clear always notifies AuthContext without hard reload
 - **Room host controls (dose-4.66)**: host play/pause sends real player `progress` (seconds) instead of always 0; song picker has client-side title/artist search filter; picker CSS for list + search
+- **Rooms list listener counts (dose-4.67)**: `GET /api/rooms` prefers live unique-user socket presence counts when this process has members for a room, otherwise falls back to `room_participants` COUNT — multi-tab refcounted, recent disconnects reflected on the 15s poll without sticky ghosts
 
 ## Does not ship (honest)
 
@@ -24,7 +25,8 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Full multi-device live queue sync over sockets (single-device hydrate/persist only)
 - Server-persisted multi-track queue
 - Telemetry/loudness/waveform (stripped in compact restore; non-blocking for Dose 1 playback)
+- Redis-backed multi-instance room presence (in-process map only)
 
 ## Next item
 
-Dose 4 host song-picker search + honest play/pause position closed. Next: Dose 3 genre filter smoke under real catalog data if needed, else Dose 4 multi-tab listener-count honesty on Rooms list (DB vs presence), or Dose 5 dead-nav / Olympus fallback polish. No Dose 6+.
+Dose 4.67 Rooms list presence-backed listener counts closed. Next: Dose 5 dead-nav / Olympus fallback polish (empty states when aiLive/workerLive false), or tighten room detail participant list the same way. No Dose 6+.
