@@ -10,6 +10,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **PlayerContext restored (dose-1.58f)**: real loadSong via signed stream-url, play/pause/seek, queue, Fisher-Yates shuffle, repeat modes, finite volume/speed guards
 - **Playback hydrate/persist (dose-1.59)**: on auth, PlayerContext loads `/api/playback/state` (Redis then DB), restores song + position + volume/speed; debounced POST on song/play/volume/speed changes
 - **Queue reorder (dose-1.60)**: `moveInQueue` remaps `queueIndex` and shuffle permutation so drag/reorder does not desync now-playing or shuffle order
+- **Logout clears player (dose-1.61)**: soft logout pauses audio, clears src/queue/shuffle, bumps playGeneration so in-flight loadSong cannot resume under the login screen
 - Playlists, rooms, AI with fallbacks, Olympus flags honesty
 
 ## Does not ship (honest)
@@ -21,4 +22,4 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## Next item
 
-Dose 1 residual: queue reorder + shuffle index coherence closed. Next: Dose 2 account polish if any gap remains, else Dose 3 home/playlists filters verification. No Dose 6+.
+Dose 1 residual logout player clear closed. Next: Dose 2 account polish if any gap remains, else Dose 3 home/playlists filters verification. No Dose 6+.

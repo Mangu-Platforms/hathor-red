@@ -173,10 +173,36 @@ export const PlayerProvider = ({ children }) => {
     }
   }, [audio]);
 
+  // Dose 1.61: on logout (isAuthenticated -> false), stop audio and clear local player
+  // so soft logout does not leave music playing under the login screen.
+  useEffect(() => {
+    if (isAuthenticated) return undefined;
+    hydratedRef.current = false;
+    try {
+      audio.pause();
+      audio.removeAttribute('src');
+      audio.load();
+    } catch (_) {
+      /* ignore */
+    }
+    setIsPlaying(false);
+    setCurrentSong(null);
+    setAudioSrc(null);
+    setProgress(0);
+    setDuration(0);
+    setQueue([]);
+    setQueueIndex(0);
+    setShuffleOrder([]);
+    setShufflePos(0);
+    setIsShuffled(false);
+    playGeneration.current += 1;
+    clearTimeout(persistTimer.current);
+    return undefined;
+  }, [isAuthenticated, audio]);
+
   // Dose 1.59: hydrate from Redis-backed /api/playback/state once after login
   useEffect(() => {
     if (!isAuthenticated) {
-      hydratedRef.current = false;
       return undefined;
     }
     if (hydratedRef.current) return undefined;
