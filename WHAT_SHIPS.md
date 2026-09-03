@@ -15,6 +15,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Remove now-playing from queue (dose-1.63)**: removing the active queue row loads the next track (or stops cleanly if queue empties) instead of leaving a stale currentSong
 - Playlists, rooms, AI with fallbacks, Olympus flags honesty
 - **Docs honesty (dose-0.64)**: DEEP_DIVE no longer claims Web Audio stems/pitch as shipping features
+- **authService soft logout event (dose-2.65)**: `authService.logout` dispatches `auth:logout` (same path as 401 interceptor) so token clear always notifies AuthContext without hard reload
 
 ## Does not ship (honest)
 
@@ -25,4 +26,4 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## Next item
 
-Dose 0 docs honesty closed for DEEP_DIVE. Next: Dose 2 account polish if any gap remains, else Dose 3 home/playlists filters verification under real data, else Dose 4 rooms host song picker UX. No Dose 6+.
+Dose 2 soft-logout event closed. Next: Dose 3 home/playlists filters verification under real data, else Dose 4 rooms host song picker UX polish / honest listener counts under multi-tab. No Dose 6+.

@@ -17,8 +17,15 @@ export const authService = {
     if (response.data.token) localStorage.setItem('token', response.data.token);
     return response.data;
   },
+  /**
+   * Soft logout: clear token and notify AuthContext/Player via auth:logout.
+   * Do not hard-reload; SPA routes to /login after user state clears.
+   */
   logout: () => {
     localStorage.removeItem('token');
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('auth:logout', { detail: { reason: 'user_logout' } }));
+    }
   },
   getProfile: async () => {
     const response = await api.get('/auth/profile');
