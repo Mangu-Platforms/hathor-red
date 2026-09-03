@@ -5,6 +5,7 @@ import { useAuth } from './AuthContext';
 const PlayerContext = createContext();
 
 const PREV_RESTART_THRESHOLD_SEC = 3;
+const PERSIST_DEBOUNCE_MS = 1500;
 
 function fisherYatesShuffle(length) {
   const order = Array.from({ length }, (_, i) => i);
@@ -82,6 +83,8 @@ export const PlayerProvider = ({ children }) => {
   const shufflePosRef = useRef(shufflePos);
   const repeatModeRef = useRef(repeatMode);
   const currentSongRef = useRef(currentSong);
+  const hydratedRef = useRef(false);
+  const persistTimer = useRef(null);
   const audio = audioRef.current;
 
   useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
@@ -154,6 +157,80 @@ export const PlayerProvider = ({ children }) => {
     }
   }, [audio]);
 
+  // Dose 1.59: hydrate from Redis-backed /api/playback/state once after login
+  useEffect(() => {
+    if (!isAuthenticated) {
+      hydratedRef.current = false;
+      return undefined;
+    }
+    if (hydratedRef.current) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await musicService.getPlaybackState();
+        if (cancelled) return;
+        const st = data?.state;
+        if (!st) {
+          hydratedRef.current = true;
+          return;
+        }
+        const songId = st.current_song_id ?? st.currentSongId;
+        const pos = Number(st.position);
+        const startAt = Number.isFinite(pos) && pos > 0 ? pos : 0;
+        const vol = Number(st.volume);
+        if (Number.isFinite(vol)) setVolumeState(Math.max(0, Math.min(1, vol)));
+        const speedRaw = st.playback_speed ?? st.playbackSpeed;
+        const speed = Number(speedRaw);
+        if (Number.isFinite(speed) && speed > 0) {
+          setPlaybackSpeedState(Math.max(0.5, Math.min(2, speed)));
+        }
+        const wantPlay = Boolean(st.is_playing ?? st.isPlaying);
+        if (songId != null) {
+          try {
+            const songRes = await musicService.getSong(songId);
+            const song = songRes?.song || songRes;
+            if (song && !cancelled) {
+              await loadSong(song, { autoplay: wantPlay, startAt });
+            }
+          } catch (songErr) {
+            console.warn('playback hydrate: song load failed', songErr);
+          }
+        }
+      } catch (err) {
+        console.warn('playback hydrate failed', err);
+      } finally {
+        if (!cancelled) hydratedRef.current = true;
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, loadSong]);
+
+  const persistPlayback = useCallback(() => {
+    if (!isAuthenticated || !hydratedRef.current) return;
+    clearTimeout(persistTimer.current);
+    persistTimer.current = setTimeout(() => {
+      const song = currentSongRef.current;
+      const payload = {
+        currentSongId: song?.id ?? null,
+        position: Math.floor(Number.isFinite(audio.currentTime) ? audio.currentTime : 0),
+        isPlaying: isPlayingRef.current,
+        volume: Number.isFinite(audio.volume) ? audio.volume : 1,
+        playbackSpeed: Number.isFinite(audio.playbackRate) ? audio.playbackRate : 1,
+      };
+      musicService.updatePlaybackState(payload).catch(() => {
+        /* non-blocking */
+      });
+    }, PERSIST_DEBOUNCE_MS);
+  }, [isAuthenticated, audio]);
+
+  useEffect(() => {
+    if (!hydratedRef.current) return undefined;
+    persistPlayback();
+    return () => clearTimeout(persistTimer.current);
+  }, [currentSong, isPlaying, volume, playbackSpeed, persistPlayback]);
+
   const play = useCallback(async () => {
     if (!currentSongRef.current) return;
     try {
@@ -185,7 +262,8 @@ export const PlayerProvider = ({ children }) => {
     const clamped = Number.isFinite(d) && d > 0 ? Math.max(0, Math.min(d, time)) : Math.max(0, time);
     safeSetCurrentTime(audio, clamped);
     setProgress(clamped);
-  }, [audio]);
+    persistPlayback();
+  }, [audio, persistPlayback]);
 
   const playAtIndex = useCallback(
     async (index) => {
