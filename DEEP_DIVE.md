@@ -11,75 +11,66 @@ The Hathor Music Platform is a modern, full-stack application built with scalabi
 ### 1. Frontend (React 18)
 - **State Management**: Uses React Context (`AuthContext`, `PlayerContext`) for global state.
 - **Real-time**: Leverages `socket.io-client` for synchronized playback in listening rooms.
-- **Audio Processing**: Uses the **Web Audio API** for advanced features like stem separation (vocals/drums/bass toggles) and vibe controls (real-time speed and pitch adjustment).
+- **Audio**: Progressive HTML5 `<audio>` with signed stream URLs, queue, Fisher-Yates shuffle, repeat modes, volume, and playback-rate (0.5x–2x). **Stem separation and independent pitch shift do not ship** — UI controls were removed; no Web Audio graph for those features is mounted in `PlayerContext`.
 
 ### 2. Backend (Node.js & Express)
 - **API**: RESTful endpoints for user management, music library, playlists, and listening rooms.
-- **Authentication**: Secure JWT-based auth with password hashing via `bcryptjs`.
-- **Real-time**: `socket.io` server handles multi-user synchronization and chat.
-- **File Handling**: `multer` manages audio uploads to the local `uploads/` directory.
+- **Authentication**: Secure JWT-based auth with password hashing via `bcryptjs`. Signed query tokens (`streamAuth` + `streamToken`) for `<audio src>` without Authorization headers.
+- **Real-time**: `socket.io` server handles multi-user room sync and chat.
+- **File Handling**: `multer` manages audio uploads; files are **not** served via public static `/uploads` — only the authenticated/signed stream route.
 
 ### 3. Data Layer
 - **PostgreSQL**: Primary relational database for user data, song metadata, and relationships.
-- **Redis**: High-performance caching for cross-device synchronization and real-time state management.
+- **Redis**: Caching for song lists and playback hydrate/persist (`playback:{userId}`).
 
 ---
 
 ## 🚀 Production-Ready Improvements
 
-We have implemented several critical enhancements to move the project from MVP to production-ready:
+We have implemented several critical enhancements to move the project from MVP toward production readiness:
 
 ### 🛡️ Security Hardening
 - **Helmet.js**: Configured secure HTTP headers to protect against XSS, clickjacking, and other web vulnerabilities.
-- **Rate Limiting**: Implemented `express-rate-limit` on all API endpoints, with stricter limits on auth routes to prevent brute-force attacks.
-- **Input Validation**: Added robust validation for all user inputs using `express-validator` to ensure data integrity and prevent injection attacks.
+- **Rate Limiting**: Implemented `express-rate-limit` on API endpoints, with stricter limits on auth routes.
+- **Input Validation**: `express-validator` on user inputs.
+- **Media**: Path-safe upload resolution; stream only via signed token or Bearer JWT.
 
 ### 📈 Observability & Reliability
-- **Structured Logging**: Replaced standard console logs with **Winston**, enabling leveled logging (info/error) and persistent log files in the `logs/` directory.
-- **Enhanced Health Checks**: The `/api/health` endpoint now actively monitors connectivity to both PostgreSQL and Redis, providing a real-time status of the system dependencies.
-- **Response Compression**: Integrated `compression` middleware to reduce payload sizes and improve load times for users.
+- **Structured Logging**: Winston with leveled logging.
+- **Health Checks**: `/api/health` monitors PostgreSQL and Redis (and worker when enabled).
+- **Response Compression**: `compression` middleware.
 
-### 📦 Modernized Infrastructure
-- **Standardized pnpm**: Migrated the entire project to `pnpm` for faster, more deterministic dependency management.
-- **Dockerization**: Created a multi-stage `Dockerfile` and a comprehensive `docker-compose.yml` that orchestrates the App, PostgreSQL, Redis, and an Nginx reverse proxy.
-- **CI/CD Fixes**: Updated GitHub Actions workflows to fully support the `pnpm` ecosystem and ensure dependency-aware security scanning.
+### 📦 Infrastructure
+- **pnpm**: Package manager for the monorepo-style client/server layout.
+- **Docker**: `Dockerfile` and compose for App, PostgreSQL, Redis (see repo root).
+- **CI**: GitHub Actions workflows for quality and deploy paths.
 
 ---
 
 ## 🏁 Final Launch Steps
 
-To launch the application in production, follow these steps:
-
 ### 1. Environment Configuration
-Create a `.env` file based on `.env.example`. For production, ensure you generate strong secrets:
+Create a `.env` file based on `.env.example`. For production, generate strong secrets:
 ```bash
-# Generate a secure JWT secret
 openssl rand -base64 32
 ```
 
 ### 2. Deployment via Docker
-The easiest way to launch is using Docker Compose:
 ```bash
-# Build and start all services in detached mode
 docker-compose up -d
 ```
-This will start:
-- **App**: Node.js backend serving the React production build.
-- **Postgres**: Database with schema automatically initialized.
-- **Redis**: Caching and sync engine.
-- **Nginx**: Reverse proxy handling traffic on port 80.
 
 ### 3. Verification
-Check the health of the system:
 ```bash
 curl http://localhost/api/health
 ```
 
-### 4. Next Steps for Growth
-- **SSL/TLS**: Configure SSL certificates (e.g., via Let's Encrypt) in the Nginx configuration.
-- **Object Storage**: For high traffic, consider migrating `uploads/` to AWS S3 or Google Cloud Storage.
-- **Migrations**: Implement a tool like Knex.js or Prisma for more granular database versioning as the schema evolves.
+### 4. Honest non-goals (see WHAT_SHIPS.md)
+- No HLS in the React player UI (progressive stream only)
+- No OAuth until password path stays solid
+- No WebRTC video product surface; RTC signaling exists for experimental room voice only
+- No Demucs/stems or pitch DSP in the live player
 
 ---
 
-**You are now ready to launch Hathor Music! 🎵🚀**
+**Align product claims with WHAT_SHIPS.md and README.md.**
