@@ -459,19 +459,46 @@ export const PlayerProvider = ({ children }) => {
     setQueue((prev) => [...prev, song]);
   }, []);
 
+  // dose-1.63: if the removed row is now-playing, load the song that lands at
+  // the adjusted index (or stop cleanly when the queue becomes empty).
   const removeFromQueue = useCallback((index) => {
     setQueue((prev) => {
       if (index < 0 || index >= prev.length) return prev;
+      const removingCurrent = index === queueIndexRef.current;
+      const wasPlaying = isPlayingRef.current;
       const next = prev.filter((_, i) => i !== index);
       setShuffleOrder((so) => remapShuffleAfterRemove(so, index));
-      setQueueIndex((qi) => {
-        if (index < qi) return qi - 1;
-        if (index === qi) return Math.min(qi, Math.max(0, next.length - 1));
-        return qi;
-      });
+      let newIndex = queueIndexRef.current;
+      if (index < newIndex) newIndex -= 1;
+      else if (index === newIndex) newIndex = Math.min(newIndex, Math.max(0, next.length - 1));
+      setQueueIndex(next.length === 0 ? 0 : newIndex);
+      if (removingCurrent) {
+        if (next.length === 0) {
+          try {
+            audio.pause();
+            audio.removeAttribute('src');
+            audio.load();
+          } catch (_) {
+            /* ignore */
+          }
+          setIsPlaying(false);
+          setCurrentSong(null);
+          setAudioSrc(null);
+          setProgress(0);
+          setDuration(0);
+          playGeneration.current += 1;
+          streamRetryGen.current = -1;
+        } else {
+          const song = next[newIndex];
+          // Defer load so React state commits the new queue first
+          queueMicrotask(() => {
+            if (song) loadSong(song, { autoplay: wasPlaying });
+          });
+        }
+      }
       return next;
     });
-  }, []);
+  }, [audio, loadSong]);
 
   const clearQueue = useCallback(() => {
     setQueue([]);

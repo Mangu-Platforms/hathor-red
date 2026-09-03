@@ -12,6 +12,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Queue reorder (dose-1.60)**: `moveInQueue` remaps `queueIndex` and shuffle permutation so drag/reorder does not desync now-playing or shuffle order
 - **Logout clears player (dose-1.61)**: soft logout pauses audio, clears src/queue/shuffle, bumps playGeneration so in-flight loadSong cannot resume under the login screen
 - **Stream URL refresh on media error (dose-1.62)**: one automatic re-mint of `/stream-url` per playGeneration when `<audio>` fires `error` (expired token / transient fail), resume near last position
+- **Remove now-playing from queue (dose-1.63)**: removing the active queue row loads the next track (or stops cleanly if queue empties) instead of leaving a stale currentSong
 - Playlists, rooms, AI with fallbacks, Olympus flags honesty
 
 ## Does not ship (honest)
@@ -23,4 +24,4 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## Next item
 
-Dose 1 stream-error recovery closed. Next: Dose 2 account polish if any gap remains, else Dose 3 home/playlists filters verification. No Dose 6+.
+Dose 1 queue remove-current closed. Next: Dose 2 account polish if any gap remains, else Dose 3 home/playlists filters verification. No Dose 6+.
