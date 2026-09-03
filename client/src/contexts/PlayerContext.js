@@ -101,6 +101,8 @@ export const PlayerProvider = ({ children }) => {
   const currentSongRef = useRef(currentSong);
   const hydratedRef = useRef(false);
   const persistTimer = useRef(null);
+  /** dose-1.62: one automatic stream-url refresh per loadSong gen after media error */
+  const streamRetryGen = useRef(-1);
   const audio = audioRef.current;
 
   useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
@@ -139,6 +141,7 @@ export const PlayerProvider = ({ children }) => {
   const loadSong = useCallback(async (song, { autoplay = true, startAt = 0 } = {}) => {
     if (!song || song.id == null) return;
     const gen = ++playGeneration.current;
+    streamRetryGen.current = -1;
     setCurrentSong(song);
     setProgress(Number.isFinite(startAt) ? startAt : 0);
     setDuration(Number.isFinite(song.duration) ? Number(song.duration) : 0);
@@ -173,6 +176,49 @@ export const PlayerProvider = ({ children }) => {
     }
   }, [audio]);
 
+  // Dose 1.62: if <audio> errors (expired signed token, transient 4xx), mint a fresh
+  // stream-url once for the same playGeneration and resume near the last position.
+  useEffect(() => {
+    const onError = () => {
+      const song = currentSongRef.current;
+      const gen = playGeneration.current;
+      if (!song || song.id == null) return;
+      if (streamRetryGen.current === gen) return;
+      streamRetryGen.current = gen;
+      const resumeAt = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+      const wantPlay = isPlayingRef.current;
+      (async () => {
+        try {
+          const data = await musicService.getStreamUrl(song.id);
+          if (gen !== playGeneration.current) return;
+          const url = data?.url;
+          if (!url) return;
+          setAudioSrc(url);
+          audio.src = url;
+          audio.load();
+          const onMeta = () => {
+            if (Number.isFinite(audio.duration) && audio.duration > 0) setDuration(audio.duration);
+            if (resumeAt > 0) safeSetCurrentTime(audio, resumeAt);
+          };
+          audio.addEventListener('loadedmetadata', onMeta, { once: true });
+          if (wantPlay) {
+            try {
+              await audio.play();
+              if (gen === playGeneration.current) setIsPlaying(true);
+            } catch (_) {
+              setIsPlaying(false);
+            }
+          }
+        } catch (err) {
+          console.warn('stream URL refresh after media error failed', err);
+          setIsPlaying(false);
+        }
+      })();
+    };
+    audio.addEventListener('error', onError);
+    return () => audio.removeEventListener('error', onError);
+  }, [audio]);
+
   // Dose 1.61: on logout (isAuthenticated -> false), stop audio and clear local player
   // so soft logout does not leave music playing under the login screen.
   useEffect(() => {
@@ -196,6 +242,7 @@ export const PlayerProvider = ({ children }) => {
     setShufflePos(0);
     setIsShuffled(false);
     playGeneration.current += 1;
+    streamRetryGen.current = -1;
     clearTimeout(persistTimer.current);
     return undefined;
   }, [isAuthenticated, audio]);
