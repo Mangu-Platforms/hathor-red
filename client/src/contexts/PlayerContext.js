@@ -22,6 +22,22 @@ function remapShuffleAfterRemove(shuffleOrder, removed) {
   return shuffleOrder.filter((i) => i !== removed).map((i) => (i > removed ? i - 1 : i));
 }
 
+/** Remap queue indices after moving item from `from` to `to` (same semantics as array move). */
+function remapIndexAfterMove(index, from, to) {
+  if (!Number.isInteger(index) || index < 0) return index;
+  if (index === from) return to;
+  if (from < to) {
+    if (index > from && index <= to) return index - 1;
+  } else if (from > to) {
+    if (index >= to && index < from) return index + 1;
+  }
+  return index;
+}
+
+function remapShuffleAfterMove(shuffleOrder, from, to) {
+  return shuffleOrder.map((i) => remapIndexAfterMove(i, from, to));
+}
+
 function safeSetCurrentTime(audio, time) {
   if (!Number.isFinite(time) || time < 0) return;
   try {
@@ -393,10 +409,21 @@ export const PlayerProvider = ({ children }) => {
 
   const moveInQueue = useCallback((from, to) => {
     setQueue((prev) => {
-      if (from < 0 || from >= prev.length || to < 0 || to >= prev.length) return prev;
+      if (from < 0 || from >= prev.length || to < 0 || to >= prev.length || from === to) {
+        return prev;
+      }
       const next = [...prev];
       const [item] = next.splice(from, 1);
       next.splice(to, 0, item);
+      // Keep shuffle permutation and now-playing index coherent after reorder
+      setShuffleOrder((so) => (so.length ? remapShuffleAfterMove(so, from, to) : so));
+      setQueueIndex((qi) => remapIndexAfterMove(qi, from, to));
+      setShufflePos((sp) => {
+        // shufflePos is an index into shuffleOrder; order values were remapped,
+        // but position in the permutation sequence stays the same unless we need
+        // to re-find current song — keep pos stable when length unchanged.
+        return sp;
+      });
       return next;
     });
   }, []);

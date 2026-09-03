@@ -44,10 +44,11 @@ Authorization: Bearer <token>
 - Volume control
 - Current song display with metadata
 - Listening history tracking
+- Queue with shuffle (Fisher-Yates), repeat modes, reorder
 
 **Technical Implementation:**
 - Backend: `server/controllers/songController.js`
-- Frontend: `client/src/components/Player.js`
+- Frontend: `client/src/components/MusicPlayer.js` + `client/src/contexts/PlayerContext.js`
 - Service: `client/src/services/music.js`
 
 **Supported Formats:**
@@ -58,21 +59,22 @@ Authorization: Bearer <token>
 // Get songs
 GET /api/songs?search=rock&genre=Rock
 
-// Stream song
-GET /api/songs/:id/stream
+// Mint signed stream URL then play in <audio>
+GET /api/songs/:id/stream-url
+GET /api/songs/:id/stream?t=<token>
 ```
 
 ---
 
-### 3. Cross-Device Sync
-**Description:** Seamlessly continue playback across all your devices
+### 3. Cross-Device Sync (hydrate / persist)
+**Description:** Resume playback position and basic controls after re-login or refresh
 
 **Features:**
-- Real-time playback state synchronization
-- Position, volume, and settings sync
-- Redis-based caching for instant updates
-- WebSocket notifications for live updates
-- Automatic conflict resolution
+- Playback state stored in Redis (hot) with Postgres fallback
+- Client hydrates once after auth; debounced HTTP persist on song/play/volume/speed
+- Socket `sync-state` path also writes Redis (same key/TTL as HTTP)
+
+**What is NOT synced live today:** multi-device simultaneous control, full queue, pitch, or stems.
 
 **Technical Implementation:**
 - Backend: `server/controllers/playbackController.js`
@@ -80,14 +82,12 @@ GET /api/songs/:id/stream
 - Frontend: `client/src/contexts/PlayerContext.js`
 - Socket: `server/socket/handlers.js`
 
-**Synced State:**
-- Current song
+**Synced State (HTTP):**
+- Current song id
 - Playback position
 - Play/pause state
 - Volume level
 - Playback speed
-- Pitch shift
-- Stem configuration
 
 **Usage:**
 ```javascript
@@ -96,10 +96,7 @@ GET /api/playback/state
 
 // Update state
 POST /api/playback/state
-{ currentSongId, position, isPlaying, volume, ... }
-
-// WebSocket sync
-socket.emit('sync-state', state)
+{ currentSongId, position, isPlaying, volume, playbackSpeed }
 ```
 
 ---
@@ -108,10 +105,9 @@ socket.emit('sync-state', state)
 **Description:** Create personalized playlists from natural language prompts
 
 **Features:**
-- Natural language understanding
-- Mood and genre detection
-- Automatic song selection
-- Custom or auto-generated names
+- Natural language understanding when OpenAI/Colab is configured
+- Rule-based fallback when AI is offline (`aiLive: false` on `/api/features`)
+- Mood and genre heuristics
 - Save and share playlists
 
 **Technical Implementation:**
@@ -121,15 +117,6 @@ socket.emit('sync-state', state)
 **Example Prompts:**
 - "Upbeat workout songs with high energy"
 - "Chill relaxing music for studying"
-- "Party dance tracks for the weekend"
-- "Emotional acoustic songs for reflection"
-
-**Algorithm:**
-1. Parse prompt for keywords
-2. Detect mood and genre preferences
-3. Query songs matching criteria
-4. Randomize selection for variety
-5. Create playlist with 10 songs
 
 **Usage:**
 ```javascript
@@ -142,75 +129,25 @@ POST /api/playlists/generate-ai
 
 ---
 
-### 5. Native Stem Separation
-**Description:** Toggle individual audio stems (vocals, drums, bass, other)
+### 5. Stem Separation — **does not ship**
+**Status:** Not implemented in the live player audio graph.
 
-**Features:**
-- Independent control of 4 stems
-- Real-time toggling without interruption
-- Visual feedback for active stems
-- Combination of any stems
-- Saved preferences per song
-
-**Technical Implementation:**
-- Frontend: Web Audio API integration
-- State: `client/src/contexts/PlayerContext.js`
-- UI: `client/src/components/Player.js`
-
-**Stems:**
-- 🎤 Vocals - Lead and background vocals
-- 🥁 Drums - Percussion and rhythm
-- 🎸 Bass - Bass guitar and low frequencies
-- 🎹 Other - Melodic instruments and effects
-
-**Note:** This is a simplified implementation. Production systems would use:
-- Server-side processing with libraries like Spleeter
-- Pre-processed stem files
-- Streaming of individual stem tracks
-
-**Usage:**
-```javascript
-// Toggle stems in player
-stemsConfig = {
-  vocals: true,
-  drums: true,
-  bass: false,  // Mute bass
-  other: true
-}
-```
+UI controls for stems were removed. Do not document or demo as a shipping feature.
+Production stem separation would require server-side models (e.g. Demucs) and pre-separated assets — none of that is wired to `<audio>` today.
 
 ---
 
-### 6. Vibe Control Sliders
-**Description:** Adjust playback speed and pitch in real-time
+### 6. Playback speed (ships); pitch shift — **does not ship**
+**Description:** Adjust playback rate in real time via HTMLAudioElement.playbackRate
 
-**Features:**
-- **Speed Control:** 0.5x to 2.0x (50% to 200%)
-- **Pitch Shift:** -12 to +12 semitones
-- Real-time audio manipulation
-- No audio quality loss
-- Independent speed and pitch control
+**Ships:**
+- **Speed Control:** 0.5x to 2.0x
+
+**Does not ship:**
+- **Pitch Shift** independent of speed (no Web Audio pitch node in PlayerContext)
 
 **Technical Implementation:**
-- Web Audio API playback rate
-- Frontend: `client/src/components/Player.js`
-- Context: `client/src/contexts/PlayerContext.js`
-
-**Use Cases:**
-- Slow down for learning
-- Speed up for time-saving
-- Pitch shift for karaoke
-- Create unique remixes
-- Match different keys
-
-**Usage:**
-```javascript
-// Change speed
-changePlaybackSpeed(1.5) // 150% speed
-
-// Change pitch
-changePitchShift(2) // Up 2 semitones
-```
+- `client/src/contexts/PlayerContext.js` + speed slider in `MusicPlayer.js`
 
 ---
 
@@ -220,48 +157,15 @@ changePitchShift(2) // Up 2 semitones
 **Features:**
 - Create public or private rooms
 - Host controls (play, pause, seek, change song)
-- Real-time playback synchronization
+- Real-time playback synchronization via Socket.io
 - Live chat functionality
-- Participant list with avatars
-- Up to 50 concurrent listeners per room
-- Visual indicators (live badge, listener count)
+- Participant list; disconnect cleans `room_participants`
+- Listener counts refreshed on rooms list (poll)
 
 **Technical Implementation:**
 - Backend: `server/controllers/roomController.js`
 - WebSocket: `server/socket/handlers.js`
 - Frontend: `client/src/components/ListeningRoom.js`
-- Real-time: Socket.io
-
-**Host Controls:**
-- Play/Pause playback
-- Seek to position
-- Change current song
-- Manage participants
-
-**Participant Features:**
-- View current song
-- See playback state
-- Chat with others
-- View participant list
-
-**WebSocket Events:**
-```javascript
-// Join room
-socket.emit('join-room', roomId)
-
-// Control playback (host only)
-socket.emit('room-control', {
-  roomId, action: 'play', position: 45
-})
-
-// Send chat
-socket.emit('room-chat', { roomId, message })
-
-// Listen for updates
-socket.on('room-update', handleUpdate)
-socket.on('chat-message', handleMessage)
-socket.on('user-joined', handleUserJoin)
-```
 
 ---
 
@@ -277,140 +181,45 @@ socket.on('user-joined', handleUserJoin)
 - **playback_states** - Cross-device sync state
 - **listening_history** - User listening analytics
 
-### Key Relationships
-- User → Playlists (one-to-many)
-- Playlist ↔ Songs (many-to-many)
-- User → Listening Rooms (one-to-many as host)
-- Room ↔ Users (many-to-many as participants)
-- User → Playback State (one-to-one)
-
 ---
 
 ## 🔧 Technical Architecture
 
 ### Backend (Node.js + Express)
 - RESTful API design
-- JWT authentication
+- JWT authentication + signed stream tokens for media
 - PostgreSQL for data persistence
 - Redis for caching and sessions
 - Socket.io for real-time features
 - Multer for file uploads
 
-### Frontend (React)
-- Component-based architecture
+### Frontend (React 18 SPA)
 - Context API for state management
 - React Router for navigation
-- Web Audio API for playback
-- Socket.io client for real-time
-- Responsive CSS design
-
-### Real-time Communication
-- WebSocket connections via Socket.io
-- JWT authentication for sockets
-- Room-based broadcasting
-- Event-driven architecture
-
-### Data Flow
-1. User authenticates → JWT token
-2. Token stored in localStorage
-3. Token sent with all API requests
-4. WebSocket authenticated with token
-5. Real-time updates via Socket.io
-6. State synced via Redis
-
----
-
-## 🎨 User Interface
-
-### Design Principles
-- Modern gradient-based aesthetics
-- Intuitive navigation
-- Responsive layouts
-- Real-time visual feedback
-- Smooth animations
-- Accessibility considerations
-
-### Color Scheme
-- Primary: Purple gradient (#667eea → #764ba2)
-- Background: Light gray (#f5f7fa)
-- Text: Dark gray (#333) and medium gray (#666)
-- Accents: Red (#e74c3c) for actions
-
-### Key Components
-- **Header** - Navigation and user menu
-- **Player** - Playback controls and info
-- **Song List** - Browsable music library
-- **AI Generator** - Playlist creation form
-- **Listening Room** - Synchronized playback interface
-- **Auth Forms** - Login and registration
-
----
-
-## 📊 Performance Considerations
-
-### Optimization Techniques
-- Redis caching for frequently accessed data
-- Database indexing on foreign keys
-- Efficient SQL queries with JOINs
-- File streaming for audio playback
-- WebSocket connection pooling
-- React component memoization
-
-### Scalability Features
-- Stateless API design
-- Horizontal scaling ready
-- Database connection pooling
-- Redis pub/sub for multi-instance
-- CDN-ready static assets
+- Progressive `<audio>` streams (not HLS in the player UI)
+- Socket.io client for rooms
 
 ---
 
 ## 🔒 Security Features
 
 ### Authentication
-- Bcrypt password hashing (10 rounds)
+- Bcrypt password hashing
 - JWT with expiration
-- Token-based API access
-- Secure WebSocket connections
+- Short-lived stream tokens for `<audio src>`
 
-### Authorization
-- Role-based access (host vs participant)
-- Ownership verification
-- Private vs public resources
-- Request validation
-
-### Data Protection
-- SQL injection prevention (parameterized queries)
-- XSS protection (input sanitization)
-- CORS configuration
-- Rate limiting ready
-- File upload validation
+### Media
+- No public `/uploads` static mount; audio only via signed stream route
+- Range requests for seek
 
 ---
 
 ## 🚀 Future Enhancement Ideas
 
-### Advanced Features
-- **Advanced Stem Separation** - Server-side AI models (Spleeter, Demucs)
-- **Enhanced AI** - OpenAI GPT integration for smarter playlists
-- **Lyrics Display** - Synchronized lyrics with playback
-- **Social Features** - Follow users, share playlists
-- **Mobile Apps** - React Native applications
-- **Offline Mode** - PWA with service workers
-- **Analytics Dashboard** - Listening statistics and insights
-- **Collaborative Playlists** - Multiple users editing
-- **Music Visualization** - Canvas/WebGL visualizers
-- **Voice Commands** - Voice control integration
-
-### Technical Improvements
-- **Caching Layer** - Advanced Redis strategies
-- **CDN Integration** - Audio file delivery
-- **Load Balancing** - Multiple server instances
-- **Monitoring** - APM and error tracking
-- **Testing** - Unit and integration tests
-- **CI/CD** - Automated deployment pipeline
-- **Microservices** - Service separation
-- **GraphQL** - Alternative to REST API
+- Server-side stem separation / pitch DSP if product prioritizes them
+- HLS adaptive playback in the React player (transcode path exists; player uses progressive)
+- OAuth providers after password path remains solid
+- Multi-device live queue sync over sockets
 
 ---
 
@@ -426,7 +235,8 @@ socket.on('user-joined', handleUserJoin)
 - GET `/api/songs` - List songs
 - GET `/api/songs/:id` - Get song details
 - POST `/api/songs/upload` - Upload song
-- GET `/api/songs/:id/stream` - Stream audio
+- GET `/api/songs/:id/stream-url` - Mint signed URL
+- GET `/api/songs/:id/stream` - Stream audio (`?t=` or Bearer)
 - POST `/api/songs/record-listening` - Track play
 
 ### Playlists
@@ -451,12 +261,8 @@ socket.on('user-joined', handleUserJoin)
 
 ---
 
-**Built with passion for music and technology!** 🎵
-
----
-
-### 8. Hardened Authenticated Media Streaming
-**Description:** Playback now uses short-lived signed stream URLs plus proper HTTP byte-range semantics for reliable native audio playback.
+### Hardened Authenticated Media Streaming
+**Description:** Playback uses short-lived signed stream URLs plus HTTP byte-range semantics.
 
 **Features:**
 - Short-lived stream tokens for `<audio src>` clients
@@ -464,11 +270,10 @@ socket.on('user-joined', handleUserJoin)
 - RFC-compatible `Range` support with `206 Partial Content`
 - Safe file-path resolution to prevent path traversal
 - Authenticated-only streaming (no public `/uploads` bypass)
-- Stream-aware rate limiting to avoid seek/retry throttling
+- Stream-aware rate limiting
 
 **Technical Implementation:**
 - Token utility: `server/utils/streamToken.js`
 - Stream auth middleware: `server/middleware/streamAuth.js`
 - Range streaming controller: `server/controllers/songController.js`
 - Frontend stream URL acquisition: `client/src/services/music.js`
-
