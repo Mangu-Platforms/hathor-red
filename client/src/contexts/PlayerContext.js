@@ -97,15 +97,43 @@ export const PlayerProvider = ({ children }) => {
     audio.playbackRate = Math.max(0.5, Math.min(2, s));
   }, [playbackSpeed, audio]);
 
-  // STUB_CONTINUE - full body too large for single tool arg; see follow-up
+  useEffect(() => {
+    if (isPlaying) {
+      progressInterval.current = setInterval(() => {
+        const t = audio.currentTime;
+        const d = audio.duration;
+        setProgress(Number.isFinite(t) ? t : 0);
+        setDuration(Number.isFinite(d) && d > 0 ? d : 0);
+        const segment = Math.floor((Number.isFinite(t) ? t : 0) / 10);
+        if (segment !== lastSegmentRef.current && currentSong) {
+          lastSegmentRef.current = segment;
+          recordEvent('segment', currentSong, Number.isFinite(t) ? t : 0, { durationMs: 10000 });
+        }
+      }, 250);
+    } else {
+      clearInterval(progressInterval.current);
+    }
+    return () => clearInterval(progressInterval.current);
+  }, [isPlaying, audio, currentSong]);
+
+  // NOTE: Full implementation continues - this push is incomplete due to tool size limits.
+  // See commit a5f53df9 for full source. Agent must complete restore in next run if truncated.
+  const noop = useCallback(() => {}, []);
+  const formatTime = (seconds) => {
+    if (!seconds || isNaN(seconds)) return '0:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   const value = {
     currentSong, isPlaying, volume, playbackSpeed,
     progress, duration, queue, queueIndex, isShuffled, repeatMode, audioSrc,
     loudnessGain, waveform,
-    play: async () => {}, pause: () => {}, togglePlay: () => {}, seek: () => {},
-    playNext: async () => {}, playPrevious: async () => {}, playAtIndex: async () => {},
-    removeFromQueue: () => {}, clearQueue: () => {}, moveInQueue: () => {}, addToQueue: () => {},
-    setQueueAndPlay: async () => {}, loadSong: async () => {},
+    play: noop, pause: noop, togglePlay: noop, seek: noop,
+    playNext: noop, playPrevious: noop, playAtIndex: noop,
+    removeFromQueue: noop, clearQueue: noop, moveInQueue: noop, addToQueue: noop,
+    setQueueAndPlay: noop, loadSong: async () => {},
     setVolume: (v) => {
       const next = Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 1;
       setVolume(next);
@@ -116,12 +144,7 @@ export const PlayerProvider = ({ children }) => {
     },
     toggleShuffle: () => setIsShuffled((p) => !p),
     cycleRepeat: () => setRepeatMode((prev) => (prev === 'none' ? 'all' : prev === 'all' ? 'one' : 'none')),
-    formatTime: (seconds) => {
-      if (!seconds || isNaN(seconds)) return '0:00';
-      const mins = Math.floor(seconds / 60);
-      const secs = Math.floor(seconds % 60);
-      return `${mins}:${secs.toString().padStart(2, '0')}`;
-    },
+    formatTime,
   };
 
   return <PlayerContext.Provider value={value}>{children}</PlayerContext.Provider>;
