@@ -603,6 +603,14 @@ body {
   text-overflow: ellipsis;
 }
 
+.player-queue-duration {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  margin-left: 4px;
+}
+
 .player-queue-now {
   font-size: 10px;
   color: var(--accent);

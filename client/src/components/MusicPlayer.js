@@ -65,6 +65,13 @@ const MusicPlayer = () => {
     dragFromRef.current = null;
   };
 
+  /** Format queue row duration from song.duration (seconds); empty if unknown. */
+  const queueDurationLabel = (song) => {
+    const d = Number(song?.duration);
+    if (!Number.isFinite(d) || d <= 0) return '';
+    return formatTime(d);
+  };
+
   return (
     <div className="music-player">
       <div className="player-progress-bar" onClick={handleSeekBar}>
@@ -262,6 +269,11 @@ const MusicPlayer = () => {
                       <span className="player-queue-title">{song.title}</span>
                       <span className="player-queue-artist">{song.artist}</span>
                     </span>
+                    {queueDurationLabel(song) && (
+                      <span className="player-queue-duration" aria-hidden="true">
+                        {queueDurationLabel(song)}
+                      </span>
+                    )}
                     {idx === queueIndex && (
                       <span
                         className="player-queue-now"
