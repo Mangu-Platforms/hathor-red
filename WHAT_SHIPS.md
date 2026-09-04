@@ -26,6 +26,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Keyboard mute (dose-1.73)**: M toggles mute; restores last non-zero volume (also remembered when the volume slider/API sets a positive level)
 - **Record listening on track end (dose-1.74)**: PlayerContext calls `musicService.recordListening` on natural `ended` (duration ≥ 5s) so `listening_history` is populated for recommendations/history
 - **Record listening on skip/track-change (dose-1.75)**: same ≥5s threshold when `playAtIndex` / `setQueueAndPlay` / remove-now-playing leaves the prior track (next/prev/skip/queue replace), not only on natural end
+- **Settings listening stats (dose-2.76)**: Profile section loads `/api/auth/stats` and shows total plays, listened time, and top artist; copy notes that display name/avatar saves apply immediately in the sidebar
 
 ## Does not ship (honest)
 
@@ -37,4 +38,4 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## Next item
 
-Dose 1.75 recordListening on skip/track-change closed. Next: Dose 2 settings profile copy polish, or remaining Dose 1 polish. No Dose 6+.
+Dose 2.76 Settings listening stats + profile copy closed. Next: remaining Dose 2 (account) polish or Dose 3 home/playlists genre filter + playlist routes. No Dose 6+.

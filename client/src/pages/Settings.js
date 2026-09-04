@@ -22,12 +22,30 @@ const Settings = () => {
   const [features, setFeatures] = useState(null);
   const [health, setHealth] = useState(null);
   const [healthErr, setHealthErr] = useState(null);
+  const [stats, setStats] = useState(null);
 
   useEffect(() => {
     if (user) {
       setDisplayName(user.display_name || user.displayName || '');
       setAvatarUrl(user.avatar_url || user.avatarUrl || '');
     }
+  }, [user]);
+
+  // dose-2.76: load listening stats for profile honesty (plays + time)
+  useEffect(() => {
+    if (!user) {
+      setStats(null);
+      return undefined;
+    }
+    let cancelled = false;
+    authService.getStats()
+      .then((data) => {
+        if (!cancelled) setStats(data || null);
+      })
+      .catch(() => {
+        if (!cancelled) setStats(null);
+      });
+    return () => { cancelled = true; };
   }, [user]);
 
   useEffect(() => {
@@ -226,8 +244,8 @@ const Settings = () => {
       <div className="oly-section">
         <h2>Profile</h2>
         <p className="muted" style={{ marginBottom: 12 }}>
-          Username and email are fixed after registration. You can change your display name
-          and set an avatar image URL (no file upload yet).
+          Username and email are fixed after registration. Change your display name and optional
+          avatar image URL (no file upload yet). Saves apply immediately in the sidebar.
         </p>
         {user && (
           <div style={{ marginBottom: 12, display: 'flex', gap: 16, alignItems: 'center' }}>
@@ -301,6 +319,30 @@ const Settings = () => {
         {profileMsg && (
           <div className={`oly-msg ${profileMsg.ok ? 'ok' : 'err'}`} style={{ marginTop: 12 }}>
             {profileMsg.text}
+          </div>
+        )}
+        {stats && (
+          <div style={{ marginTop: 16 }}>
+            <div className="muted" style={{ fontSize: '0.85rem', marginBottom: 6 }}>Your listening</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              <span className="oly-reason">
+                {Number(stats.totalPlays) || 0} play{(Number(stats.totalPlays) || 0) === 1 ? '' : 's'}
+              </span>
+              <span className="oly-reason">
+                {(() => {
+                  const sec = Number(stats.totalListeningTimeSeconds) || 0;
+                  if (sec < 60) return `${sec}s listened`;
+                  const m = Math.floor(sec / 60);
+                  if (m < 60) return `${m} min listened`;
+                  const h = Math.floor(m / 60);
+                  const rm = m % 60;
+                  return rm ? `${h}h ${rm}m listened` : `${h}h listened`;
+                })()}
+              </span>
+              {Array.isArray(stats.topArtists) && stats.topArtists[0]?.artist && (
+                <span className="oly-reason">Top: {stats.topArtists[0].artist}</span>
+              )}
+            </div>
           </div>
         )}
         <div className="oly-row" style={{ marginTop: 16 }}>
