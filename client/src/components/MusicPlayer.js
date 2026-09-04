@@ -193,7 +193,12 @@ const MusicPlayer = () => {
             </div>
           </div>
           {queue.length === 0 ? (
-            <div className="player-queue-empty">Queue is empty</div>
+            <div className="player-queue-empty">
+              <p>Queue is empty</p>
+              <p className="player-queue-empty-hint">
+                Play a list from Home or a playlist, or use Add to queue on a song row.
+              </p>
+            </div>
           ) : (
             <ul className="player-queue-list">
               {queue.map((song, idx) => (
