@@ -237,7 +237,24 @@ const Playlists = () => {
                     {pl.description ||
                       (pl.is_ai_generated ? 'AI Generated' : 'Custom Playlist')}
                   </p>
-                  {pl.is_public && <span className="public-badge">Public</span>}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                    {isOwner(pl) && (
+                      <span
+                        className="owner-badge"
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 600,
+                          padding: '2px 8px',
+                          borderRadius: 4,
+                          background: 'rgba(102, 126, 234, 0.15)',
+                          color: '#5a67d8',
+                        }}
+                      >
+                        Yours
+                      </span>
+                    )}
+                    {pl.is_public && <span className="public-badge">Public</span>}
+                  </div>
                 </div>
               </Link>
               {isOwner(pl) && (
