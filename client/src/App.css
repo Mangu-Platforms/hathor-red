@@ -461,6 +461,19 @@ body {
   color: var(--text-secondary);
 }
 
+.player-queue-header-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-queue-shuffle-hint {
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
 .player-queue-empty {
   padding: 24px 16px;
   text-align: center;

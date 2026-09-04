@@ -163,7 +163,14 @@ const MusicPlayer = () => {
       {showQueue && (
         <div className="player-queue-panel" role="listbox" aria-label="Play queue">
           <div className="player-queue-header">
-            <span>Up next ({queue.length})</span>
+            <span className="player-queue-header-title">
+              {isShuffled ? 'Shuffled · ' : ''}Up next ({queue.length})
+              {isShuffled && queue.length > 1 && (
+                <span className="player-queue-shuffle-hint" title="List is display order; next/prev follow Fisher–Yates permutation">
+                  {' '}· play order differs
+                </span>
+              )}
+            </span>
             <div className="player-queue-header-actions">
               {queue.length > 0 && (
                 <button

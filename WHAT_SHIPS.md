@@ -24,6 +24,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Empty now-playing in room detail (dose-4.89)**: When no track is loaded, room detail shows “Nothing playing” with host vs listener copy; host Play is disabled until a song is chosen; ListeningRoom.css is imported.
 - **Room detail host check (dose-4.90)**: ListeningRoom `isHost` matches Rooms list — compares host_id to both `user.id` and `user.userId` (string-safe) so host controls and empty-state copy appear when the JWT payload uses either shape.
 - **Room participants Host badge (dose-4.91)**: Single Host badge on roster rows when `p.id === hostId` (string-safe); removes accidental duplicate badge from 4.90.
+- **Queue panel shuffle honesty (dose-1.92)**: When shuffle is on, queue header reads “Shuffled · Up next (N)” and a muted “play order differs” hint so the list is clearly display order, not the Fisher–Yates next/prev order.
 
 ## Incident closed
 
