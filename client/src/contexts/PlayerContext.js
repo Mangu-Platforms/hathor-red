@@ -9,6 +9,8 @@ const PERSIST_DEBOUNCE_MS = 1500;
 /** dose-1.71: keyboard seek step (seconds) */
 const KEYBOARD_SEEK_SEC = 5;
 const KEYBOARD_VOLUME_STEP = 0.05;
+/** dose-1.72: Media Session seek offset (seconds) */
+const MEDIA_SESSION_SEEK_SEC = 10;
 
 function fisherYatesShuffle(length) {
   const order = Array.from({ length }, (_, i) => i);
@@ -247,6 +249,15 @@ export const PlayerProvider = ({ children }) => {
     playGeneration.current += 1;
     streamRetryGen.current = -1;
     clearTimeout(persistTimer.current);
+    // dose-1.72: clear Media Session metadata on logout
+    try {
+      if (typeof navigator !== 'undefined' && navigator.mediaSession) {
+        navigator.mediaSession.metadata = null;
+        navigator.mediaSession.playbackState = 'none';
+      }
+    } catch (_) {
+      /* ignore */
+    }
     return undefined;
   }, [isAuthenticated, audio]);
 
@@ -270,7 +281,7 @@ export const PlayerProvider = ({ children }) => {
         const pos = Number(st.position);
         const startAt = Number.isFinite(pos) && pos > 0 ? pos : 0;
         const vol = Number(st.volume);
-        if (Number.isFinite(vol)) setVolumeState(Math.max(0, Math.min(1, vol)));
+        if (Number.isFinite(vol)) setVolumeState(Math.max(0, Math.min(1, vol));
         const speedRaw = st.playback_speed ?? st.playbackSpeed;
         const speed = Number(speedRaw);
         if (Number.isFinite(speed) && speed > 0) {
@@ -659,6 +670,167 @@ export const PlayerProvider = ({ children }) => {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [isAuthenticated, audio, loadSong, persistPlayback]);
+
+  // dose-1.72: Media Session API — lock-screen / OS media keys metadata + actions
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !navigator.mediaSession) return undefined;
+    const ms = navigator.mediaSession;
+
+    const updateMetadata = () => {
+      const song = currentSongRef.current;
+      if (!song) {
+        try {
+          ms.metadata = null;
+        } catch (_) {
+          /* ignore */
+        }
+        return;
+      }
+      try {
+        const artwork = [];
+        if (song.cover_url) {
+          artwork.push({ src: song.cover_url, sizes: '512x512', type: 'image/jpeg' });
+        }
+        ms.metadata = new MediaMetadata({
+          title: song.title || 'Unknown',
+          artist: song.artist || 'Unknown',
+          album: song.album || '',
+          artwork,
+        });
+      } catch (_) {
+        /* MediaMetadata may be unavailable in some environments */
+      }
+    };
+
+    updateMetadata();
+
+    const setAction = (action, handler) => {
+      try {
+        ms.setActionHandler(action, handler);
+      } catch (_) {
+        /* action not supported */
+      }
+    };
+
+    setAction('play', () => {
+      if (!currentSongRef.current) return;
+      (async () => {
+        try {
+          if (!audio.src && currentSongRef.current) {
+            await loadSong(currentSongRef.current, {
+              autoplay: true,
+              startAt: audio.currentTime || 0,
+            });
+            return;
+          }
+          await audio.play();
+          setIsPlaying(true);
+        } catch (_) {
+          setIsPlaying(false);
+        }
+      })();
+    });
+    setAction('pause', () => {
+      audio.pause();
+      setIsPlaying(false);
+    });
+    setAction('previoustrack', () => {
+      playPrevious();
+    });
+    setAction('nexttrack', () => {
+      playNext();
+    });
+    setAction('seekbackward', (details) => {
+      if (!audio.src) return;
+      const offset = details?.seekOffset ?? MEDIA_SESSION_SEEK_SEC;
+      const t = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+      const next = Math.max(0, t - offset);
+      safeSetCurrentTime(audio, next);
+      setProgress(next);
+      persistPlayback();
+    });
+    setAction('seekforward', (details) => {
+      if (!audio.src) return;
+      const offset = details?.seekOffset ?? MEDIA_SESSION_SEEK_SEC;
+      const t = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+      const d = audio.duration;
+      const next =
+        Number.isFinite(d) && d > 0 ? Math.min(d, t + offset) : t + offset;
+      safeSetCurrentTime(audio, next);
+      setProgress(next);
+      persistPlayback();
+    });
+    setAction('seekto', (details) => {
+      if (!audio.src) return;
+      if (details == null || !Number.isFinite(details.seekTime)) return;
+      const d = audio.duration;
+      const clamped =
+        Number.isFinite(d) && d > 0
+          ? Math.max(0, Math.min(d, details.seekTime))
+          : Math.max(0, details.seekTime);
+      safeSetCurrentTime(audio, clamped);
+      setProgress(clamped);
+      persistPlayback();
+    });
+
+    return () => {
+      ['play', 'pause', 'previoustrack', 'nexttrack', 'seekbackward', 'seekforward', 'seekto'].forEach(
+        (action) => {
+          try {
+            ms.setActionHandler(action, null);
+          } catch (_) {
+            /* ignore */
+          }
+        }
+      );
+    };
+  }, [audio, loadSong, playNext, playPrevious, persistPlayback]);
+
+  // Keep Media Session metadata + playbackState in sync with current song / play state
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !navigator.mediaSession) return;
+    const ms = navigator.mediaSession;
+    try {
+      if (!currentSong) {
+        ms.metadata = null;
+        ms.playbackState = 'none';
+        return;
+      }
+      const artwork = [];
+      if (currentSong.cover_url) {
+        artwork.push({ src: currentSong.cover_url, sizes: '512x512', type: 'image/jpeg' });
+      }
+      ms.metadata = new MediaMetadata({
+        title: currentSong.title || 'Unknown',
+        artist: currentSong.artist || 'Unknown',
+        album: currentSong.album || '',
+        artwork,
+      });
+      ms.playbackState = isPlaying ? 'playing' : 'paused';
+    } catch (_) {
+      /* ignore */
+    }
+  }, [currentSong, isPlaying]);
+
+  // Optional: report position state for scrubbing UIs that support it
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !navigator.mediaSession) return;
+    if (!currentSong || !Number.isFinite(duration) || duration <= 0) return;
+    try {
+      if (typeof navigator.mediaSession.setPositionState === 'function') {
+        navigator.mediaSession.setPositionState({
+          duration,
+          playbackRate: Number.isFinite(playbackSpeed) && playbackSpeed > 0 ? playbackSpeed : 1,
+          position: Math.min(
+            duration,
+            Math.max(0, Number.isFinite(progress) ? progress : 0)
+          ),
+        });
+      }
+    } catch (_) {
+      /* ignore invalid position state */
+    }
+  }, [currentSong, duration, progress, playbackSpeed, isPlaying]);
 
   const value = {
     currentSong,

@@ -22,6 +22,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Room detail live roster (dose-4.69)**: `GET /api/rooms/:id` prefers live socket presence roster (same in-process map as 4.67) when non-empty, mapping to participant shape; falls back to `room_participants` when this process has no sockets for the room
 - **Seek edge guards (dose-1.70)**: `seek` no-ops when `<audio>` has no `src` (cleared queue / pre-load); `formatTime` uses `Number.isFinite` so 0 still formats and NaN/Infinity/negative map to `0:00`
 - **Keyboard media controls (dose-1.71)**: Space/K toggle play-pause; J/Left and L/Right seek ±5s; Up/Down volume ±0.05 — ignored while focus is in input/textarea/select/contenteditable
+- **Media Session API (dose-1.72)**: lock-screen / OS media keys get title/artist/album/artwork metadata; play, pause, previoustrack, nexttrack, seekbackward/forward (±10s), seekto; playbackState + positionState synced; cleared on logout
 
 ## Does not ship (honest)
 
@@ -33,4 +34,4 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## Next item
 
-Dose 1.71 keyboard seek/volume/play closed. Next: Dose 2 settings profile copy polish, or remaining Dose 1 edge cases (e.g. media Session API metadata). No Dose 6+.
+Dose 1.72 Media Session closed. Next: Dose 2 settings profile copy polish, or remaining Dose 1 edge cases. No Dose 6+.
