@@ -19,6 +19,9 @@ const Settings = () => {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPw, setShowCurrentPw] = useState(false);
+  const [showNewPw, setShowNewPw] = useState(false);
+  const [showConfirmPw, setShowConfirmPw] = useState(false);
   const [pwBusy, setPwBusy] = useState(false);
   const [pwMsg, setPwMsg] = useState(null);
   const [features, setFeatures] = useState(null);
@@ -164,6 +167,9 @@ const Settings = () => {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
+      setShowCurrentPw(false);
+      setShowNewPw(false);
+      setShowConfirmPw(false);
     } catch (err) {
       const details = err.response?.data?.details;
       const detailMsg = Array.isArray(details) && details[0]?.message ? details[0].message : null;
@@ -418,39 +424,74 @@ const Settings = () => {
           <label className="muted" style={{ fontSize: '0.85rem', display: 'block', marginBottom: 4 }}>
             Current password
           </label>
-          <input
-            className="oly-input"
-            type="password"
-            autoComplete="current-password"
-            value={currentPassword}
-            onChange={(e) => setCurrentPassword(e.target.value)}
-            disabled={pwBusy}
-            style={{ width: '100%', marginBottom: 12 }}
-          />
+          <div className="oly-row" style={{ marginBottom: 12 }}>
+            <input
+              className="oly-input"
+              type={showCurrentPw ? 'text' : 'password'}
+              autoComplete="current-password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              disabled={pwBusy}
+              style={{ flex: 1 }}
+            />
+            <button
+              type="button"
+              className="oly-btn-ghost"
+              onClick={() => setShowCurrentPw((v) => !v)}
+              disabled={pwBusy}
+              aria-label={showCurrentPw ? 'Hide current password' : 'Show current password'}
+              title={showCurrentPw ? 'Hide' : 'Show'}
+            >
+              {showCurrentPw ? 'Hide' : 'Show'}
+            </button>
+          </div>
           <label className="muted" style={{ fontSize: '0.85rem', display: 'block', marginBottom: 4 }}>
             New password
           </label>
-          <input
-            className="oly-input"
-            type="password"
-            autoComplete="new-password"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            disabled={pwBusy}
-            style={{ width: '100%', marginBottom: 12 }}
-          />
+          <div className="oly-row" style={{ marginBottom: 12 }}>
+            <input
+              className="oly-input"
+              type={showNewPw ? 'text' : 'password'}
+              autoComplete="new-password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              disabled={pwBusy}
+              style={{ flex: 1 }}
+            />
+            <button
+              type="button"
+              className="oly-btn-ghost"
+              onClick={() => setShowNewPw((v) => !v)}
+              disabled={pwBusy}
+              aria-label={showNewPw ? 'Hide new password' : 'Show new password'}
+              title={showNewPw ? 'Hide' : 'Show'}
+            >
+              {showNewPw ? 'Hide' : 'Show'}
+            </button>
+          </div>
           <label className="muted" style={{ fontSize: '0.85rem', display: 'block', marginBottom: 4 }}>
             Confirm new password
           </label>
           <div className="oly-row">
             <input
               className="oly-input"
-              type="password"
+              type={showConfirmPw ? 'text' : 'password'}
               autoComplete="new-password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               disabled={pwBusy}
+              style={{ flex: 1 }}
             />
+            <button
+              type="button"
+              className="oly-btn-ghost"
+              onClick={() => setShowConfirmPw((v) => !v)}
+              disabled={pwBusy}
+              aria-label={showConfirmPw ? 'Hide confirm password' : 'Show confirm password'}
+              title={showConfirmPw ? 'Hide' : 'Show'}
+            >
+              {showConfirmPw ? 'Hide' : 'Show'}
+            </button>
             <button className="oly-btn" type="submit" disabled={pwBusy}>
               {pwBusy ? 'Updating…' : 'Update password'}
             </button>

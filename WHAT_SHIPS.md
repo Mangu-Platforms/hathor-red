@@ -15,6 +15,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Home genre filter calls `GET /songs?genre=` and server filters by `genre = $1`
 - **Settings platform status refresh (dose-2.81)**: Refresh status button re-fetches `/api/features` (force) + `/api/health` and shows last-checked time
 - **Settings member-since + toast clear (dose-2.82)**: Profile shows Member since from `created_at`; profile/password success messages auto-clear after 5s; updateProfile returns `created_at` so it survives a save
+- **Settings password visibility toggles (dose-2.83)**: Show/Hide on current, new, and confirm password fields; resets after successful change
 
 ## Incident closed
 
@@ -30,4 +31,4 @@ PlayerContext was temporarily stubbed after a bad push. Restored from commit `9c
 
 ## Next item
 
-Dose 2 further Settings polish, or Dose 3 playlist edge cases. Genre filter already filters on Home. No Dose 6+.
+Dose 3 playlist edge cases (empty-state CTA, owner-only actions), or remaining Dose 2 account polish. Genre filter already filters on Home. No Dose 6+.
