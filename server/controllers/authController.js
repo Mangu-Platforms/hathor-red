@@ -47,6 +47,7 @@ const register = async (req, res) => {
         username: user.username,
         email: user.email,
         displayName: user.display_name,
+        created_at: user.created_at,
       },
     });
   } catch (error) {
@@ -95,6 +96,7 @@ const login = async (req, res) => {
         email: user.email,
         displayName: user.display_name,
         avatarUrl: user.avatar_url,
+        created_at: user.created_at,
       },
     });
   } catch (error) {
@@ -161,8 +163,9 @@ const updateProfile = async (req, res) => {
     sets.push('updated_at = CURRENT_TIMESTAMP');
     params.push(req.user.userId);
 
+    // dose-2.82: include created_at so client Member since survives a profile save
     const result = await db.query(
-      `UPDATE users SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING id, username, email, display_name, avatar_url`,
+      `UPDATE users SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING id, username, email, display_name, avatar_url, created_at`,
       params
     );
 

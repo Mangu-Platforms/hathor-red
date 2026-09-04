@@ -14,6 +14,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Docs honesty, auth soft logout, room host controls, live listener counts, Olympus fallback banners
 - Home genre filter calls `GET /songs?genre=` and server filters by `genre = $1`
 - **Settings platform status refresh (dose-2.81)**: Refresh status button re-fetches `/api/features` (force) + `/api/health` and shows last-checked time
+- **Settings member-since + toast clear (dose-2.82)**: Profile shows Member since from `created_at`; profile/password success messages auto-clear after 5s; updateProfile returns `created_at` so it survives a save
 
 ## Incident closed
 

@@ -1,9 +1,11 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { privacyService } from '../services/olympus';
 import { authService } from '../services/auth';
 import { useAuth } from '../contexts/AuthContext';
 import { getFeatures, getHealth } from '../services/api';
 import './Olympus.css';
+
+const TOAST_CLEAR_MS = 5000;
 
 const Settings = () => {
   const { user, updateProfile, logout } = useAuth();
@@ -25,6 +27,8 @@ const Settings = () => {
   const [stats, setStats] = useState(null);
   const [statusBusy, setStatusBusy] = useState(false);
   const [statusCheckedAt, setStatusCheckedAt] = useState(null);
+  const profileToastTimer = useRef(null);
+  const pwToastTimer = useRef(null);
 
   useEffect(() => {
     if (user) {
@@ -32,6 +36,23 @@ const Settings = () => {
       setAvatarUrl(user.avatar_url || user.avatarUrl || '');
     }
   }, [user]);
+
+  // dose-2.82: auto-clear success toasts so Settings does not stay "Profile updated" forever
+  useEffect(() => {
+    clearTimeout(profileToastTimer.current);
+    if (profileMsg?.ok) {
+      profileToastTimer.current = setTimeout(() => setProfileMsg(null), TOAST_CLEAR_MS);
+    }
+    return () => clearTimeout(profileToastTimer.current);
+  }, [profileMsg]);
+
+  useEffect(() => {
+    clearTimeout(pwToastTimer.current);
+    if (pwMsg?.ok) {
+      pwToastTimer.current = setTimeout(() => setPwMsg(null), TOAST_CLEAR_MS);
+    }
+    return () => clearTimeout(pwToastTimer.current);
+  }, [pwMsg]);
 
   // dose-2.76: load listening stats for profile honesty (plays + time)
   useEffect(() => {
@@ -197,6 +218,18 @@ const Settings = () => {
   };
 
   const currentAvatar = user?.avatar_url || user?.avatarUrl || avatarUrl;
+  const memberSinceRaw = user?.created_at || user?.createdAt || null;
+  let memberSinceLabel = null;
+  if (memberSinceRaw) {
+    const d = new Date(memberSinceRaw);
+    if (!Number.isNaN(d.getTime())) {
+      memberSinceLabel = d.toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      });
+    }
+  }
 
   const workerLabel = (() => {
     if (!features) return null;
@@ -297,6 +330,12 @@ const Settings = () => {
               <div style={{ marginBottom: 8 }}>{user.username}</div>
               <div className="muted" style={{ fontSize: '0.85rem' }}>Email</div>
               <div>{user.email}</div>
+              {memberSinceLabel && (
+                <>
+                  <div className="muted" style={{ fontSize: '0.85rem', marginTop: 8 }}>Member since</div>
+                  <div>{memberSinceLabel}</div>
+                </>
+              )}
             </div>
           </div>
         )}
