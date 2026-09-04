@@ -19,6 +19,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Empty playlist CTA (dose-3.84)**: Playlist detail empty state tells owners how to add songs (Home → song menu → Add to playlist) with a Browse Home link; non-owners see a neutral “owner has not added tracks” message. Delete/reorder/remove remain owner-only.
 - **Owner badge on playlist cards (dose-3.85)**: Playlists list shows a “Yours” badge on cards the current user owns, next to the Public badge when present.
 - **Song count on playlist cards (dose-3.86)**: `GET /playlists` returns `song_count` (LEFT JOIN aggregate); Playlists page shows “N songs” on each card.
+- **Host badge on room cards (dose-4.87)**: Rooms list shows a “Host” badge on cards the current user hosts (matches host_id to user.id / userId).
 
 ## Incident closed
 
@@ -34,4 +35,4 @@ PlayerContext was temporarily stubbed after a bad push. Restored from commit `9c
 
 ## Next item
 
-Dose 3 list polish complete (badges + song count). Prefer Dose 4 room polish or Dose 2 leftovers. No Dose 6+.
+Dose 4 room list polish (Host badge). Prefer further Dose 4 room polish or Dose 2 leftovers. No Dose 6+.

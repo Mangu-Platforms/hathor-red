@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { musicService } from '../services/music';
+import { useAuth } from '../contexts/AuthContext';
 
 const ROOMS_POLL_MS = 15000;
 
@@ -11,6 +12,11 @@ const Rooms = () => {
   const [newRoomPublic, setNewRoomPublic] = useState(true);
   const [newRoomMaxListeners, setNewRoomMaxListeners] = useState(50);
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  const isHost = (room) =>
+    user &&
+    (String(room.host_id) === String(user.id) || String(room.host_id) === String(user.userId));
 
   const fetchRooms = useCallback(async () => {
     try {
@@ -102,6 +108,21 @@ const Rooms = () => {
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5} width="14" height="14"><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                     {room.listener_count || 0} / {room.max_listeners}
                   </span>
+                  {isHost(room) && (
+                    <span
+                      className="host-badge"
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        padding: '2px 8px',
+                        borderRadius: 4,
+                        background: 'rgba(102, 126, 234, 0.15)',
+                        color: '#5a67d8',
+                      }}
+                    >
+                      Host
+                    </span>
+                  )}
                   {room.current_song_title && (
                     <span className="room-now-playing-text">
                       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5} width="12" height="12"><path strokeLinecap="round" strokeLinejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" /></svg>
