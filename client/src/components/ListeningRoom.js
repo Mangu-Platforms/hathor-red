@@ -4,6 +4,7 @@ import { io } from 'socket.io-client';
 import { useAuth } from '../contexts/AuthContext';
 import { usePlayer } from '../contexts/PlayerContext';
 import { musicService } from '../services/music';
+import './ListeningRoom.css';
 
 const ListeningRoom = () => {
   const { id } = useParams();
@@ -218,6 +219,8 @@ const ListeningRoom = () => {
 
   const sendControl = (action) => {
     if (!socket || !room) return;
+    // Host Play requires a current track; pause is always allowed when playing.
+    if (action === 'play' && !currentSong) return;
     const data = { roomId: parseInt(id, 10), action };
     if (action === 'play' || action === 'pause') {
       const pos = Number.isFinite(progress) ? Math.floor(progress) : 0;
@@ -259,7 +262,7 @@ const ListeningRoom = () => {
 
       <div className="room-layout">
         <div className="room-main">
-          {currentSong && (
+          {currentSong ? (
             <div className="room-now-playing">
               <div className="room-cover-large">
                 {currentSong.cover_url ? (
@@ -274,11 +277,31 @@ const ListeningRoom = () => {
                 <div className="room-now-artist">{currentSong.artist}</div>
               </div>
             </div>
+          ) : (
+            <div className="room-now-playing room-now-playing-empty">
+              <div className="room-cover-large">
+                <div className="room-cover-placeholder-lg" aria-hidden="true">♪</div>
+              </div>
+              <div className="room-now-playing-info">
+                <div className="room-now-label">Now Playing</div>
+                <div className="room-now-title">Nothing playing</div>
+                <div className="room-now-artist">
+                  {isHost
+                    ? 'Pick a song with Change Song to start the room.'
+                    : 'Waiting for the host to choose a track.'}
+                </div>
+              </div>
+            </div>
           )}
 
           {isHost && (
             <div className="room-host-controls">
-              <button type="button" onClick={() => sendControl('play')} disabled={isPlaying}>
+              <button
+                type="button"
+                onClick={() => sendControl('play')}
+                disabled={isPlaying || !currentSong}
+                title={!currentSong ? 'Choose a song first' : undefined}
+              >
                 Play
               </button>
               <button type="button" onClick={() => sendControl('pause')} disabled={!isPlaying}>

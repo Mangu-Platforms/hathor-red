@@ -326,3 +326,17 @@
   color: #555;
   font-size: 14px;
 }
+
+/* Empty now-playing (dose-4.89) */
+.room-now-playing-empty {
+  opacity: 0.9;
+}
+
+.room-now-playing-empty .room-now-title {
+  color: #666;
+}
+
+.room-now-playing-empty .room-now-artist {
+  color: #888;
+  font-size: 14px;
+}
