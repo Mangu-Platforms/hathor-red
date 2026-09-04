@@ -22,6 +22,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Host badge on room cards (dose-4.87)**: Rooms list shows a “Host” badge on cards the current user hosts (matches host_id to user.id / userId).
 - **Public/Private badge on room cards (dose-4.88)**: Rooms list shows a Public or Private badge from `room.is_public` beside Host/listener meta.
 - **Empty now-playing in room detail (dose-4.89)**: When no track is loaded, room detail shows “Nothing playing” with host vs listener copy; host Play is disabled until a song is chosen; ListeningRoom.css is imported.
+- **Room detail host check (dose-4.90)**: ListeningRoom `isHost` matches Rooms list — compares host_id to both `user.id` and `user.userId` (string-safe) so host controls and empty-state copy appear when the JWT payload uses either shape.
 
 ## Incident closed
 

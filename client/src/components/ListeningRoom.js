@@ -231,7 +231,13 @@ const ListeningRoom = () => {
 
   if (!room) return <div className="loading-screen">Loading room...</div>;
 
-  const isHost = hostId != null ? hostId === user?.id : room.host_id === user?.id;
+  // dose-4.90: match Rooms list — host_id may equal user.id or user.userId
+  const matchesUser = (candidate) =>
+    user &&
+    candidate != null &&
+    (String(candidate) === String(user.id) || String(candidate) === String(user.userId));
+  const isHost =
+    hostId != null ? matchesUser(hostId) : matchesUser(room.host_id);
 
   return (
     <div className="listening-room">
@@ -374,6 +380,9 @@ const ListeningRoom = () => {
                     {(p.display_name || p.username)?.[0]?.toUpperCase()}
                   </div>
                   <span>{p.display_name || p.username}</span>
+                  {matchesUser(p.id) === false && p.id === hostId && (
+                    <span className="host-badge">Host</span>
+                  )}
                   {p.id === hostId && <span className="host-badge">Host</span>}
                 </div>
               ))}
