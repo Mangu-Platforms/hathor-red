@@ -56,6 +56,12 @@ const Playlists = () => {
     user &&
     (String(pl.user_id) === String(user.id) || String(pl.user_id) === String(user.userId));
 
+  const formatSongCount = (pl) => {
+    const n = Number(pl.song_count ?? pl.songCount);
+    if (!Number.isFinite(n) || n < 0) return null;
+    return n === 1 ? '1 song' : `${n} songs`;
+  };
+
   const handleDelete = async (e, pl) => {
     e.preventDefault();
     e.stopPropagation();
@@ -237,7 +243,19 @@ const Playlists = () => {
                     {pl.description ||
                       (pl.is_ai_generated ? 'AI Generated' : 'Custom Playlist')}
                   </p>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6, alignItems: 'center' }}>
+                    {formatSongCount(pl) && (
+                      <span
+                        className="song-count-badge"
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 500,
+                          color: '#666',
+                        }}
+                      >
+                        {formatSongCount(pl)}
+                      </span>
+                    )}
                     {isOwner(pl) && (
                       <span
                         className="owner-badge"

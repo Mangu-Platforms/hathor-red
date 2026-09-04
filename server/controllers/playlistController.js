@@ -7,8 +7,18 @@ const getPlaylists = async (req, res) => {
   try {
     const { userId } = req.user;
 
+    // Include song_count so list cards can show track totals without N+1 detail fetches.
     const result = await db.query(
-      'SELECT * FROM playlists WHERE user_id = $1 OR is_public = true ORDER BY created_at DESC',
+      `SELECT p.*,
+              COALESCE(c.cnt, 0)::int AS song_count
+       FROM playlists p
+       LEFT JOIN (
+         SELECT playlist_id, COUNT(*)::int AS cnt
+         FROM playlist_songs
+         GROUP BY playlist_id
+       ) c ON c.playlist_id = p.id
+       WHERE p.user_id = $1 OR p.is_public = true
+       ORDER BY p.created_at DESC`,
       [userId]
     );
 
