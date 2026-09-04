@@ -123,6 +123,21 @@ const Rooms = () => {
                       Host
                     </span>
                   )}
+                  <span
+                    className={room.is_public ? 'public-badge' : 'private-badge'}
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      padding: '2px 8px',
+                      borderRadius: 4,
+                      background: room.is_public
+                        ? 'rgba(72, 187, 120, 0.15)'
+                        : 'rgba(160, 174, 192, 0.2)',
+                      color: room.is_public ? '#2f855a' : '#4a5568',
+                    }}
+                  >
+                    {room.is_public ? 'Public' : 'Private'}
+                  </span>
                   {room.current_song_title && (
                     <span className="room-now-playing-text">
                       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5} width="12" height="12"><path strokeLinecap="round" strokeLinejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" /></svg>
