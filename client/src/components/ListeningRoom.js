@@ -380,10 +380,7 @@ const ListeningRoom = () => {
                     {(p.display_name || p.username)?.[0]?.toUpperCase()}
                   </div>
                   <span>{p.display_name || p.username}</span>
-                  {matchesUser(p.id) === false && p.id === hostId && (
-                    <span className="host-badge">Host</span>
-                  )}
-                  {p.id === hostId && <span className="host-badge">Host</span>}
+                  {String(p.id) === String(hostId) && <span className="host-badge">Host</span>}
                 </div>
               ))}
             </div>
