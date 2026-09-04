@@ -228,8 +228,35 @@ const PlaylistDetail = () => {
       </div>
 
       {songs.length === 0 ? (
-        <div className="empty-state">
-          <p>This playlist has no songs yet</p>
+        <div className="empty-state" style={{ textAlign: 'center', padding: '32px 16px' }}>
+          <p style={{ fontSize: 16, marginBottom: 8 }}>This playlist has no songs yet</p>
+          {isOwner ? (
+            <>
+              <p style={{ color: 'var(--text-secondary)', marginBottom: 16, maxWidth: 420, marginLeft: 'auto', marginRight: 'auto' }}>
+                Add tracks from Home: open a song’s menu and choose <strong>Add to playlist</strong>.
+                Only you can add or remove songs in this list.
+              </p>
+              <Link
+                to="/"
+                className="btn-primary"
+                style={{
+                  display: 'inline-block',
+                  padding: '10px 18px',
+                  borderRadius: 8,
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  color: '#fff',
+                  fontWeight: 600,
+                  textDecoration: 'none',
+                }}
+              >
+                Browse songs on Home
+              </Link>
+            </>
+          ) : (
+            <p style={{ color: 'var(--text-secondary)' }}>
+              The owner has not added any tracks yet.
+            </p>
+          )}
         </div>
       ) : (
         <>

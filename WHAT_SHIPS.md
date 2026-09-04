@@ -16,6 +16,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Settings platform status refresh (dose-2.81)**: Refresh status button re-fetches `/api/features` (force) + `/api/health` and shows last-checked time
 - **Settings member-since + toast clear (dose-2.82)**: Profile shows Member since from `created_at`; profile/password success messages auto-clear after 5s; updateProfile returns `created_at` so it survives a save
 - **Settings password visibility toggles (dose-2.83)**: Show/Hide on current, new, and confirm password fields; resets after successful change
+- **Empty playlist CTA (dose-3.84)**: Playlist detail empty state tells owners how to add songs (Home → song menu → Add to playlist) with a Browse Home link; non-owners see a neutral “owner has not added tracks” message. Delete/reorder/remove remain owner-only.
 
 ## Incident closed
 
@@ -31,4 +32,4 @@ PlayerContext was temporarily stubbed after a bad push. Restored from commit `9c
 
 ## Next item
 
-Dose 3 playlist edge cases (empty-state CTA, owner-only actions), or remaining Dose 2 account polish. Genre filter already filters on Home. No Dose 6+.
+Dose 3 remaining: playlist list empty-state already has New playlist CTA; optional owner badge on cards. Or Dose 2 leftover polish. No Dose 6+.
