@@ -257,8 +257,14 @@ const MusicPlayer = () => {
                       <span className="player-queue-title">{song.title}</span>
                       <span className="player-queue-artist">{song.artist}</span>
                     </span>
-                    {idx === queueIndex && isPlaying && (
-                      <span className="player-queue-now" aria-label="Now playing">▶</span>
+                    {idx === queueIndex && (
+                      <span
+                        className="player-queue-now"
+                        aria-label={isPlaying ? 'Now playing' : 'Current track (paused)'}
+                        title={isPlaying ? 'Now playing' : 'Current track (paused)'}
+                      >
+                        {isPlaying ? '▶' : '❚❚'}
+                      </span>
                     )}
                   </button>
                   <button
