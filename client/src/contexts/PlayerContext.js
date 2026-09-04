@@ -347,6 +347,8 @@ export const PlayerProvider = ({ children }) => {
 
   const seek = useCallback((time) => {
     if (!Number.isFinite(time)) return;
+    // dose-1.70: skip seek when media has no src (cleared queue / pre-load)
+    if (!audio.src) return;
     const d = audio.duration;
     const clamped = Number.isFinite(d) && d > 0 ? Math.max(0, Math.min(d, time)) : Math.max(0, time);
     safeSetCurrentTime(audio, clamped);
@@ -554,7 +556,8 @@ export const PlayerProvider = ({ children }) => {
   }, []);
 
   const formatTime = useCallback((seconds) => {
-    if (!seconds || isNaN(seconds)) return '0:00';
+    // dose-1.70: Number.isFinite so 0 still formats; reject NaN/Infinity/negative
+    if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
