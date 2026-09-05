@@ -14,6 +14,9 @@ const MusicPlayer = () => {
   const [dragFrom, setDragFrom] = useState(null);
   const [dragOver, setDragOver] = useState(null);
   const dragFromRef = useRef(null);
+  // dose-1.101: touch reorder state (HTML5 drag is mouse-only)
+  const touchFromRef = useRef(null);
+  const touchOverRef = useRef(null);
 
   if (!currentSong) return null;
 
@@ -63,6 +66,46 @@ const MusicPlayer = () => {
     setDragFrom(null);
     setDragOver(null);
     dragFromRef.current = null;
+  };
+
+  /** Touch reorder: start on grip/row; track over via elementFromPoint; drop on end. */
+  const onQueueTouchStart = (e, idx) => {
+    if (!e.touches || e.touches.length !== 1) return;
+    touchFromRef.current = idx;
+    touchOverRef.current = idx;
+    setDragFrom(idx);
+    setDragOver(idx);
+  };
+
+  const onQueueTouchMove = (e) => {
+    if (touchFromRef.current == null || !e.touches || e.touches.length !== 1) return;
+    const t = e.touches[0];
+    const el = document.elementFromPoint(t.clientX, t.clientY);
+    if (!el) return;
+    const row = el.closest('.player-queue-row');
+    if (!row) return;
+    const list = row.parentElement;
+    if (!list) return;
+    const rows = Array.from(list.querySelectorAll('.player-queue-row'));
+    const overIdx = rows.indexOf(row);
+    if (overIdx < 0) return;
+    if (touchOverRef.current !== overIdx) {
+      touchOverRef.current = overIdx;
+      setDragOver(overIdx);
+    }
+    // Prevent page scroll while dragging queue on touch
+    if (e.cancelable) e.preventDefault();
+  };
+
+  const onQueueTouchEnd = () => {
+    const from = touchFromRef.current;
+    const to = touchOverRef.current;
+    touchFromRef.current = null;
+    touchOverRef.current = null;
+    setDragFrom(null);
+    setDragOver(null);
+    if (from == null || to == null || from === to) return;
+    moveInQueue(from, to);
   };
 
   /** Format queue row duration from song.duration (seconds); empty if unknown. */
@@ -264,6 +307,10 @@ const MusicPlayer = () => {
                   onDragOver={(e) => onQueueDragOver(e, idx)}
                   onDrop={(e) => onQueueDrop(e, idx)}
                   onDragEnd={onQueueDragEnd}
+                  onTouchStart={(e) => onQueueTouchStart(e, idx)}
+                  onTouchMove={onQueueTouchMove}
+                  onTouchEnd={onQueueTouchEnd}
+                  onTouchCancel={onQueueTouchEnd}
                 >
                   <span className="player-queue-grip" title="Drag to reorder" aria-hidden="true">
                     <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24">

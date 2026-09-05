@@ -33,6 +33,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Play next insert (dose-1.98)**: `insertNext(song)` places a track immediately after the current `queueIndex` (and after the current shuffle position when shuffled). SongList has a Play next action with brief feedback; does not autoplay — only queues for the next advance.
 - **PlayerContext re-restored (dose-1.100)**: full SPA player after accidental PLACEHOLDER overwrite on main
 - **Duplicate-in-queue guard (dose-1.99)**: `addToQueue` and `insertNext` skip when `song.id` is already in the queue; SongList feedback shows “Already in queue” (not an error for UX, but not a success append).
+- **Queue touch reorder (dose-1.101)**: Queue panel rows support touch drag-and-drop reorder (touchstart/move/end + elementFromPoint) in addition to HTML5 mouse drag and up/down buttons; prevents scroll while dragging.
 
 ## Incident closed
 
@@ -52,4 +53,4 @@ PlayerContext was again replaced by `PLACEHOLDER_WILL_FAIL` on main (`1be3b46`).
 
 ## Next item
 
-Dose 1 leftovers (e.g. queue drag on touch) or Dose 2/4 leftovers. No Dose 6+.
+Dose 1 polish complete for queue UX; Dose 2/4 leftovers or seek-guard / race edge cases if any remain. No Dose 6+.
