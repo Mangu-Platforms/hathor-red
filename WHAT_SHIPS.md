@@ -7,7 +7,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Password register/login, JWT, profile GET/PUT
 - Change password from Settings
 - Song list, upload, signed progressive stream for `<audio>` (server + musicService intact)
-- **Full PlayerContext restore in progress (dose-1.103)**: loadSong with playGeneration race guard, queue, real Fisher–Yates shuffle, hydrate/persist, media session, keyboard shortcuts (space/k, arrows, M mute, N next / P previous), listening history, clearQueue stops playback, toggleMute, insertNext, duplicate-in-queue guard, seek clamps to finite duration
+- **Full PlayerContext restored (dose-1.103)**: loadSong with playGeneration race guard, queue, real Fisher–Yates shuffle, hydrate/persist, media session, keyboard shortcuts (space/k, arrows, M mute, **N next / P previous**), listening history, clearQueue stops playback, toggleMute, insertNext, duplicate-in-queue guard, seek clamps to finite duration
 - MusicPlayer mute UI beside volume slider
 - Playlists, rooms, AI with fallbacks, Olympus flags honesty
 - Docs honesty, auth soft logout, room host controls, live listener counts, Olympus fallback banners
@@ -19,7 +19,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## Incident closed
 
-PlayerContext on main was truncated to stubs after prior pushes. dose-1.103 restores complete implementation from `4e5a6da` and re-applies keyboard N/P.
+PlayerContext on main was truncated to stubs after prior agent pushes. Restored complete implementation from `4e5a6da` with keyboard N/P (dose-1.103). Commit `f800869`.
 
 ## Does not ship (honest)
 
@@ -31,4 +31,4 @@ PlayerContext on main was truncated to stubs after prior pushes. dose-1.103 rest
 
 ## Next item
 
-Complete PlayerContext body on main if still stubbed; then residual Dose 1 seek/race polish; Dose 2/4 leftovers. No Dose 6+.
+Dose 1 core player restored with N/P. Remaining: residual seek-guard/race edges in MusicPlayer UI if any; Dose 2/4 leftovers. No Dose 6+.
