@@ -28,6 +28,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Queue current-track badge when paused (dose-1.93)**: Queue row for `queueIndex` always shows a marker — ▶ while playing, ❚❚ while paused — so the active track stays visible after pause (previously only when `isPlaying`).
 - **Empty queue how-to CTA (dose-1.94)**: Queue panel empty state no longer says only “Queue is empty”; it adds a hint to play a list from Home/playlist or use Add to queue on a song row.
 - **Queue row duration (dose-1.95)**: Each queue row shows `song.duration` via `formatTime` when present (tabular muted label before the now-playing marker).
+- **Queue total duration (dose-1.96)**: Queue header shows sum of known track durations (e.g. “Up next (12) · 48:32”) when any songs report duration; omitted if none known.
 
 ## Incident closed
 
@@ -43,4 +44,4 @@ PlayerContext was temporarily stubbed after a bad push. Restored from commit `9c
 
 ## Next item
 
-Dose 4 leftovers (room presence polish) or Dose 2 leftovers. No Dose 6+.
+Dose 1 queue polish leftovers or Dose 2/4 leftovers. No Dose 6+.

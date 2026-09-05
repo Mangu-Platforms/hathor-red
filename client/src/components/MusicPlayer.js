@@ -72,6 +72,15 @@ const MusicPlayer = () => {
     return formatTime(d);
   };
 
+  /** Sum of known track durations in the full queue (display order). */
+  const queueTotalSeconds = queue.reduce((sum, song) => {
+    const d = Number(song?.duration);
+    if (!Number.isFinite(d) || d <= 0) return sum;
+    return sum + d;
+  }, 0);
+  const queueTotalLabel =
+    queue.length > 0 && queueTotalSeconds > 0 ? formatTime(queueTotalSeconds) : '';
+
   return (
     <div className="music-player">
       <div className="player-progress-bar" onClick={handleSeekBar}>
@@ -172,6 +181,11 @@ const MusicPlayer = () => {
           <div className="player-queue-header">
             <span className="player-queue-header-title">
               {isShuffled ? 'Shuffled · ' : ''}Up next ({queue.length})
+              {queueTotalLabel && (
+                <span className="player-queue-total" title="Sum of known track durations">
+                  {' '}· {queueTotalLabel}
+                </span>
+              )}
               {isShuffled && queue.length > 1 && (
                 <span className="player-queue-shuffle-hint" title="List is display order; next/prev follow Fisher–Yates permutation">
                   {' '}· play order differs
