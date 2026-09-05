@@ -81,6 +81,30 @@ const MusicPlayer = () => {
   const queueTotalLabel =
     queue.length > 0 && queueTotalSeconds > 0 ? formatTime(queueTotalSeconds) : '';
 
+  /** Remaining from current position: time left on current track + known durations of tracks after queueIndex. */
+  const remainingSeconds = (() => {
+    if (!queue.length) return 0;
+    let sum = 0;
+    const idx = Number.isInteger(queueIndex) ? queueIndex : 0;
+    for (let i = idx; i < queue.length; i += 1) {
+      if (i === idx) {
+        const left = Number.isFinite(duration) && duration > 0
+          ? Math.max(0, duration - (Number.isFinite(progress) ? progress : 0))
+          : (() => {
+              const d = Number(queue[i]?.duration);
+              return Number.isFinite(d) && d > 0 ? d : 0;
+            })();
+        sum += left;
+      } else {
+        const d = Number(queue[i]?.duration);
+        if (Number.isFinite(d) && d > 0) sum += d;
+      }
+    }
+    return sum;
+  })();
+  const remainingLabel =
+    queue.length > 0 && remainingSeconds > 0 ? formatTime(remainingSeconds) : '';
+
   return (
     <div className="music-player">
       <div className="player-progress-bar" onClick={handleSeekBar}>
@@ -184,6 +208,11 @@ const MusicPlayer = () => {
               {queueTotalLabel && (
                 <span className="player-queue-total" title="Sum of known track durations">
                   {' '}· {queueTotalLabel}
+                </span>
+              )}
+              {remainingLabel && (
+                <span className="player-queue-remaining" title="Time left from current position through end of queue">
+                  {' '}· {remainingLabel} left
                 </span>
               )}
               {isShuffled && queue.length > 1 && (
