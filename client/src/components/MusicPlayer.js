@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { usePlayer } from '../contexts/PlayerContext';
 
 const MusicPlayer = () => {
@@ -13,22 +13,80 @@ const MusicPlayer = () => {
   const [showQueue, setShowQueue] = useState(false);
   const [dragFrom, setDragFrom] = useState(null);
   const [dragOver, setDragOver] = useState(null);
+  const [isSeeking, setIsSeeking] = useState(false);
   const dragFromRef = useRef(null);
   // dose-1.101: touch reorder state (HTML5 drag is mouse-only)
   const touchFromRef = useRef(null);
   const touchOverRef = useRef(null);
+  const progressBarRef = useRef(null);
+  const seekingRef = useRef(false);
+
+  /** Map clientX to seek time; no-op when duration is not finite / not positive. */
+  const seekFromClientX = useCallback(
+    (clientX) => {
+      if (!Number.isFinite(duration) || duration <= 0) return;
+      const el = progressBarRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      if (!rect.width) return;
+      const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      if (!Number.isFinite(pct)) return;
+      seek(pct * duration);
+    },
+    [duration, seek]
+  );
+
+  const onProgressPointerDown = useCallback(
+    (e) => {
+      if (!Number.isFinite(duration) || duration <= 0) return;
+      // Only primary button / primary touch
+      if (e.button != null && e.button !== 0) return;
+      e.preventDefault();
+      seekingRef.current = true;
+      setIsSeeking(true);
+      try {
+        e.currentTarget.setPointerCapture?.(e.pointerId);
+      } catch (_) {}
+      seekFromClientX(e.clientX);
+    },
+    [duration, seekFromClientX]
+  );
+
+  const onProgressPointerMove = useCallback(
+    (e) => {
+      if (!seekingRef.current) return;
+      seekFromClientX(e.clientX);
+    },
+    [seekFromClientX]
+  );
+
+  const endSeek = useCallback((e) => {
+    if (!seekingRef.current) return;
+    seekingRef.current = false;
+    setIsSeeking(false);
+    try {
+      e?.currentTarget?.releasePointerCapture?.(e.pointerId);
+    } catch (_) {}
+  }, []);
+
+  // Safety: release seek if pointer is lost outside the bar
+  useEffect(() => {
+    if (!isSeeking) return undefined;
+    const onUp = () => {
+      seekingRef.current = false;
+      setIsSeeking(false);
+    };
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    return () => {
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+  }, [isSeeking]);
 
   if (!currentSong) return null;
 
   const progressPercent = duration && Number.isFinite(duration) ? (progress / duration) * 100 : 0;
-
-  const handleSeekBar = (e) => {
-    if (!duration || !Number.isFinite(duration) || duration <= 0) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const pct = (e.clientX - rect.left) / rect.width;
-    if (!Number.isFinite(pct)) return;
-    seek(pct * duration);
-  };
 
   const onQueueDragStart = (e, idx) => {
     dragFromRef.current = idx;
@@ -148,9 +206,40 @@ const MusicPlayer = () => {
   const remainingLabel =
     queue.length > 0 && remainingSeconds > 0 ? formatTime(remainingSeconds) : '';
 
+  const canSeek = Number.isFinite(duration) && duration > 0;
+
   return (
     <div className="music-player">
-      <div className="player-progress-bar" onClick={handleSeekBar}>
+      <div
+        ref={progressBarRef}
+        className={`player-progress-bar${isSeeking ? ' is-seeking' : ''}${canSeek ? '' : ' is-disabled'}`}
+        role="slider"
+        aria-label="Seek"
+        aria-valuemin={0}
+        aria-valuemax={canSeek ? Math.floor(duration) : 0}
+        aria-valuenow={canSeek && Number.isFinite(progress) ? Math.floor(progress) : 0}
+        tabIndex={canSeek ? 0 : -1}
+        onPointerDown={onProgressPointerDown}
+        onPointerMove={onProgressPointerMove}
+        onPointerUp={endSeek}
+        onPointerCancel={endSeek}
+        onKeyDown={(e) => {
+          if (!canSeek) return;
+          if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            seek(Math.min(duration, (Number.isFinite(progress) ? progress : 0) + 5));
+          } else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+            e.preventDefault();
+            seek(Math.max(0, (Number.isFinite(progress) ? progress : 0) - 5));
+          } else if (e.key === 'Home') {
+            e.preventDefault();
+            seek(0);
+          } else if (e.key === 'End') {
+            e.preventDefault();
+            seek(duration);
+          }
+        }}
+      >
         <div className="player-progress-fill" style={{ width: `${progressPercent}%` }} />
       </div>
 

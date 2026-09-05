@@ -9,6 +9,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Song list, upload, signed progressive stream for `<audio>` (server + musicService intact)
 - **Full PlayerContext restored (dose-1.103)**: loadSong with playGeneration race guard, queue, real Fisher–Yates shuffle, hydrate/persist, media session, keyboard shortcuts (space/k, arrows, M mute, **N next / P previous**), listening history, clearQueue stops playback, toggleMute, insertNext, duplicate-in-queue guard, seek clamps to finite duration
 - MusicPlayer mute UI beside volume slider
+- **Progress bar pointer drag-to-seek (dose-1.104)**: pointer capture, finite-duration guards, keyboard arrows/Home/End on the bar, no seek when duration unknown
 - Playlists, rooms, AI with fallbacks, Olympus flags honesty
 - Docs honesty, auth soft logout, room host controls, live listener counts, Olympus fallback banners
 - Home genre filter calls `GET /songs?genre=` and server filters by `genre = $1`
@@ -31,4 +32,4 @@ PlayerContext on main was truncated to stubs after prior agent pushes. Restored 
 
 ## Next item
 
-Dose 1 core player restored with N/P. Remaining: residual seek-guard/race edges in MusicPlayer UI if any; Dose 2/4 leftovers. No Dose 6+.
+Dose 1 seek-drag residual closed (1.104). Remaining Dose 1 polish if any; then Dose 2/4 leftovers. No Dose 6+.
