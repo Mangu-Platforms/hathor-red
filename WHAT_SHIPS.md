@@ -11,6 +11,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - MusicPlayer mute UI beside volume slider
 - **Progress bar pointer drag-to-seek (dose-1.104)**: pointer capture, finite-duration guards, keyboard arrows/Home/End on the bar, no seek when duration unknown
 - **Volume slider a11y (dose-1.105)**: aria-valuemin/max/now, labelled control, ArrowLeft/Right/Home/End adjust volume without relying on native range quirks alone
+- **Player control a11y polish (dose-1.106)**: aria-valuetext on seek bar and volume; playback-speed range labelled with keyboard arrows/Home/End and aria-valuetext
 - Playlists, rooms, AI with fallbacks, Olympus flags honesty
 - Docs honesty, auth soft logout, room host controls, live listener counts, Olympus fallback banners
 - Home genre filter calls `GET /songs?genre=` and server filters by `genre = $1`
@@ -33,4 +34,4 @@ PlayerContext on main was truncated to stubs after prior agent pushes. Restored 
 
 ## Next item
 
-Dose 1 volume a11y closed (1.105). Remaining Dose 1 polish if any; then Dose 2/4 leftovers. No Dose 6+.
+Dose 1.106 player a11y closed. Remaining Dose 1 polish if any; then Dose 2/4 leftovers. No Dose 6+.

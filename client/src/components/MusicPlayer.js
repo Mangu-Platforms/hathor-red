@@ -107,10 +107,43 @@ const MusicPlayer = () => {
     [volume, setVolume]
   );
 
+  /** dose-1.106: keyboard playback-speed when the range is focused */
+  const SPEED_STEP = 0.05;
+  const onSpeedKeyDown = useCallback(
+    (e) => {
+      const cur = Number.isFinite(playbackSpeed) && playbackSpeed > 0 ? playbackSpeed : 1;
+      if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        setPlaybackSpeed(Math.min(2, cur + SPEED_STEP));
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        setPlaybackSpeed(Math.max(0.5, cur - SPEED_STEP));
+      } else if (e.key === 'Home') {
+        e.preventDefault();
+        setPlaybackSpeed(0.5);
+      } else if (e.key === 'End') {
+        e.preventDefault();
+        setPlaybackSpeed(2);
+      }
+    },
+    [playbackSpeed, setPlaybackSpeed]
+  );
+
   if (!currentSong) return null;
 
   const progressPercent = duration && Number.isFinite(duration) ? (progress / duration) * 100 : 0;
   const volumeSafe = Number.isFinite(volume) ? Math.max(0, Math.min(1, volume)) : 0;
+  const canSeekEarly = Number.isFinite(duration) && duration > 0;
+  const progressValueText =
+    canSeekEarly && Number.isFinite(progress)
+      ? `${formatTime(progress)} of ${formatTime(duration)}`
+      : 'Duration unknown';
+  const volumeValueText = `${Math.round(volumeSafe * 100)} percent`;
+  const speedSafe =
+    Number.isFinite(playbackSpeed) && playbackSpeed > 0
+      ? Math.max(0.5, Math.min(2, playbackSpeed))
+      : 1;
+  const speedValueText = `${speedSafe.toFixed(2)} times`;
 
   const onQueueDragStart = (e, idx) => {
     dragFromRef.current = idx;
@@ -242,6 +275,7 @@ const MusicPlayer = () => {
         aria-valuemin={0}
         aria-valuemax={canSeek ? Math.floor(duration) : 0}
         aria-valuenow={canSeek && Number.isFinite(progress) ? Math.floor(progress) : 0}
+        aria-valuetext={progressValueText}
         tabIndex={canSeek ? 0 : -1}
         onPointerDown={onProgressPointerDown}
         onPointerMove={onProgressPointerMove}
@@ -344,6 +378,7 @@ const MusicPlayer = () => {
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={Math.round(volumeSafe * 100)}
+              aria-valuetext={volumeValueText}
               title={`Volume ${Math.round(volumeSafe * 100)}%`}
             />
           </div>
@@ -366,8 +401,26 @@ const MusicPlayer = () => {
       {showAdvanced && (
         <div className="player-advanced">
           <div className="player-control-group">
-            <label>Speed: {playbackSpeed.toFixed(2)}x</label>
-            <input type="range" min="0.5" max="2" step="0.05" value={playbackSpeed} onChange={e => setPlaybackSpeed(parseFloat(e.target.value))} />
+            <label htmlFor="player-speed-range">Speed: {speedSafe.toFixed(2)}x</label>
+            <input
+              id="player-speed-range"
+              type="range"
+              min="0.5"
+              max="2"
+              step="0.05"
+              value={speedSafe}
+              onChange={(e) => {
+                const v = parseFloat(e.target.value);
+                if (Number.isFinite(v)) setPlaybackSpeed(v);
+              }}
+              onKeyDown={onSpeedKeyDown}
+              aria-label="Playback speed"
+              aria-valuemin={0.5}
+              aria-valuemax={2}
+              aria-valuenow={Number(speedSafe.toFixed(2))}
+              aria-valuetext={speedValueText}
+              title={`Speed ${speedSafe.toFixed(2)}x`}
+            />
           </div>
         </div>
       )}
