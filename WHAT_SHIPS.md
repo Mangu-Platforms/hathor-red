@@ -29,6 +29,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Empty queue how-to CTA (dose-1.94)**: Queue panel empty state no longer says only “Queue is empty”; it adds a hint to play a list from Home/playlist or use Add to queue on a song row.
 - **Queue row duration (dose-1.95)**: Each queue row shows `song.duration` via `formatTime` when present (tabular muted label before the now-playing marker).
 - **Queue total duration (dose-1.96)**: Queue header shows sum of known track durations (e.g. “Up next (12) · 48:32”) when any songs report duration; omitted if none known.
+- **Queue remaining duration (dose-1.97)**: Queue header also shows time left from the current playhead through the end of the queue (current track remainder + known durations of later rows), e.g. “· 12:04 left”; updates as progress advances.
 
 ## Incident closed
 
@@ -44,4 +45,4 @@ PlayerContext was temporarily stubbed after a bad push. Restored from commit `9c
 
 ## Next item
 
-Dose 1 queue polish leftovers or Dose 2/4 leftovers. No Dose 6+.
+Dose 1 queue polish leftovers or Dose 2/4 leftovers (e.g. play-next insert). No Dose 6+.
