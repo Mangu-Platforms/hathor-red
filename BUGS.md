@@ -9,14 +9,14 @@ This document lists identified bugs, security vulnerabilities, and architectural
 *   **Impact**: Browsers do not send custom headers (like `Authorization`) for `<audio>` tag source requests. This results in all streaming requests failing with a 401 Unauthorized error.
 *   **Root Cause**: Mismatch between authentication requirements and browser media loading behavior.
 *   **Suggested Fix**: Use a short-lived token in a query parameter for streaming, or use session cookies for the streaming endpoint.
-*   **Status**: Mitigated on main via signed query-token stream URLs (`stream-url` + `streamAuth`). Re-verify if any client still points `<audio>` at a header-only route.
+*   **Status**: Mitigated on main via signed query-token stream URLs (`stream-url` + `streamAuth`). Client `musicService.getStreamUrl` resolves absolute API origin when needed. Re-verify only if a client regresses to header-only stream paths.
 
 ### 2. Playback State Sync Inconsistency
 *   **Description**: The WebSocket `sync-state` handler in `server/socket/handlers.js` updates the PostgreSQL database but fails to update the Redis cache.
 *   **Impact**: The `getPlaybackState` endpoint in `playbackController.js` prioritizes Redis data. If a user syncs state via one device (socket) and then requests state via another (HTTP), they will receive stale data from Redis.
 *   **Root Cause**: Missing Redis cache invalidation/update in the socket handler.
 *   **Suggested Fix**: Update the Redis key `playback:${userId}` whenever the state is synced via WebSockets.
-*   **Status**: Fixed in dose-1.2 — socket handler upserts DB with `RETURNING *` and `setEx` Redis for 3600s (same key/TTL as HTTP path).
+*   **Status**: Fixed in dose-1.2 — socket handler upserts DB with `RETURNING *` and `setEx` Redis for 3600s (same key/TTL as HTTP path). Multi-device live queue still does not ship (see WHAT_SHIPS).
 
 ## 🟡 High Severity
 
@@ -55,6 +55,7 @@ This document lists identified bugs, security vulnerabilities, and architectural
 *   **Impact**: Performance issues and maintenance difficulty due to code duplication.
 *   **Root Cause**: Duplicated logic across different controllers.
 *   **Suggested Fix**: Consolidate AI playlist generation into a single service or shared controller.
+*   **Status**: Open — consolidation is non-blocking; both paths remain functional with fallbacks.
 
 ## ⚪ Low Severity / Code Quality
 
@@ -63,10 +64,10 @@ This document lists identified bugs, security vulnerabilities, and architectural
 *   **Impact**: Potential for unnecessary re-renders or infinite loops if dependencies are not managed correctly.
 *   **Root Cause**: Deviation from React best practices for hook dependencies.
 *   **Suggested Fix**: Wrap data-fetching functions in `useCallback`.
-*   **Status**: Rooms.js fetch path now uses `useCallback` (dose-4.1).
+*   **Status**: Rooms.js fetch path now uses `useCallback` (dose-4.1). SongList / ListeningRoom may still lag — low priority.
 
 ### 9. Potential NaN in Player Seek
-*   **Description**: `Player.js` calculates seek position using `duration * percent`. If `duration` is not yet loaded (0 or NaN), this can pass invalid values to the `seek` function.
-*   **Impact**: Console errors or unexpected playback behavior.
-*   **Suggested Fix**: Add a check for `duration` before calling `seek`.
-*   **Status**: MusicPlayer seek path guards finite duration; legacy Player.js still has pitch/stem placeholders.
+*   **Description**: Legacy seek paths calculated seek position using `duration * percent` without guarding finite duration.
+*   **Impact**: Console errors or unexpected playback behavior when metadata has not loaded.
+*   **Suggested Fix**: Guard finite duration before seek.
+*   **Status**: Closed on main — MusicPlayer progress bar and PlayerContext `seek` clamp to finite duration (dose-1.104+). No separate `Player.js` in the SPA tree.

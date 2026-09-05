@@ -1,6 +1,8 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { usePlayer } from '../contexts/PlayerContext';
 
+const VOLUME_STEP = 0.05;
+
 const MusicPlayer = () => {
   const {
     currentSong, isPlaying, togglePlay, progress, duration, volume,
@@ -84,9 +86,31 @@ const MusicPlayer = () => {
     };
   }, [isSeeking]);
 
+  /** dose-1.105: keyboard volume when the range control is focused */
+  const onVolumeKeyDown = useCallback(
+    (e) => {
+      const cur = Number.isFinite(volume) ? volume : 0;
+      if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        setVolume(Math.min(1, cur + VOLUME_STEP));
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        setVolume(Math.max(0, cur - VOLUME_STEP));
+      } else if (e.key === 'Home') {
+        e.preventDefault();
+        setVolume(0);
+      } else if (e.key === 'End') {
+        e.preventDefault();
+        setVolume(1);
+      }
+    },
+    [volume, setVolume]
+  );
+
   if (!currentSong) return null;
 
   const progressPercent = duration && Number.isFinite(duration) ? (progress / duration) * 100 : 0;
+  const volumeSafe = Number.isFinite(volume) ? Math.max(0, Math.min(1, volume)) : 0;
 
   const onQueueDragStart = (e, idx) => {
     dragFromRef.current = idx;
@@ -290,12 +314,12 @@ const MusicPlayer = () => {
           <div className="player-volume">
             <button
               type="button"
-              className={`player-btn player-mute-btn${volume === 0 ? ' active' : ''}`}
+              className={`player-btn player-mute-btn${volumeSafe === 0 ? ' active' : ''}`}
               onClick={toggleMute}
-              title={volume === 0 ? 'Unmute (M)' : 'Mute (M)'}
-              aria-label={volume === 0 ? 'Unmute' : 'Mute'}
+              title={volumeSafe === 0 ? 'Unmute (M)' : 'Mute (M)'}
+              aria-label={volumeSafe === 0 ? 'Unmute' : 'Mute'}
             >
-              {volume === 0 ? (
+              {volumeSafe === 0 ? (
                 <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z" />
                 </svg>
@@ -305,7 +329,23 @@ const MusicPlayer = () => {
                 </svg>
               )}
             </button>
-            <input type="range" min="0" max="1" step="0.01" value={volume} onChange={e => setVolume(parseFloat(e.target.value))} />
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value={volumeSafe}
+              onChange={(e) => {
+                const v = parseFloat(e.target.value);
+                if (Number.isFinite(v)) setVolume(Math.max(0, Math.min(1, v)));
+              }}
+              onKeyDown={onVolumeKeyDown}
+              aria-label="Volume"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(volumeSafe * 100)}
+              title={`Volume ${Math.round(volumeSafe * 100)}%`}
+            />
           </div>
           <button
             className={`player-btn ${showQueue ? 'active' : ''}`}
