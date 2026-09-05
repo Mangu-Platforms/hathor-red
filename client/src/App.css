@@ -481,6 +481,13 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.player-queue-remaining {
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
 .player-queue-empty {
   padding: 24px 16px;
   text-align: center;
