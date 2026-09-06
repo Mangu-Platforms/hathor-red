@@ -11,6 +11,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Real Fisher–Yates shuffle (dose-1.114)**: toggleShuffle builds permutation (current track first), playNext/Previous and `ended` follow shuffleOrder; repeat-one restarts current; repeat-all reshuffles at end of permutation; linear path still used when shuffle off
 - **Media Session + keyboard N/P (dose-1.115)**: metadata + playbackState for lock-screen/OS keys; action handlers play/pause/previoustrack/nexttrack/seekbackward/seekforward/seekto; keyboard N=next, P=previous (ignored in inputs)
 - **Queue remove/move (dose-1.116)**: removeFromQueue remaps shuffle order and advances if current removed; moveInQueue reorders with index/shuffle remap; MusicPlayer drag/touch and buttons now functional
+- **Hydrate + persist playback (dose-1.117)**: on auth, once, GET `/playback/state` and loadSong at saved position (no autoplay); debounced POST of currentSongId/position/isPlaying/volume/playbackSpeed; flush on visibility hidden / pagehide. Single-track only — multi-track queue not persisted
 - MusicPlayer a11y through dose-1.110
 - Playlists, rooms, AI fallbacks, Olympus flags honesty
 - Docs honesty, soft logout, room host/presence, genre filter, Settings status
@@ -25,4 +26,4 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## Next item
 
-Dose 4 room host song picker, or hydrate/persist playback state polish. No Dose 6+.
+Dose 4 room host song picker. No Dose 6+.
