@@ -15,6 +15,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - MusicPlayer a11y through dose-1.110
 - Playlists, rooms, AI fallbacks, Olympus flags honesty
 - Docs honesty, soft logout, room host/presence, genre filter, Settings status
+- **Room host song picker (dose-4.2)**: host Change Song UI loads catalog, filters by title/artist, emits `room-control` change-song; server sets `current_song_id`, position 0, and `is_playing = true` so late joiners and room-state see the track active
 
 ## Does not ship (honest)
 
@@ -26,4 +27,4 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## Next item
 
-Dose 4 room host song picker. No Dose 6+.
+Dose 5 Olympus shells: fallbacks when OpenAI/worker missing; remove dead nav items. No Dose 6+.

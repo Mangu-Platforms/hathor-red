@@ -180,7 +180,7 @@ function sanitizeChatMessage(message) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
+    .replace(/\"/g, '&quot;')
     .replace(/'/g, '&#39;')
     .trim()
     .slice(0, MAX_CHAT_MESSAGE_LENGTH);
@@ -425,7 +425,9 @@ const setupSocketHandlers = (io) => {
             if (isNaN(songIdNum) || songIdNum < 1) {
               return socket.emit('error', { message: 'Invalid song ID' });
             }
-            updateQuery = 'UPDATE listening_rooms SET current_song_id = $1, current_position = 0, updated_at = CURRENT_TIMESTAMP WHERE id = $2';
+            // dose-4.2: host pick starts playback — set is_playing so room-state
+            // and late joiners see the track as active without a separate play.
+            updateQuery = 'UPDATE listening_rooms SET current_song_id = $1, current_position = 0, is_playing = true, updated_at = CURRENT_TIMESTAMP WHERE id = $2';
             params = [songIdNum, roomIdNum];
             break;
         }
@@ -505,57 +507,31 @@ const setupSocketHandlers = (io) => {
           ]
         );
 
-        // Keep Redis in sync with DB so getPlaybackState does not serve stale cache
-        const row = result.rows[0];
-        if (row) {
-          const cacheKey = `playback:${socket.userId}`;
-          try {
-            await redisClient.setEx(cacheKey, 3600, JSON.stringify(row));
-          } catch (redisErr) {
-            logger.warn(`Redis setEx after sync-state failed (DB updated): ${redisErr.message}`);
+        // Keep Redis in sync with DB so HTTP getPlaybackState does not serve stale cache.
+        try {
+          if (redisClient && result.rows[0]) {
+            const key = `playback:${socket.userId}`;
+            await redisClient.setEx(key, 3600, JSON.stringify(result.rows[0]));
           }
+        } catch (redisErr) {
+          logger.warn(`Redis playback cache update failed: ${redisErr.message}`);
         }
-
-        socket.to(`user-${socket.userId}`).emit('sync-state', state);
       } catch (error) {
         logger.error('Sync state socket error:', error);
       }
     });
 
-    socket.on('typing', (data) => {
-      const roomIdNum = parseInt(data?.roomId, 10);
-      if (isNaN(roomIdNum) || socket.currentRoom !== roomIdNum) return;
-      if (!allowEvent(socket, 'typing', 5)) return;
-      socket.to(`room-${roomIdNum}`).emit('user-typing', {
-        userId: socket.userId,
-        username: socket.username,
-      });
-    });
-
     socket.on('disconnect', async () => {
       activeUsers.delete(socket.userId);
-
       if (socket.currentRoom) {
-        try {
-          await departRoom(io, socket, socket.currentRoom);
-        } catch (error) {
-          logger.error('Disconnect room cleanup error:', error);
-        }
+        const roomId = socket.currentRoom;
+        socket.currentRoom = null;
+        await departRoom(io, socket, roomId);
       }
     });
   });
 };
 
-/** Test hook: clear module-level presence/host/user state between suites. */
-setupSocketHandlers.resetStateForTests = () => {
-  activeUsers.clear();
-  roomHosts.clear();
-  roomPresence.clear();
-};
-
-// Expose live presence counts for HTTP Rooms list honesty (dose-4.67).
-setupSocketHandlers.getRoomPresenceCounts = getRoomPresenceCounts;
-// Expose live roster for HTTP room detail participants (dose-4.69).
-setupSocketHandlers.getRoomPresenceRoster = getRoomPresenceRoster;
-
 module.exports = setupSocketHandlers;
+module.exports.getRoomPresenceCounts = getRoomPresenceCounts;
+module.exports.getRoomPresenceRoster = getRoomPresenceRoster;
