@@ -29,6 +29,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **TrackComments social gate (dose-5.10)**: comments toggle above the player only renders when FEATURE_SOCIAL is on (`/api/features` social !== false); when the pillar is off, `/api/social` is unmounted and the UI stays hidden instead of silently failing loads
 - **AIPlaylistGenerator /ai/status parity (dose-5.11)**: generator fallback banner now reads `/ai/status` (fallbackMode / initialized) like AIRecommendations and AIChat instead of `features.aiLive`, so the amber strip stays honest when the live model is offline
 - **Podcast shell honesty (dose-5.12)**: `/podcast` uses Olympus page styles; copy states no catalog/subscribe/episode stream routes ship; planned cards marked not implemented; nav remains “Podcasts (soon)”
+- **Dose 5.13 thin-copy / dead-nav pass**: Sidebar gates Search/Radar on discovery, Store/Library on commerce, Artist Hub on intel||commerce; Podcast stays labeled “(soon)” with honest shell; no remaining live nav items for unwired product surfaces; FEATURES.md / README / WHAT_SHIPS aligned that HLS-in-player, OAuth, stems, pitch, WebRTC video, and podcast product do not ship
 
 ## Does not ship (honest)
 
@@ -41,4 +42,4 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## Next item
 
-Dose 5 Olympus shells: any remaining thin-copy / dead-nav checks if found. No Dose 6+.
+Dose 5 Olympus shells closed for this thin-copy / dead-nav pass. No Dose 6+ until product prioritizes (e.g. multi-track queue persist, HLS player, OAuth).
