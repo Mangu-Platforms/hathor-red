@@ -357,6 +357,47 @@ export const PlayerProvider = ({ children }) => {
     return () => audio.removeEventListener('ended', onEnded);
   }, [audio, playNext]);
 
+  // Dose 1: one automatic re-fetch of signed stream URL when <audio> errors
+  // (expired short-lived token, transient network). Prevents silent stall mid-track.
+  useEffect(() => {
+    const onError = async () => {
+      const song = currentSongRef.current;
+      if (!song || song.id == null) return;
+      const gen = playGeneration.current;
+      if (streamRetryGen.current === gen) return; // already retried this generation
+      streamRetryGen.current = gen;
+      const resumeAt = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+      const shouldPlay = isPlayingRef.current;
+      try {
+        const data = await musicService.getStreamUrl(song.id);
+        if (gen !== playGeneration.current) return;
+        const url = data?.url;
+        if (!url) return;
+        setAudioSrc(url);
+        audio.src = url;
+        audio.load();
+        const onMeta = () => {
+          if (Number.isFinite(resumeAt) && resumeAt > 0) safeSetCurrentTime(audio, resumeAt);
+          if (Number.isFinite(audio.duration) && audio.duration > 0) setDuration(audio.duration);
+        };
+        audio.addEventListener('loadedmetadata', onMeta, { once: true });
+        if (shouldPlay) {
+          try {
+            await audio.play();
+            if (gen === playGeneration.current) setIsPlaying(true);
+          } catch (_) {
+            setIsPlaying(false);
+          }
+        }
+      } catch (err) {
+        console.warn('stream URL retry failed', err);
+        setIsPlaying(false);
+      }
+    };
+    audio.addEventListener('error', onError);
+    return () => audio.removeEventListener('error', onError);
+  }, [audio]);
+
   const toggleShuffle = useCallback(() => {
     setIsShuffled((prev) => {
       const next = !prev;
@@ -400,7 +441,7 @@ export const PlayerProvider = ({ children }) => {
   const setPlaybackSpeed = useCallback((s) => {
     const n = Number(s);
     if (!Number.isFinite(n) || n <= 0) return;
-    setPlaybackSpeedState(Math.max(0.5, Math.min(2, n)));
+    setPlaybackSpeedState(Math.max(0.5, Math.min(2, n));
   }, []);
 
   const formatTime = useCallback((sec) => {
