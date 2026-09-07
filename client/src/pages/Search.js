@@ -1,14 +1,30 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { discoveryService } from '../services/olympus';
 import { musicService } from '../services/music';
 import { usePlayer } from '../contexts/PlayerContext';
+import { getFeatures } from '../services/api';
 import './Olympus.css';
 
 const Search = () => {
   const [query, setQuery] = useState('');
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [workerLive, setWorkerLive] = useState(null);
   const { setQueueAndPlay } = usePlayer();
+
+  useEffect(() => {
+    let cancelled = false;
+    getFeatures()
+      .then((f) => {
+        if (!cancelled) setWorkerLive(Boolean(f?.workerLive));
+      })
+      .catch(() => {
+        if (!cancelled) setWorkerLive(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const run = async (e) => {
     e.preventDefault();
@@ -45,6 +61,14 @@ const Search = () => {
       <h1>Semantic Search</h1>
       <div className="oly-sub">Describe a feeling, a scene, a tempo — “sad rainy night synthwave”, “bass-heavy techno 128 bpm”.</div>
 
+      {/* Dose 5.2: honest note when background worker is not live (embedding jobs stall) */}
+      {workerLive === false && (
+        <div className="oly-empty" style={{ marginBottom: 16 }} role="status">
+          Background job worker is not running — semantic embeddings may be missing or stale
+          until the worker is up (see Settings → Platform status).
+        </div>
+      )}
+
       <form onSubmit={run} className="oly-row" style={{ marginBottom: 20 }}>
         <input
           className="oly-input"
@@ -70,7 +94,12 @@ const Search = () => {
 
       {result && !result.error && (
         result.results.length === 0 ? (
-          <div className="oly-empty">Nothing close enough — try different words.</div>
+          <div className="oly-empty">
+            Nothing close enough — try different words.
+            {workerLive === false && (
+              <> If embeddings were never built, a stalled worker can also leave this empty.</>
+            )}
+          </div>
         ) : (
           <div className="oly-grid">
             {result.results.map(({ song, score, reasons }) => (
