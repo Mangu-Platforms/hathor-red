@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { musicService } from '../services/music';
+import { getAIStatus } from '../services/ai';
 import { usePlayer } from '../contexts/PlayerContext';
-import { getFeatures } from '../services/api';
 import './AIPlaylistGenerator.css';
 
 const AIPlaylistGenerator = () => {
@@ -11,22 +11,26 @@ const AIPlaylistGenerator = () => {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
-  const [aiLive, setAiLive] = useState(null);
+  const [aiStatus, setAiStatus] = useState(null);
   const { setQueueAndPlay } = usePlayer();
 
   useEffect(() => {
     let cancelled = false;
-    getFeatures()
-      .then((f) => {
-        if (!cancelled) setAiLive(Boolean(f?.aiLive));
+    getAIStatus()
+      .then((data) => {
+        if (!cancelled) setAiStatus(data?.status || data || null);
       })
       .catch(() => {
-        if (!cancelled) setAiLive(false);
+        if (!cancelled) setAiStatus({ fallbackMode: true, initialized: false });
       });
     return () => {
       cancelled = true;
     };
   }, []);
+
+  const isFallback = Boolean(
+    aiStatus && (aiStatus.fallbackMode || !aiStatus.initialized)
+  );
 
   const quickPrompts = [
     'Upbeat workout songs with high energy',
@@ -65,8 +69,8 @@ const AIPlaylistGenerator = () => {
         <p>Describe the vibe and let Hathor create the perfect playlist</p>
       </div>
 
-      {/* Dose 5.68: honest empty/fallback banner when live model is not connected */}
-      {aiLive === false && (
+      {/* Dose 5.11: parity with AIRecommendations / AIChat — use /ai/status, not features.aiLive */}
+      {isFallback && (
         <div className="ai-fallback-banner" role="status">
           Live AI model is offline — generation uses the rule-based fallback (library
           match on mood/genre keywords). Results still play; they are not LLM-planned.
