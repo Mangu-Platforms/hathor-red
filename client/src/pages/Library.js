@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { commerceService } from '../services/olympus';
 import { usePlayer } from '../contexts/PlayerContext';
+import { getFeatures } from '../services/api';
 import './Olympus.css';
 
 const Library = () => {
@@ -8,7 +9,16 @@ const Library = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [message, setMessage] = useState(null);
+  const [features, setFeatures] = useState(null);
   const { setQueueAndPlay, formatTime } = usePlayer();
+
+  useEffect(() => {
+    let cancelled = false;
+    getFeatures().then((f) => {
+      if (!cancelled) setFeatures(f);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     commerceService.getLibrary()
@@ -51,6 +61,21 @@ const Library = () => {
     if (songs.length > 0) setQueueAndPlay(songs, 0);
   };
 
+  const emptyHint = (() => {
+    if (features?.commerce === false) {
+      return 'Commerce is disabled on this server (FEATURE_COMMERCE). Library routes are not mounted.';
+    }
+    const parts = [
+      'Nothing here yet — visit the Store to own your first track.',
+    ];
+    if (features?.worker === false) {
+      parts.push('Background worker flag is off — subscription expiry jobs will not run.');
+    } else if (features?.workerLive === false) {
+      parts.push('Background job worker is not running — some commerce jobs may stall.');
+    }
+    return parts.join(' ');
+  })();
+
   return (
     <div className="oly-page">
       <h1>Your Library</h1>
@@ -61,7 +86,7 @@ const Library = () => {
       ) : error ? (
         <div className="oly-empty">{error}</div>
       ) : library.length === 0 ? (
-        <div className="oly-empty">Nothing here yet — visit the Store to own your first track.</div>
+        <div className="oly-empty">{emptyHint}</div>
       ) : (
         <>
           <button className="oly-btn" onClick={playAll}>Play all</button>

@@ -20,6 +20,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **AI recommendations fallback banner (dose-5.1)**: AIRecommendations shows status label + amber banner when `/ai/status` reports fallbackMode or not initialized (rule-based library match; results still play)
 - **Search worker honesty (dose-5.2)**: Semantic Search shows a status banner when `workerLive` is false (embeddings may be missing/stale); empty results also note stalled worker as a possible cause
 - **Store empty-state honesty (dose-5.3)**: Store empty copy uses `/api/features` — distinguishes commerce flag off, empty catalog (list via Artist Hub), and worker off/not-live notes for commerce jobs
+- **Library empty-state honesty (dose-5.4)**: Library empty copy uses `/api/features` — commerce flag off vs empty owned list + worker off/not-live notes (parity with Store)
 
 ## Does not ship (honest)
 
