@@ -28,6 +28,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Settings privacy pillar honesty (dose-5.9)**: when `/api/features` reports `privacy === false`, Settings replaces GDPR export + account-deletion controls with an amber note that FEATURE_PRIVACY is off and routes are not mounted; skips export-status polling
 - **TrackComments social gate (dose-5.10)**: comments toggle above the player only renders when FEATURE_SOCIAL is on (`/api/features` social !== false); when the pillar is off, `/api/social` is unmounted and the UI stays hidden instead of silently failing loads
 - **AIPlaylistGenerator /ai/status parity (dose-5.11)**: generator fallback banner now reads `/ai/status` (fallbackMode / initialized) like AIRecommendations and AIChat instead of `features.aiLive`, so the amber strip stays honest when the live model is offline
+- **Podcast shell honesty (dose-5.12)**: `/podcast` uses Olympus page styles; copy states no catalog/subscribe/episode stream routes ship; planned cards marked not implemented; nav remains “Podcasts (soon)”
 
 ## Does not ship (honest)
 
@@ -36,7 +37,8 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Server-persisted multi-track queue
 - Telemetry/loudness/waveform
 - Redis-backed multi-instance room presence
+- Podcast product (catalog, RSS, episodes) — shell only
 
 ## Next item
 
-Dose 5 Olympus shells: remaining thin-copy / dead-nav checks if any (e.g. media pipeline empty states). No Dose 6+.
+Dose 5 Olympus shells: any remaining thin-copy / dead-nav checks if found. No Dose 6+.

@@ -1,33 +1,42 @@
 import React from 'react';
+import './Olympus.css';
 
+/**
+ * Podcast product does not ship. This route is an intentional coming-soon shell
+ * so nav stays honest (label: "Podcasts (soon)") without implying catalog, RSS,
+ * subscribe, or episode playback APIs exist.
+ */
 const Podcast = () => {
   return (
-    <div className="podcast-page">
-      <div className="podcast-hero">
-        <h1>Podcasts</h1>
-        <p>Coming soon to Hathor</p>
+    <div className="oly-page">
+      <h1>Podcasts</h1>
+      <div className="oly-sub">Coming soon — not available on this build.</div>
+
+      <div className="oly-empty" role="status">
+        <p style={{ marginBottom: 8 }}>
+          There is no podcast catalog, subscribe flow, or episode stream route in this app yet.
+        </p>
+        <p style={{ opacity: 0.85, fontSize: 14, maxWidth: 520, margin: '0 auto' }}>
+          Music playback, playlists, and listening rooms work today. When podcasts ship, this page
+          will load real shows instead of this shell — until then the sidebar label stays marked
+          &quot;(soon)&quot; so it is not mistaken for a live product.
+        </p>
       </div>
-      <div className="podcast-coming-soon">
-        <div className="coming-soon-icon">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1} width="64" height="64">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-          </svg>
-        </div>
-        <h2>Podcasts are on the way</h2>
-        <p>We're building the ultimate podcast experience into Hathor.</p>
-        <p>Discover, subscribe, and listen to your favorite shows alongside your music.</p>
-        <div className="coming-soon-features">
-          <div className="feature-card">
-            <h4>Discover</h4>
-            <p>Find podcasts based on your music taste and listening habits</p>
+
+      <div className="oly-section">
+        <h2>Planned (not implemented)</h2>
+        <div className="oly-grid">
+          <div className="oly-card">
+            <h3>Discover</h3>
+            <div className="muted">Find shows from listening taste — no discovery API wired.</div>
           </div>
-          <div className="feature-card">
-            <h4>Create</h4>
-            <p>Upload and distribute your own podcast directly from Hathor</p>
+          <div className="oly-card">
+            <h3>Create / publish</h3>
+            <div className="muted">Upload and distribute episodes — no podcast upload path.</div>
           </div>
-          <div className="feature-card">
-            <h4>Integrate</h4>
-            <p>Seamlessly switch between music and podcasts in one app</p>
+          <div className="oly-card">
+            <h3>Integrated queue</h3>
+            <div className="muted">Switch music ↔ episodes in one player — episodes are not a media type yet.</div>
           </div>
         </div>
       </div>
