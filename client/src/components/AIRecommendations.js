@@ -77,6 +77,10 @@ const AIRecommendations = ({ currentSongId = null }) => {
     return 'Live AI connected';
   };
 
+  const isFallback = Boolean(
+    aiStatus && (aiStatus.fallbackMode || !aiStatus.initialized)
+  );
+
   const renderSongList = (songs) => {
     if (!songs || songs.length === 0) {
       return <p className="no-songs">No songs available</p>;
@@ -161,6 +165,14 @@ const AIRecommendations = ({ currentSongId = null }) => {
           )}
         </div>
       </div>
+
+      {/* Dose 5.1: honest banner when live model is offline (matches AIPlaylistGenerator) */}
+      {isFallback && (
+        <div className="ai-fallback-banner" role="status">
+          Live AI model is offline — recommendations use the rule-based fallback from your
+          library (genre/mood heuristics). Results still play; they are not LLM-ranked.
+        </div>
+      )}
 
       <div className="recommendations-content">
         {activeTab === 'forYou' && recommendations && (

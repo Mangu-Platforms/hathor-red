@@ -49,6 +49,18 @@
   background-clip: text;
 }
 
+/* Dose 5.1: match AIPlaylistGenerator fallback banner */
+.ai-fallback-banner {
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(255, 180, 60, 0.12);
+  border: 1px solid rgba(255, 180, 60, 0.35);
+  color: #e8c070;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
 .tab-buttons {
   display: flex;
   gap: 8px;

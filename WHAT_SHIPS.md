@@ -17,6 +17,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Playlists, rooms, AI fallbacks, Olympus flags honesty
 - Docs honesty, soft logout, room host/presence, genre filter, Settings status
 - **Room host song picker (dose-4.2)**: host Change Song UI loads catalog, filters by title/artist, emits `room-control` change-song; server sets `current_song_id`, position 0, and `is_playing = true` so late joiners and room-state see the track active
+- **AI recommendations fallback banner (dose-5.1)**: AIRecommendations shows status label + amber banner when `/ai/status` reports fallbackMode or not initialized (rule-based library match; results still play)
 
 ## Does not ship (honest)
 
@@ -28,4 +29,4 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## Next item
 
-Dose 5 Olympus shells: fallbacks when OpenAI/worker missing; remove dead nav items. No Dose 6+.
+Dose 5 Olympus shells: remaining worker/OpenAI empty-state honesty on Search/Store/Artist Hub if still thin; remove any remaining dead nav. No Dose 6+.
