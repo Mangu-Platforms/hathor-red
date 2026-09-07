@@ -22,6 +22,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Store empty-state honesty (dose-5.3)**: Store empty copy uses `/api/features` — distinguishes commerce flag off, empty catalog (list via Artist Hub), and worker off/not-live notes for commerce jobs
 - **Library empty-state honesty (dose-5.4)**: Library empty copy uses `/api/features` — commerce flag off vs empty owned list + worker off/not-live notes (parity with Store)
 - **Artist Hub empty-state honesty (dose-5.5)**: Top tracks / geo / revenue-by-track empties explain intel/commerce flag-off vs no plays yet (upload + listen path) vs no sales; worker-not-live note on revenue empty when commerce is on
+- **SongList empty-state honesty (dose-5.6)**: distinguishes empty catalog (API returned no tracks; upload/seed path) vs active search/genre filter with a clear-filters control; no longer a one-line “No songs match”
 
 ## Does not ship (honest)
 
@@ -33,4 +34,4 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## Next item
 
-Dose 5 Olympus shells: scan remaining pages for thin empty copy; remove any remaining dead nav. No Dose 6+.
+Dose 5 Olympus shells: scan remaining pages (Home daily-mix empty, Rooms load error) for thin copy; remove any remaining dead nav. No Dose 6+.

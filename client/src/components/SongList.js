@@ -18,6 +18,7 @@ const SongList = ({ songs, title, showSearch = false, onRefresh, onRemoveSong })
   });
 
   const genres = [...new Set(songs.map(s => s.genre).filter(Boolean))].sort();
+  const hasActiveFilter = Boolean(search.trim() || selectedGenre);
 
   /** Play the visible (filtered) list from the clicked row — index matches what the user sees. */
   const handlePlay = (indexInFiltered) => {
@@ -84,6 +85,43 @@ const SongList = ({ songs, title, showSearch = false, onRefresh, onRemoveSong })
     }
   };
 
+  const clearFilters = () => {
+    setSearch('');
+    setSelectedGenre('');
+  };
+
+  const emptyMessage = () => {
+    if (!songs || songs.length === 0) {
+      return (
+        <>
+          <p style={{ margin: '0 0 6px' }}>No songs in this list yet</p>
+          <p style={{ margin: 0, fontSize: '0.9em', opacity: 0.85 }}>
+            Upload from Artist Hub, or wait for catalog seeds. Empty here means the API returned no tracks — not a player bug.
+          </p>
+        </>
+      );
+    }
+    if (hasActiveFilter) {
+      return (
+        <>
+          <p style={{ margin: '0 0 6px' }}>No songs match this search or genre filter</p>
+          <p style={{ margin: 0, fontSize: '0.9em', opacity: 0.85 }}>
+            {songs.length} track{songs.length === 1 ? '' : 's'} available — clear filters to see them all.
+          </p>
+          <button
+            type="button"
+            className="song-action-btn"
+            onClick={clearFilters}
+            style={{ marginTop: 10, padding: '6px 12px' }}
+          >
+            Clear filters
+          </button>
+        </>
+      );
+    }
+    return <p style={{ margin: 0 }}>No songs to show</p>;
+  };
+
   return (
     <div className="song-list-container">
       {title && <h2 className="song-list-title">{title}</h2>}
@@ -106,15 +144,17 @@ const SongList = ({ songs, title, showSearch = false, onRefresh, onRemoveSong })
             >
               <option value="">All genres</option>
               {genres.map((g) => (
-                <option key={g} value={g}>{g}</option>
-              ))}
+                <option key={g} value={g}>{g}</option>)
+              )}
             </select>
           )}
         </div>
       )}
       <div className="song-list" role="list">
         {filtered.length === 0 ? (
-          <div className="song-list-empty">No songs match</div>
+          <div className="song-list-empty" role="status">
+            {emptyMessage()}
+          </div>
         ) : (
           filtered.map((song, index) => (
             <div
