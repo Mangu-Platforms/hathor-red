@@ -235,10 +235,14 @@ export const PlayerProvider = ({ children }) => {
     } catch (_) {}
   }, [audio]);
 
+  // Dose 1.106: when the player is idle (no current track) and the queue is empty,
+  // the first successful addToQueue becomes the current track and starts playback.
+  // Subsequent adds only append (no jump).
   const addToQueue = useCallback((song) => {
     if (!song || song.id == null) return false;
     const q = queueRef.current;
     if (q.some((s) => s && s.id === song.id)) return false;
+    const wasIdle = !currentSongRef.current && q.length === 0;
     setQueue((prev) => {
       if (prev.some((s) => s && s.id === song.id)) return prev;
       const next = [...prev, song];
@@ -250,8 +254,17 @@ export const PlayerProvider = ({ children }) => {
       }
       return next;
     });
+    if (wasIdle) {
+      setQueueIndex(0);
+      if (isShuffledRef.current) {
+        setShuffleOrder([0]);
+        setShufflePos(0);
+      }
+      // Fire-and-forget load; callers only need the boolean "added" result.
+      loadSong(song, { autoplay: true });
+    }
     return true;
-  }, []);
+  }, [loadSong]);
 
   const setQueueAndPlay = useCallback(async (songs, startIndex = 0) => {
     const list = Array.isArray(songs) ? songs.filter(Boolean) : [];
@@ -561,13 +574,10 @@ export const PlayerProvider = ({ children }) => {
         seek(t);
       } else if (key === 'ArrowUp') {
         e.preventDefault();
-        const v = Math.min(1, (volumeRef.current || 0) + KEYBOARD_VOLUME_STEP);
-        if (v > 0) preMuteVolumeRef.current = v;
-        setVolumeState(v);
+        setVolume(Math.min(1, (volumeRef.current || 0) + KEYBOARD_VOLUME_STEP));
       } else if (key === 'ArrowDown') {
         e.preventDefault();
-        const v = Math.max(0, (volumeRef.current || 0) - KEYBOARD_VOLUME_STEP);
-        setVolumeState(v);
+        setVolume(Math.max(0, (volumeRef.current || 0) - KEYBOARD_VOLUME_STEP));
       } else if (key === 'm' || key === 'M') {
         e.preventDefault();
         toggleMute();
@@ -575,7 +585,7 @@ export const PlayerProvider = ({ children }) => {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [play, pause, playNext, playPrevious, seek, toggleMute, audio]);
+  }, [play, pause, playNext, playPrevious, seek, setVolume, toggleMute, audio]);
 
   const removeFromQueue = useCallback((index) => {
     if (!Number.isInteger(index) || index < 0) return;
@@ -719,16 +729,18 @@ export const PlayerProvider = ({ children }) => {
         musicService.updatePlaybackState(payload).catch(() => {});
       } catch (_) {}
     };
-    document.addEventListener('visibilitychange', () => {
+    const onVis = () => {
       if (document.visibilityState === 'hidden') onHide();
-    });
+    };
+    document.addEventListener('visibilitychange', onVis);
     window.addEventListener('pagehide', onHide);
     return () => {
+      document.removeEventListener('visibilitychange', onVis);
       window.removeEventListener('pagehide', onHide);
     };
   }, [isAuthenticated, audio]);
 
-  // Soft logout: stop player and clear queue so audio does not keep playing.
+  // Soft logout clears player
   useEffect(() => {
     const onLogout = () => {
       hydratedRef.current = false;

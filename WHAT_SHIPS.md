@@ -17,6 +17,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - removeFromQueue with shuffle-order remap + shuffle-next when removing current
 - moveInQueue with shuffle-order remap + shufflePos re-sync
 - **Playback hydrate restores last song after login** (`musicService.getSong` unwraps `{ song }` so `loadSong` receives a real row with `id`)
+- **addToQueue on idle player auto-starts** (empty queue + no currentSong → first add loads and plays; later adds only append)
 - Playlists, rooms, AI fallbacks, Olympus flags honesty
 - Docs honesty, room host/presence, genre filter, Settings status
 - Room host song picker, AI/Search/Store/Library/Artist Hub/SongList/Home empty-state honesty, privacy/social gates, Podcast shell, Sidebar flag gating
@@ -32,4 +33,4 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## Next item
 
-Dose 1 hydrate edge closed (getSong unwrap). Remaining: any other Dose 1 queue edge or Dose 2 Settings polish. Do not start Dose 6+.
+Dose 1.106 closed (idle addToQueue auto-play). Remaining: any other Dose 1 queue edge or Dose 2 Settings polish. Do not start Dose 6+.
