@@ -2,24 +2,22 @@
 
 Snapshot of what the **main** branch actually does. Update every agent run.
 
-## CRITICAL — PlayerContext status (dose-1.120)
+## CRITICAL — PlayerContext restored (dose-1.121)
 
-**Client playback is temporarily an emergency stub.** Accidental truncate during agent push replaced full `PlayerContext.js` with a no-op Provider (SPA still mounts; play/seek/queue/stream do not run).
+**Client playback restored.** Full `PlayerContext.js` restored from commit `0149d0e7` (blob `85140b397dd9087d87dfa26f8fcd5c549d25b14d`) with keyboard **M** mute re-applied. Play/seek/queue/shuffle/stream retry/Media Session/keyboard shortcuts are live again.
 
-**Restore path:** copy `client/src/contexts/PlayerContext.js` from commit `0149d0e7d4f720ad3eaaa2bfcc65ab21bd251465` (blob `85140b397dd9087d87dfa26f8fcd5c549d25b14d`), then re-apply the three-line keyboard M mute patch (dose-1.120 intent). Local good file was prepared in the agent sandbox but could not be uploaded intact via MCP argument size limits.
-
-## Works today (server / non-player)
+## Works today
 
 - Password register/login, JWT, profile GET/PUT
 - Change password from Settings
-- Song list, upload, signed progressive stream endpoints (`stream-url` + `stream?t=`) still on server
+- Song list, upload, signed progressive stream endpoints (`stream-url` + `stream?t=`)
+- Client playback: loadSong via signed stream URL, seek guards, Fisher–Yates shuffle, queue UI hooks, stream error one-shot retry, Media Session, keyboard (space/n/p/arrows/M mute)
 - Playlists, rooms, AI fallbacks, Olympus flags honesty
 - Docs honesty, soft logout, room host/presence, genre filter, Settings status
 - Room host song picker, AI/Search/Store/Library/Artist Hub/SongList/Home empty-state honesty, privacy/social gates, Podcast shell, Sidebar flag gating
 
 ## Does not ship (honest)
 
-- Live client playback features until PlayerContext is restored (see CRITICAL)
 - OAuth, HLS in the React player, WebRTC video product, Demucs stems, pitch-shift DSP
 - Full multi-device live queue sync over sockets
 - Server-persisted multi-track queue
@@ -29,4 +27,4 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## Next item
 
-**Restore full PlayerContext.js from 0149d0e7** (then optional M-key mute). Do not start Dose 6+.
+**Verify playback end-to-end** (play a song, seek, shuffle, mute M, next/prev). Then smallest remaining Dose 1 item (queue UI polish or Redis+socket playback sync if still incomplete). Do not start Dose 6+.
