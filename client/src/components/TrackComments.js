@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { usePlayer } from '../contexts/PlayerContext';
 import { socialService } from '../services/olympus';
+import { getFeatures } from '../services/api';
 import '../pages/Olympus.css';
 
 // Bodies arrive HTML-escaped from the server; decode entities and render as
@@ -15,6 +16,8 @@ const decodeEntities = (text) => {
  * SoundCloud-style time-synced comments (Olympus M4). Floats above the player
  * bar; shows the comments landing in the current playback window and lets the
  * listener drop one at the current position.
+ * Gated by FEATURE_SOCIAL (dose-5.10): when the pillar is off, /api/social is
+ * not mounted — hide the toggle entirely instead of silently failing loads.
  */
 const TrackComments = () => {
   const { currentSong, progress, formatTime } = usePlayer();
@@ -22,7 +25,24 @@ const TrackComments = () => {
   const [comments, setComments] = useState([]);
   const [draft, setDraft] = useState('');
   const [posting, setPosting] = useState(false);
+  const [socialEnabled, setSocialEnabled] = useState(null); // null = loading
   const loadedForSong = useRef(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getFeatures()
+      .then((f) => {
+        if (!cancelled) setSocialEnabled(f?.social !== false);
+      })
+      .catch(() => {
+        // Match getFeatures fallback: assume enabled so a transient /features
+        // failure does not hide a live social pillar.
+        if (!cancelled) setSocialEnabled(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const load = useCallback(async (songId) => {
     try {
@@ -34,13 +54,19 @@ const TrackComments = () => {
   }, []);
 
   useEffect(() => {
-    if (currentSong && loadedForSong.current !== currentSong.id) {
+    if (socialEnabled === false) {
+      setComments([]);
+      loadedForSong.current = null;
+      return;
+    }
+    if (socialEnabled && currentSong && loadedForSong.current !== currentSong.id) {
       loadedForSong.current = currentSong.id;
       load(currentSong.id);
     }
-  }, [currentSong, load]);
+  }, [currentSong, load, socialEnabled]);
 
-  if (!currentSong) return null;
+  // Hide while flags load or when social pillar is off / no track.
+  if (socialEnabled === false || socialEnabled == null || !currentSong) return null;
 
   const nowMs = progress * 1000;
   // Comments "pop" during a 15s trailing window around the playhead.

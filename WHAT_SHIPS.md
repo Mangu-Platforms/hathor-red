@@ -26,6 +26,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Home Daily Mix + Rooms load honesty (dose-5.7)**: Home always surfaces a Daily Mix section — ready list with Play All, or empty (listen more to personalize) / error (service unavailable) copy instead of silent omission; Rooms shows a load-error panel with Retry when the rooms API fails (poll still runs every 15s)
 - **AIChat fallback banner (dose-5.8)**: AI Music Assistant overlay shows an amber status strip when `/ai/status` reports fallbackMode or not initialized (rule-based library match; replies still work, not LLM-generated) — parity with AIRecommendations and AIPlaylistGenerator
 - **Settings privacy pillar honesty (dose-5.9)**: when `/api/features` reports `privacy === false`, Settings replaces GDPR export + account-deletion controls with an amber note that FEATURE_PRIVACY is off and routes are not mounted; skips export-status polling
+- **TrackComments social gate (dose-5.10)**: comments toggle above the player only renders when FEATURE_SOCIAL is on (`/api/features` social !== false); when the pillar is off, `/api/social` is unmounted and the UI stays hidden instead of silently failing loads
 
 ## Does not ship (honest)
 
@@ -37,4 +38,4 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## Next item
 
-Dose 5 Olympus shells: remaining thin-copy / dead-nav checks if any. No Dose 6+.
+Dose 5 Olympus shells: remaining thin-copy / dead-nav checks if any (e.g. media pipeline empty states). No Dose 6+.
