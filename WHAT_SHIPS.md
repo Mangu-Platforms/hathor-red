@@ -21,6 +21,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Search worker honesty (dose-5.2)**: Semantic Search shows a status banner when `workerLive` is false (embeddings may be missing/stale); empty results also note stalled worker as a possible cause
 - **Store empty-state honesty (dose-5.3)**: Store empty copy uses `/api/features` — distinguishes commerce flag off, empty catalog (list via Artist Hub), and worker off/not-live notes for commerce jobs
 - **Library empty-state honesty (dose-5.4)**: Library empty copy uses `/api/features` — commerce flag off vs empty owned list + worker off/not-live notes (parity with Store)
+- **Artist Hub empty-state honesty (dose-5.5)**: Top tracks / geo / revenue-by-track empties explain intel/commerce flag-off vs no plays yet (upload + listen path) vs no sales; worker-not-live note on revenue empty when commerce is on
 
 ## Does not ship (honest)
 
@@ -32,4 +33,4 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## Next item
 
-Dose 5 Olympus shells: Artist Hub remaining thin empty-state notes if any; remove any remaining dead nav. No Dose 6+.
+Dose 5 Olympus shells: scan remaining pages for thin empty copy; remove any remaining dead nav. No Dose 6+.
