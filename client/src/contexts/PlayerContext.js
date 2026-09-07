@@ -441,7 +441,7 @@ export const PlayerProvider = ({ children }) => {
   const setPlaybackSpeed = useCallback((s) => {
     const n = Number(s);
     if (!Number.isFinite(n) || n <= 0) return;
-    setPlaybackSpeedState(Math.max(0.5, Math.min(2, n));
+    setPlaybackSpeedState(Math.max(0.5, Math.min(2, n)));
   }, []);
 
   const formatTime = useCallback((sec) => {
