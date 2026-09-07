@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { commerceService, newIdempotencyKey } from '../services/olympus';
+import { getFeatures } from '../services/api';
 import './Olympus.css';
 
 const formatPrice = (cents, currency = 'USD') => {
@@ -68,6 +69,15 @@ const Store = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [features, setFeatures] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getFeatures().then((f) => {
+      if (!cancelled) setFeatures(f);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     commerceService.listProducts()
@@ -87,6 +97,21 @@ const Store = () => {
       .finally(() => setLoading(false));
   }, []);
 
+  const emptyHint = (() => {
+    if (features?.commerce === false) {
+      return 'Commerce is disabled on this server (FEATURE_COMMERCE). Store routes are not mounted.';
+    }
+    const parts = [
+      'No products listed yet. Artists list tracks from Artist Hub when commerce is enabled.',
+    ];
+    if (features?.worker === false) {
+      parts.push('Background worker flag is off — subscription expiry jobs will not run.');
+    } else if (features?.workerLive === false) {
+      parts.push('Background job worker is not running — some commerce jobs may stall.');
+    }
+    return parts.join(' ');
+  })();
+
   return (
     <div className="oly-page">
       <h1>Store</h1>
@@ -96,7 +121,7 @@ const Store = () => {
       ) : error ? (
         <div className="oly-empty">{error}</div>
       ) : products.length === 0 ? (
-        <div className="oly-empty">No products listed yet. Artists can sell tracks from their dashboard.</div>
+        <div className="oly-empty">{emptyHint}</div>
       ) : (
         <div className="oly-grid">
           {products.map((p) => <ProductCard key={p.id} product={p} />)}
