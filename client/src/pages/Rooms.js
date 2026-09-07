@@ -7,6 +7,7 @@ const ROOMS_POLL_MS = 15000;
 
 const Rooms = () => {
   const [rooms, setRooms] = useState([]);
+  const [loadError, setLoadError] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
   const [newRoomName, setNewRoomName] = useState('');
   const [newRoomPublic, setNewRoomPublic] = useState(true);
@@ -22,8 +23,10 @@ const Rooms = () => {
     try {
       const res = await musicService.getRooms();
       setRooms(res.rooms || []);
+      setLoadError(null);
     } catch (err) {
       console.error(err);
+      setLoadError(err?.message || 'Failed to load rooms');
     }
   }, []);
 
@@ -80,8 +83,20 @@ const Rooms = () => {
         </div>
       )}
 
+      {loadError && (
+        <div className="empty-state" style={{ padding: '16px', marginBottom: 16, border: '1px solid rgba(229, 62, 62, 0.35)', borderRadius: 8 }}>
+          <p>Could not load listening rooms</p>
+          <p style={{ opacity: 0.85, fontSize: 14 }}>
+            The rooms API did not respond. Check your connection and try again — the list also refreshes every 15 seconds.
+          </p>
+          <button type="button" className="btn-secondary" style={{ marginTop: 12 }} onClick={fetchRooms}>
+            Retry
+          </button>
+        </div>
+      )}
+
       <div className="rooms-grid">
-        {rooms.length === 0 ? (
+        {!loadError && rooms.length === 0 ? (
           <div className="empty-state">
             <p>No active listening rooms</p>
             <p>Be the first to create one and invite your friends!</p>

@@ -23,6 +23,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Library empty-state honesty (dose-5.4)**: Library empty copy uses `/api/features` — commerce flag off vs empty owned list + worker off/not-live notes (parity with Store)
 - **Artist Hub empty-state honesty (dose-5.5)**: Top tracks / geo / revenue-by-track empties explain intel/commerce flag-off vs no plays yet (upload + listen path) vs no sales; worker-not-live note on revenue empty when commerce is on
 - **SongList empty-state honesty (dose-5.6)**: distinguishes empty catalog (API returned no tracks; upload/seed path) vs active search/genre filter with a clear-filters control; no longer a one-line “No songs match”
+- **Home Daily Mix + Rooms load honesty (dose-5.7)**: Home always surfaces a Daily Mix section — ready list with Play All, or empty (listen more to personalize) / error (service unavailable) copy instead of silent omission; Rooms shows a load-error panel with Retry when the rooms API fails (poll still runs every 15s)
 
 ## Does not ship (honest)
 
@@ -34,4 +35,4 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## Next item
 
-Dose 5 Olympus shells: scan remaining pages (Home daily-mix empty, Rooms load error) for thin copy; remove any remaining dead nav. No Dose 6+.
+Dose 5 Olympus shells: remaining thin-copy pages if any; remove any remaining dead nav. No Dose 6+.

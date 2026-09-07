@@ -10,6 +10,7 @@ const Home = () => {
   const [playlists, setPlaylists] = useState([]);
   const [genres, setGenres] = useState([]);
   const [dailyMix, setDailyMix] = useState([]);
+  const [dailyMixStatus, setDailyMixStatus] = useState('loading'); // loading | ready | empty | error
   const [activeTab, setActiveTab] = useState('discover');
   const [activeGenre, setActiveGenre] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -37,14 +38,18 @@ const Home = () => {
   };
 
   const fetchDailyMix = async () => {
+    setDailyMixStatus('loading');
     try {
       const res = await musicService.getDailyMix();
       // API returns { dailyMix: { songs, name, basedOn } }; accept flat { songs } too
       const list = res.dailyMix?.songs || res.songs || [];
-      setDailyMix(Array.isArray(list) ? list : []);
+      const arr = Array.isArray(list) ? list : [];
+      setDailyMix(arr);
+      setDailyMixStatus(arr.length > 0 ? 'ready' : 'empty');
     } catch (err) {
       console.error(err);
       setDailyMix([]);
+      setDailyMixStatus('error');
     }
   };
 
@@ -79,7 +84,7 @@ const Home = () => {
 
       {activeTab === 'discover' && (
         <>
-          {dailyMix.length > 0 && (
+          {dailyMixStatus === 'ready' && dailyMix.length > 0 && (
             <section className="section">
               <div className="section-header">
                 <h2>Your Daily Mix</h2>
@@ -89,6 +94,31 @@ const Home = () => {
                 </button>
               </div>
               <SongList songs={dailyMix.slice(0, 8)} title="" showSearch={false} />
+            </section>
+          )}
+
+          {(dailyMixStatus === 'empty' || dailyMixStatus === 'error') && (
+            <section className="section">
+              <div className="section-header">
+                <h2>Your Daily Mix</h2>
+              </div>
+              <div className="empty-state" style={{ padding: '24px 16px', textAlign: 'center' }}>
+                {dailyMixStatus === 'error' ? (
+                  <>
+                    <p>Daily Mix is temporarily unavailable</p>
+                    <p style={{ opacity: 0.8, fontSize: 14 }}>
+                      The recommendation service did not respond. Browse the catalog below or try again later.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p>No Daily Mix tracks yet</p>
+                    <p style={{ opacity: 0.8, fontSize: 14 }}>
+                      Listen to a few songs so we can build a personalized mix. Until then, explore genres and the full catalog below.
+                    </p>
+                  </>
+                )}
+              </div>
             </section>
           )}
 
