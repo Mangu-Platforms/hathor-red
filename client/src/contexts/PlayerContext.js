@@ -252,7 +252,6 @@ export const PlayerProvider = ({ children }) => {
     if (list[startIndex]) await loadSong(list[startIndex], { autoplay: true });
   }, [loadSong]);
 
-  /** Advance to next track respecting shuffle order and repeat modes. */
   const playNext = useCallback(async () => {
     const q = queueRef.current;
     if (!q.length) return;
@@ -348,7 +347,6 @@ export const PlayerProvider = ({ children }) => {
     }
   }, [audio, loadSong]);
 
-  // Advance on natural track end
   useEffect(() => {
     const onEnded = () => {
       playNext();
@@ -358,13 +356,12 @@ export const PlayerProvider = ({ children }) => {
   }, [audio, playNext]);
 
   // Dose 1: one automatic re-fetch of signed stream URL when <audio> errors
-  // (expired short-lived token, transient network). Prevents silent stall mid-track.
   useEffect(() => {
     const onError = async () => {
       const song = currentSongRef.current;
       if (!song || song.id == null) return;
       const gen = playGeneration.current;
-      if (streamRetryGen.current === gen) return; // already retried this generation
+      if (streamRetryGen.current === gen) return;
       streamRetryGen.current = gen;
       const resumeAt = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
       const shouldPlay = isPlayingRef.current;
@@ -441,7 +438,7 @@ export const PlayerProvider = ({ children }) => {
   const setPlaybackSpeed = useCallback((s) => {
     const n = Number(s);
     if (!Number.isFinite(n) || n <= 0) return;
-    setPlaybackSpeedState(Math.max(0.5, Math.min(2, n));
+    setPlaybackSpeedState(Math.max(0.5, Math.min(2, n)));
   }, []);
 
   const formatTime = useCallback((sec) => {
@@ -451,7 +448,6 @@ export const PlayerProvider = ({ children }) => {
     return `${m}:${s.toString().padStart(2, '0')}`;
   }, []);
 
-  // Media Session metadata + playbackState (lock screen / OS media keys)
   useEffect(() => {
     if (typeof navigator === 'undefined' || !navigator.mediaSession) return;
     try {
@@ -485,7 +481,6 @@ export const PlayerProvider = ({ children }) => {
     } catch (_) {}
   }, [isPlaying, currentSong]);
 
-  // Media Session action handlers
   useEffect(() => {
     if (typeof navigator === 'undefined' || !navigator.mediaSession) return undefined;
 
@@ -513,9 +508,7 @@ export const PlayerProvider = ({ children }) => {
       Object.entries(handlers).forEach(([action, handler]) => {
         try {
           navigator.mediaSession.setActionHandler(action, handler);
-        } catch (_) {
-          // Some actions unsupported in older browsers
-        }
+        } catch (_) {}
       });
     } catch (_) {}
 
@@ -530,7 +523,6 @@ export const PlayerProvider = ({ children }) => {
     };
   }, [play, pause, playNext, playPrevious, seek, audio]);
 
-  // Keyboard: N = next, P = previous (ignore when typing in inputs)
   useEffect(() => {
     const onKeyDown = (e) => {
       if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -602,7 +594,6 @@ export const PlayerProvider = ({ children }) => {
     }
   }, []);
 
-  // Hydrate last playback position once per auth session (Dose 1 polish)
   useEffect(() => {
     if (!isAuthenticated) {
       hydratedRef.current = false;
@@ -642,7 +633,6 @@ export const PlayerProvider = ({ children }) => {
         if (Number.isFinite(spd) && spd > 0) {
           setPlaybackSpeedState(Math.max(0.5, Math.min(2, spd)));
         }
-        // Do not autoplay on hydrate — browser policies + user surprise
         await loadSong(song, { autoplay: false, startAt });
         setQueue([song]);
         setQueueIndex(0);
@@ -655,7 +645,6 @@ export const PlayerProvider = ({ children }) => {
     return () => { cancelled = true; };
   }, [isAuthenticated, loadSong]);
 
-  // Debounced persist of position / volume / playing (single-track; no multi-queue ship)
   useEffect(() => {
     if (!isAuthenticated || !hydratedRef.current) return undefined;
     if (persistTimer.current) clearTimeout(persistTimer.current);
@@ -677,7 +666,6 @@ export const PlayerProvider = ({ children }) => {
     };
   }, [isAuthenticated, currentSong, isPlaying, volume, progress, playbackSpeed, audio]);
 
-  // Flush persist on page hide
   useEffect(() => {
     const onHide = () => {
       if (!isAuthenticated || !hydratedRef.current) return;
