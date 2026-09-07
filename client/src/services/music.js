@@ -21,7 +21,13 @@ function resolveStreamUrl(url) {
 export const musicService = {
   getSongs: (params) => api.get('/songs', { params }).then(r => r.data),
   getMySongs: (params) => api.get('/songs/mine', { params }).then(r => r.data),
-  getSong: (id) => api.get(`/songs/${id}`).then(r => r.data),
+  // Controller returns { song }; unwrap so callers (hydrate, detail) get the row.
+  getSong: (id) =>
+    api.get(`/songs/${id}`).then((r) => {
+      const data = r.data;
+      if (data && data.song && typeof data.song === 'object') return data.song;
+      return data;
+    }),
   getGenres: () => api.get('/songs/genres').then(r => r.data),
   getStreamUrl: (id) =>
     api.get(`/songs/${id}/stream-url`).then((r) => {

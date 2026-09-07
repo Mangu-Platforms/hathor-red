@@ -47,6 +47,14 @@ function safeSetCurrentTime(audio, time) {
   } catch (_) {}
 }
 
+/** Normalize getSong payload whether service unwraps or returns { song }. */
+function normalizeSongPayload(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  if (raw.id != null) return raw;
+  if (raw.song && typeof raw.song === 'object' && raw.song.id != null) return raw.song;
+  return null;
+}
+
 export const usePlayer = () => {
   const context = useContext(PlayerContext);
   if (!context) throw new Error('usePlayer must be used within a PlayerProvider');
@@ -562,18 +570,12 @@ export const PlayerProvider = ({ children }) => {
         setVolumeState(v);
       } else if (key === 'm' || key === 'M') {
         e.preventDefault();
-        if (volumeRef.current > 0) {
-          preMuteVolumeRef.current = volumeRef.current;
-          setVolumeState(0);
-        } else {
-          const restore = preMuteVolumeRef.current > 0 ? preMuteVolumeRef.current : 1;
-          setVolumeState(restore);
-        }
+        toggleMute();
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [play, pause, playNext, playPrevious, seek, audio]);
+  }, [play, pause, playNext, playPrevious, seek, toggleMute, audio]);
 
   const removeFromQueue = useCallback((index) => {
     if (!Number.isInteger(index) || index < 0) return;
@@ -613,17 +615,11 @@ export const PlayerProvider = ({ children }) => {
         loadSong(newQueue[nextIdx], { autoplay: isPlayingRef.current });
       }
     } else {
-      if (index < queueIndexRef.current) {
-        setQueueIndex((qi) => qi - 1);
-      }
+      const qi = queueIndexRef.current;
+      if (index < qi) setQueueIndex(qi - 1);
       if (remappedOrder && remappedOrder.length) {
-        // Keep shuffle cursor on the same logical track after index remap.
-        const curQi = index < queueIndexRef.current
-          ? queueIndexRef.current - 1
-          : queueIndexRef.current;
-        const pos = remappedOrder.indexOf(curQi);
+        const pos = remappedOrder.indexOf(qi > index ? qi - 1 : qi);
         if (pos >= 0) setShufflePos(pos);
-        else setShufflePos((p) => Math.min(p, Math.max(0, remappedOrder.length - 1)));
       }
     }
   }, [clearQueue, loadSong]);
@@ -670,7 +666,8 @@ export const PlayerProvider = ({ children }) => {
         // Single-track restore only (no multi-track queue persistence)
         if (state.songId != null) {
           try {
-            const song = await musicService.getSong(state.songId);
+            const raw = await musicService.getSong(state.songId);
+            const song = normalizeSongPayload(raw);
             if (cancelled || !song) return;
             const startAt = Number.isFinite(Number(state.position)) ? Number(state.position) : 0;
             await loadSong(song, { autoplay: false, startAt });
@@ -710,6 +707,7 @@ export const PlayerProvider = ({ children }) => {
     if (!isAuthenticated) return undefined;
     const onHide = () => {
       try {
+        if (!hydratedRef.current) return;
         const payload = {
           songId: currentSongRef.current?.id ?? null,
           position: Number.isFinite(audio.currentTime) ? audio.currentTime : 0,
@@ -721,19 +719,16 @@ export const PlayerProvider = ({ children }) => {
         musicService.updatePlaybackState(payload).catch(() => {});
       } catch (_) {}
     };
-    const onVis = () => {
+    document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') onHide();
-    };
-    document.addEventListener('visibilitychange', onVis);
+    });
     window.addEventListener('pagehide', onHide);
     return () => {
-      document.removeEventListener('visibilitychange', onVis);
       window.removeEventListener('pagehide', onHide);
     };
   }, [isAuthenticated, audio]);
 
-  // Dose 2: soft logout must stop audio and drop queue without a hard reload.
-  // AuthContext/authService dispatch auth:logout; PrivateRoute navigates to /login.
+  // Soft logout: stop player and clear queue so audio does not keep playing.
   useEffect(() => {
     const onLogout = () => {
       hydratedRef.current = false;
