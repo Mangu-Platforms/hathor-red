@@ -228,7 +228,9 @@ export const PlayerProvider = ({ children }) => {
   }, [audio]);
 
   const addToQueue = useCallback((song) => {
-    if (!song) return;
+    if (!song || song.id == null) return false;
+    const q = queueRef.current;
+    if (q.some((s) => s && s.id === song.id)) return false;
     setQueue((prev) => {
       if (prev.some((s) => s && s.id === song.id)) return prev;
       const next = [...prev, song];
@@ -240,6 +242,7 @@ export const PlayerProvider = ({ children }) => {
       }
       return next;
     });
+    return true;
   }, []);
 
   const setQueueAndPlay = useCallback(async (songs, startIndex = 0) => {
@@ -698,7 +701,23 @@ export const PlayerProvider = ({ children }) => {
     formatTime,
     removeFromQueue,
     moveInQueue,
-    insertNext: (song) => addToQueue(song),
+    insertNext: (song) => {
+      if (!song || song.id == null) return false;
+      const q = queueRef.current;
+      if (q.some((s) => s && s.id === song.id)) return false;
+      const insertAt = Math.min((Number.isInteger(queueIndexRef.current) ? queueIndexRef.current : 0) + 1, q.length);
+      const next = [...q.slice(0, insertAt), song, ...q.slice(insertAt)];
+      setQueue(next);
+      if (isShuffledRef.current) {
+        setShuffleOrder((order) => {
+          if (!order.length) return order;
+          // Remap indices >= insertAt, then append new index at end of shuffle (plays after current cycle)
+          const remapped = order.map((i) => (i >= insertAt ? i + 1 : i));
+          return [...remapped, insertAt];
+        });
+      }
+      return true;
+    },
     playAtIndex: async (i) => {
       const q = queueRef.current;
       if (q[i]) {
