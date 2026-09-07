@@ -24,6 +24,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Artist Hub empty-state honesty (dose-5.5)**: Top tracks / geo / revenue-by-track empties explain intel/commerce flag-off vs no plays yet (upload + listen path) vs no sales; worker-not-live note on revenue empty when commerce is on
 - **SongList empty-state honesty (dose-5.6)**: distinguishes empty catalog (API returned no tracks; upload/seed path) vs active search/genre filter with a clear-filters control; no longer a one-line “No songs match”
 - **Home Daily Mix + Rooms load honesty (dose-5.7)**: Home always surfaces a Daily Mix section — ready list with Play All, or empty (listen more to personalize) / error (service unavailable) copy instead of silent omission; Rooms shows a load-error panel with Retry when the rooms API fails (poll still runs every 15s)
+- **AIChat fallback banner (dose-5.8)**: AI Music Assistant overlay shows an amber status strip when `/ai/status` reports fallbackMode or not initialized (rule-based library match; replies still work, not LLM-generated) — parity with AIRecommendations and AIPlaylistGenerator
 
 ## Does not ship (honest)
 

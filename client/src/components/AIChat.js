@@ -52,6 +52,10 @@ const AIChat = ({ isOpen, onClose }) => {
     return 'Live AI connected';
   };
 
+  const isFallback = Boolean(
+    aiStatus && (aiStatus.fallbackMode || !aiStatus.initialized)
+  );
+
   const handleSend = async () => {
     if (!input.trim() || loading) return;
 
@@ -198,6 +202,14 @@ const AIChat = ({ isOpen, onClose }) => {
             </svg>
           </button>
         </div>
+
+        {/* Dose 5.8: honest banner when live model is offline (parity with AIRecommendations / AIPlaylistGenerator) */}
+        {isFallback && (
+          <div className="ai-chat-fallback-banner" role="status">
+            Live AI model is offline — replies use the rule-based fallback (library keyword
+            match). Answers still work; they are not LLM-generated.
+          </div>
+        )}
 
         <div className="chat-messages">
           {messages.map(renderMessage)}
