@@ -1,1 +1,1 @@
-export { default } from './MusicPlayer';
+SEE_LOCAL_FILE
