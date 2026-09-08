@@ -1,1 +1,1 @@
-PLACEHOLDER
+export { default } from './MusicPlayer';
