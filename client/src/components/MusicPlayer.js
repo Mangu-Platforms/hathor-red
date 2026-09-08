@@ -86,19 +86,27 @@ const MusicPlayer = () => {
     return queue.map((song, idx) => (song ? { song, idx, shuffleStep: null } : null)).filter(Boolean);
   }, [queue, isShuffled, shuffleOrder, shufflePos]);
 
+  // Linear drag only when not shuffled — under shuffle the panel shows play-order
+  // and linear moveInQueue would fight makeNext / displayRows (same reason ↑↓ are disabled).
   const onQueueDragStart = (e, idx) => {
+    if (isShuffled) {
+      e.preventDefault();
+      return;
+    }
     dragFromRef.current = idx;
     setDragFrom(idx);
     e.dataTransfer.effectAllowed = 'move';
     try { e.dataTransfer.setData('text/plain', String(idx)); } catch (_) {}
   };
   const onQueueDragOver = (e, idx) => {
+    if (isShuffled) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     setDragOver(idx);
   };
   const onQueueDrop = (e, toIndex) => {
     e.preventDefault();
+    if (isShuffled) return;
     const from = dragFromRef.current;
     if (!Number.isInteger(from) || from === toIndex) return;
     moveInQueue(from, toIndex);
@@ -109,12 +117,13 @@ const MusicPlayer = () => {
   };
 
   const onQueueTouchStart = (e, idx) => {
+    if (isShuffled) return;
     touchFromRef.current = idx;
     touchOverRef.current = idx;
     setDragFrom(idx);
   };
   const onQueueTouchMove = (e) => {
-    if (touchFromRef.current == null) return;
+    if (isShuffled || touchFromRef.current == null) return;
     const t = e.touches[0];
     if (!t) return;
     const el = document.elementFromPoint(t.clientX, t.clientY);
@@ -133,6 +142,12 @@ const MusicPlayer = () => {
     }
   };
   const onQueueTouchEnd = () => {
+    if (isShuffled) {
+      touchFromRef.current = null;
+      touchOverRef.current = null;
+      setDragFrom(null); setDragOver(null);
+      return;
+    }
     const from = touchFromRef.current;
     const to = touchOverRef.current;
     touchFromRef.current = null;
@@ -323,7 +338,7 @@ const MusicPlayer = () => {
                     role="option"
                     aria-selected={isCurrent}
                     aria-label={rowLabel}
-                    draggable
+                    draggable={!isShuffled}
                     onDragStart={(e) => onQueueDragStart(e, idx)}
                     onDragOver={(e) => onQueueDragOver(e, idx)}
                     onDrop={(e) => onQueueDrop(e, idx)}
@@ -332,7 +347,7 @@ const MusicPlayer = () => {
                     onTouchMove={onQueueTouchMove}
                     onTouchEnd={onQueueTouchEnd}
                   >
-                    <span className="player-queue-handle" aria-hidden="true">⋮⋮</span>
+                    <span className="player-queue-handle" aria-hidden="true">{isShuffled ? '·' : '⋮⋮'}</span>
                     <button
                       type="button"
                       className="player-queue-play-at"

@@ -27,6 +27,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Queue panel lists shuffle play order** (dose-1.113: when shuffled, Up next rows follow Fisher–Yates from shufflePos so the list matches what playNext will play; remove/move/play-at still use original queue indices)
 - **Queue “Play next” respects shuffle** (dose-1.114: `makeNext(index)` reorders Fisher–Yates so the track is next after current; linear path still moveInQueue to queueIndex+1; ↑↓ disabled under shuffle so linear reorder cannot fight the play-order panel)
 - **setPlaybackSpeed syntax fixed** (dose-1.115: missing `)` on `Math.min` call broke parse; playback-rate control works again)
+- **Queue drag-reorder disabled under shuffle** (dose-1.116: panel shows play-order; drag/touch moveInQueue would fight makeNext/displayRows — same honesty as ↑↓; handle shows · when locked)
 - Playlists, rooms, AI fallbacks, Olympus flags honesty
 - Docs honesty, room host/presence, genre filter, Settings status
 - Room host song picker, AI/Search/Store/Library/Artist Hub/SongList/Home empty-state honesty, privacy/social gates, Podcast shell, Sidebar flag gating
@@ -39,7 +40,8 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Telemetry/loudness/waveform
 - Redis-backed multi-instance room presence
 - Podcast product (catalog, RSS, episodes) — shell only
+- Shuffle play-order drag-reorder (panel is read-order + makeNext only while shuffled)
 
 ## Next item
 
-Dose 1.114 closed (shuffle-aware Play next + MusicPlayer restore). Remaining: minor Dose 1 queue polish (shuffle drag-reorder) or Dose 2 Settings polish. Do not start Dose 6+.
+Dose 1.116 closed (disable linear drag under shuffle). Remaining: Dose 2 Settings polish, or optional future shuffle-order drag. Do not start Dose 6+.
