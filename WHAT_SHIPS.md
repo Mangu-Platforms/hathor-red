@@ -25,6 +25,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **MusicPlayer restored** (dose-1.111: file was `SEE_LOCAL_FILE` placeholder on main; full player UI + shuffle-aware remaining shipped again)
 - **Media Session + keyboard wired** (dose-1.112: MediaMetadata + play/pause/next/prev/seek handlers; Space/N/P/←/→/M when not typing)
 - **Queue panel lists shuffle play order** (dose-1.113: when shuffled, Up next rows follow Fisher–Yates from shufflePos so the list matches what playNext will play; remove/move/play-at still use original queue indices)
+- **Queue “Play next” respects shuffle** (dose-1.114: `makeNext(index)` reorders Fisher–Yates so the track is next after current; linear path still moveInQueue to queueIndex+1; ↑↓ disabled under shuffle so linear reorder cannot fight the play-order panel)
 - Playlists, rooms, AI fallbacks, Olympus flags honesty
 - Docs honesty, room host/presence, genre filter, Settings status
 - Room host song picker, AI/Search/Store/Library/Artist Hub/SongList/Home empty-state honesty, privacy/social gates, Podcast shell, Sidebar flag gating
@@ -40,4 +41,4 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## Next item
 
-Dose 1.113 closed (shuffle-order queue panel). Remaining: minor Dose 1 queue polish or Dose 2 Settings polish. Do not start Dose 6+.
+Dose 1.114 closed (shuffle-aware Play next). Remaining: minor Dose 1 queue polish (shuffle drag-reorder) or Dose 2 Settings polish. Do not start Dose 6+.
