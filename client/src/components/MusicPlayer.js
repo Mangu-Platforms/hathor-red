@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { usePlayer } from '../contexts/PlayerContext';
 
 const VOLUME_STEP = 0.05;
@@ -71,6 +71,30 @@ const MusicPlayer = () => {
     else if (e.key === 'End') { e.preventDefault(); setPlaybackSpeed(2); }
   };
 
+  // Display order: when shuffled, show Fisher–Yates play order from shufflePos
+  // so "Up next" matches what playNext will actually play. Indices stay original
+  // queue slots for remove/move/playAtIndex.
+  const displayRows = useMemo(() => {
+    if (!queue.length) return [];
+    if (
+      isShuffled
+      && Array.isArray(shuffleOrder)
+      && shuffleOrder.length === queue.length
+    ) {
+      const pos = Number.isInteger(shufflePos)
+        ? Math.max(0, Math.min(shufflePos, shuffleOrder.length - 1))
+        : 0;
+      const rows = [];
+      for (let p = pos; p < shuffleOrder.length; p += 1) {
+        const idx = shuffleOrder[p];
+        if (idx == null || idx < 0 || idx >= queue.length || !queue[idx]) continue;
+        rows.push({ song: queue[idx], idx, shuffleStep: p - pos });
+      }
+      return rows;
+    }
+    return queue.map((song, idx) => (song ? { song, idx, shuffleStep: null } : null)).filter(Boolean);
+  }, [queue, isShuffled, shuffleOrder, shufflePos]);
+
   const onQueueDragStart = (e, idx) => {
     dragFromRef.current = idx;
     setDragFrom(idx);
@@ -89,7 +113,7 @@ const MusicPlayer = () => {
     moveInQueue(from, toIndex);
     setDragFrom(null); setDragOver(null); dragFromRef.current = null;
   };
-  const onQueueDragEnd = (e) => {
+  const onQueueDragEnd = () => {
     setDragFrom(null); setDragOver(null); dragFromRef.current = null;
   };
 
@@ -108,10 +132,14 @@ const MusicPlayer = () => {
     const list = row.parentElement;
     if (!list) return;
     const rows = Array.from(list.querySelectorAll('.player-queue-row'));
-    const idx = rows.indexOf(row);
-    if (idx >= 0) {
-      touchOverRef.current = idx;
-      setDragOver(idx);
+    const rowIdx = rows.indexOf(row);
+    if (rowIdx < 0) return;
+    // Map visible row back to original queue index via data attribute
+    const dataIdx = row.getAttribute('data-queue-index');
+    const parsed = dataIdx != null ? parseInt(dataIdx, 10) : NaN;
+    if (Number.isInteger(parsed)) {
+      touchOverRef.current = parsed;
+      setDragOver(parsed);
     }
   };
   const onQueueTouchEnd = () => {
@@ -314,13 +342,16 @@ const MusicPlayer = () => {
             <div className="player-queue-empty">Queue is empty</div>
           ) : (
             <ul className="player-queue-list">
-              {queue.map((song, idx) => {
-                if (!song) return null;
+              {displayRows.map(({ song, idx, shuffleStep }) => {
                 const isCurrent = idx === queueIndex;
                 const rowLabel = `${song.title || 'Unknown'}${song.artist ? ` — ${song.artist}` : ''}`;
+                const positionLabel = shuffleStep === 0 || (shuffleStep == null && isCurrent)
+                  ? (isPlaying ? '▶' : '•')
+                  : (shuffleStep != null ? shuffleStep + 1 : idx + 1);
                 return (
                   <li
                     key={`${song.id}-${idx}`}
+                    data-queue-index={idx}
                     className={`player-queue-row ${isCurrent ? 'current' : ''} ${dragFrom === idx ? 'dragging' : ''} ${dragOver === idx ? 'drag-over' : ''}`}
                     role="option"
                     aria-selected={isCurrent}
@@ -341,7 +372,7 @@ const MusicPlayer = () => {
                       onClick={() => playAtIndex(idx)}
                       aria-label={`Play ${song.title || 'track'}`}
                     >
-                      {isCurrent && isPlaying ? '▶' : idx + 1}
+                      {positionLabel}
                     </button>
                     <div className="player-queue-row-meta" onClick={() => playAtIndex(idx)} role="presentation">
                       <div className="player-queue-row-title">{song.title || 'Unknown'}</div>
