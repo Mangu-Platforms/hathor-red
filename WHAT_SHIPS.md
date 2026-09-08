@@ -32,6 +32,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Docs honesty, room host/presence, genre filter, Settings status
 - Room host song picker, AI/Search/Store/Library/Artist Hub/SongList/Home empty-state honesty, privacy/social gates, Podcast shell, Sidebar flag gating
 - **Settings toasts auto-clear errors too** (dose-2.84: profile and password messages — success and failure — clear after 5s; success-only clear was dose-2.82)
+- **Privacy/export toast auto-clears** (dose-2.85: GDPR export / deletion request messages clear after 5s like profile and password toasts)
 
 ## Does not ship (honest)
 
@@ -45,4 +46,4 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## Next item
 
-Dose 2.84 closed (Settings error toast auto-clear). Remaining: further Dose 2 Settings polish, or optional future shuffle-order drag. Do not start Dose 6+.
+Dose 2.85 closed (privacy toast auto-clear). Remaining: further Dose 2 Settings polish, or optional future shuffle-order drag. Do not start Dose 6+.

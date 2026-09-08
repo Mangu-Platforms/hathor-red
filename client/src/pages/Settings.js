@@ -32,6 +32,7 @@ const Settings = () => {
   const [statusCheckedAt, setStatusCheckedAt] = useState(null);
   const profileToastTimer = useRef(null);
   const pwToastTimer = useRef(null);
+  const messageToastTimer = useRef(null);
 
   useEffect(() => {
     if (user) {
@@ -57,6 +58,15 @@ const Settings = () => {
     }
     return () => clearTimeout(pwToastTimer.current);
   }, [pwMsg]);
+
+  // dose-2.85: auto-clear privacy/export toast (success and error) like profile/password
+  useEffect(() => {
+    clearTimeout(messageToastTimer.current);
+    if (message) {
+      messageToastTimer.current = setTimeout(() => setMessage(null), TOAST_CLEAR_MS);
+    }
+    return () => clearTimeout(messageToastTimer.current);
+  }, [message]);
 
   // dose-2.76: load listening stats for profile honesty (plays + time)
   useEffect(() => {
