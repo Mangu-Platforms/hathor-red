@@ -34,6 +34,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Settings toasts auto-clear errors too** (dose-2.84: profile and password messages — success and failure — clear after 5s; success-only clear was dose-2.82)
 - **Privacy/export toast auto-clears** (dose-2.85: GDPR export / deletion request messages clear after 5s like profile and password toasts)
 - **Settings Save/Update disabled when no-op** (dose-2.86: profile Save disabled until display name or avatar URL differs from loaded user; password Update disabled until current + new (8+) + matching confirm are filled; toasts use role=status aria-live=polite)
+- **Settings password live hints** (dose-2.87: while typing, show mismatch / short-password / match status under confirm so users see issues before submit; Update still gated by passwordReady)
 
 ## Does not ship (honest)
 
@@ -47,4 +48,4 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## Next item
 
-Dose 2.86 closed (Settings form no-op guards + a11y live regions). Remaining: further Dose 2 Settings polish if needed, or optional future shuffle-order drag. Do not start Dose 6+.
+Dose 2.87 closed (live password match/length hints in Settings). Remaining: further Dose 2 Settings polish if needed, or optional future shuffle-order drag. Do not start Dose 6+.

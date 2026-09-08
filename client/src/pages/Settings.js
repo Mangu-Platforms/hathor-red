@@ -284,6 +284,19 @@ const Settings = () => {
     newPassword === confirmPassword &&
     newPassword.length >= 8;
 
+  // dose-2.87: live client hints so mismatch / short password is visible before submit
+  const pwConfirmTyped = confirmPassword.length > 0;
+  const pwMismatch = pwConfirmTyped && newPassword !== confirmPassword;
+  const pwTooShort = newPassword.length > 0 && newPassword.length < 8;
+  const pwLiveHint = (() => {
+    if (pwMismatch) return 'Passwords do not match';
+    if (pwTooShort) return 'New password needs at least 8 characters';
+    if (pwConfirmTyped && newPassword === confirmPassword && newPassword.length >= 8) {
+      return 'Passwords match';
+    }
+    return null;
+  })();
+
   return (
     <div className="oly-page">
       <h1>Settings</h1>
@@ -540,6 +553,16 @@ const Settings = () => {
               {pwBusy ? 'Updating…' : 'Update password'}
             </button>
           </div>
+          {pwLiveHint && (
+            <div
+              className={`oly-msg ${pwMismatch || pwTooShort ? 'err' : 'ok'}`}
+              style={{ marginTop: 8 }}
+              role="status"
+              aria-live="polite"
+            >
+              {pwLiveHint}
+            </div>
+          )}
         </form>
         {pwMsg && (
           <div
