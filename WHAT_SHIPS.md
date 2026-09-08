@@ -33,6 +33,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - Room host song picker, AI/Search/Store/Library/Artist Hub/SongList/Home empty-state honesty, privacy/social gates, Podcast shell, Sidebar flag gating
 - **Settings toasts auto-clear errors too** (dose-2.84: profile and password messages — success and failure — clear after 5s; success-only clear was dose-2.82)
 - **Privacy/export toast auto-clears** (dose-2.85: GDPR export / deletion request messages clear after 5s like profile and password toasts)
+- **Settings Save/Update disabled when no-op** (dose-2.86: profile Save disabled until display name or avatar URL differs from loaded user; password Update disabled until current + new (8+) + matching confirm are filled; toasts use role=status aria-live=polite)
 
 ## Does not ship (honest)
 
@@ -46,4 +47,4 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## Next item
 
-Dose 2.85 closed (privacy toast auto-clear). Remaining: further Dose 2 Settings polish, or optional future shuffle-order drag. Do not start Dose 6+.
+Dose 2.86 closed (Settings form no-op guards + a11y live regions). Remaining: further Dose 2 Settings polish if needed, or optional future shuffle-order drag. Do not start Dose 6+.

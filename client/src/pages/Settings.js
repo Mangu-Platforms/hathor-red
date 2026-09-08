@@ -270,6 +270,20 @@ const Settings = () => {
   const redisStatus = health?.checks?.redis?.status;
   const workerHealthStatus = health?.checks?.worker?.status;
 
+  // dose-2.86: disable Save when profile fields match the loaded user (no-op submit)
+  const userDisplay = (user?.display_name || user?.displayName || '').trim();
+  const userAvatar = (user?.avatar_url || user?.avatarUrl || '').trim();
+  const profileDirty =
+    (displayName || '').trim() !== userDisplay ||
+    (avatarUrl || '').trim() !== userAvatar;
+  // Disable password submit until required fields are present (client-side honesty)
+  const passwordReady =
+    Boolean(currentPassword) &&
+    Boolean(newPassword) &&
+    Boolean(confirmPassword) &&
+    newPassword === confirmPassword &&
+    newPassword.length >= 8;
+
   return (
     <div className="oly-page">
       <h1>Settings</h1>
@@ -388,13 +402,23 @@ const Settings = () => {
               disabled={profileBusy}
               placeholder="https://… (optional; leave blank to clear)"
             />
-            <button className="oly-btn" type="submit" disabled={profileBusy}>
+            <button
+              className="oly-btn"
+              type="submit"
+              disabled={profileBusy || !profileDirty}
+              title={!profileDirty ? 'No changes to save' : undefined}
+            >
               {profileBusy ? 'Saving…' : 'Save'}
             </button>
           </div>
         </form>
         {profileMsg && (
-          <div className={`oly-msg ${profileMsg.ok ? 'ok' : 'err'}`} style={{ marginTop: 12 }}>
+          <div
+            className={`oly-msg ${profileMsg.ok ? 'ok' : 'err'}`}
+            style={{ marginTop: 12 }}
+            role="status"
+            aria-live="polite"
+          >
             {profileMsg.text}
           </div>
         )}
@@ -507,13 +531,23 @@ const Settings = () => {
             >
               {showConfirmPw ? 'Hide' : 'Show'}
             </button>
-            <button className="oly-btn" type="submit" disabled={pwBusy}>
+            <button
+              className="oly-btn"
+              type="submit"
+              disabled={pwBusy || !passwordReady}
+              title={!passwordReady ? 'Fill current, new (8+ chars), and matching confirm' : undefined}
+            >
               {pwBusy ? 'Updating…' : 'Update password'}
             </button>
           </div>
         </form>
         {pwMsg && (
-          <div className={`oly-msg ${pwMsg.ok ? 'ok' : 'err'}`} style={{ marginTop: 12 }}>
+          <div
+            className={`oly-msg ${pwMsg.ok ? 'ok' : 'err'}`}
+            style={{ marginTop: 12 }}
+            role="status"
+            aria-live="polite"
+          >
             {pwMsg.text}
           </div>
         )}
@@ -527,7 +561,12 @@ const Settings = () => {
             when FEATURE_WORKER is on.
           </p>
           {message && (
-            <div className={`oly-msg ${message.ok ? 'ok' : 'err'}`} style={{ marginBottom: 12 }}>
+            <div
+              className={`oly-msg ${message.ok ? 'ok' : 'err'}`}
+              style={{ marginBottom: 12 }}
+              role="status"
+              aria-live="polite"
+            >
               {message.text}
             </div>
           )}
