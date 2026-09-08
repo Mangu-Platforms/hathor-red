@@ -280,13 +280,27 @@ const Settings = () => {
 
   // dose-2.86: disable Save when profile fields match the loaded user (no-op submit)
   // dose-2.90: also block Save when trimmed display name is empty (server rejects)
+  // dose-2.91: also block Save when avatar URL is non-empty but not a valid http(s) URL
   const userDisplay = (user?.display_name || user?.displayName || '').trim();
   const userAvatar = (user?.avatar_url || user?.avatarUrl || '').trim();
   const profileNameTrimmed = (displayName || '').trim();
+  const avatarTrimmed = (avatarUrl || '').trim();
   const profileDirty =
     profileNameTrimmed !== userDisplay ||
-    (avatarUrl || '').trim() !== userAvatar;
-  const profileReady = profileDirty && profileNameTrimmed.length > 0;
+    avatarTrimmed !== userAvatar;
+  const avatarInvalid = (() => {
+    if (!avatarTrimmed) return false;
+    try {
+      const u = new URL(avatarTrimmed);
+      return u.protocol !== 'http:' && u.protocol !== 'https:';
+    } catch {
+      return true;
+    }
+  })();
+  const profileReady = profileDirty && profileNameTrimmed.length > 0 && !avatarInvalid;
+  const avatarLiveHint = avatarInvalid
+    ? 'Avatar URL must be a valid http or https URL'
+    : null;
   // Disable password submit until required fields are present (client-side honesty)
   // dose-2.88: also block when new password equals current (pointless change)
   // dose-2.89: match server complexity (upper + lower + digit) before submit
@@ -461,12 +475,24 @@ const Settings = () => {
                   ? 'No changes to save'
                   : !profileNameTrimmed
                     ? 'Display name cannot be empty'
-                    : undefined
+                    : avatarInvalid
+                      ? 'Avatar URL must be a valid http or https URL'
+                      : undefined
               }
             >
               {profileBusy ? 'Saving…' : 'Save'}
             </button>
           </div>
+          {avatarLiveHint && (
+            <div
+              className="oly-msg err"
+              style={{ marginTop: 8, maxWidth: 420 }}
+              role="status"
+              aria-live="polite"
+            >
+              {avatarLiveHint}
+            </div>
+          )}
         </form>
         {profileMsg && (
           <div
@@ -538,7 +564,6 @@ const Settings = () => {
               onClick={() => setShowCurrentPw((v) => !v)}
               disabled={pwBusy}
               aria-label={showCurrentPw ? 'Hide current password' : 'Show current password'}
-              title={showCurrentPw ? 'Hide' : 'Show'}
             >
               {showCurrentPw ? 'Hide' : 'Show'}
             </button>
@@ -565,7 +590,6 @@ const Settings = () => {
               onClick={() => setShowNewPw((v) => !v)}
               disabled={pwBusy}
               aria-label={showNewPw ? 'Hide new password' : 'Show new password'}
-              title={showNewPw ? 'Hide' : 'Show'}
             >
               {showNewPw ? 'Hide' : 'Show'}
             </button>
@@ -592,7 +616,6 @@ const Settings = () => {
               onClick={() => setShowConfirmPw((v) => !v)}
               disabled={pwBusy}
               aria-label={showConfirmPw ? 'Hide confirm password' : 'Show confirm password'}
-              title={showConfirmPw ? 'Hide' : 'Show'}
             >
               {showConfirmPw ? 'Hide' : 'Show'}
             </button>
@@ -604,15 +627,9 @@ const Settings = () => {
               disabled={pwBusy || !passwordReady}
               title={
                 !passwordReady
-                  ? pwMismatch
-                    ? 'Passwords do not match'
-                    : pwTooShort
-                      ? 'New password needs at least 8 characters'
-                      : pwSameAsCurrent
-                        ? 'New password must differ from current password'
-                        : pwWeakComplexity
-                          ? 'Needs uppercase, lowercase, and a number'
-                          : 'Fill current, new (8+ chars with upper/lower/digit), and matching confirm'
+                  ? pwSameAsCurrent
+                    ? 'New password must differ from current'
+                    : 'Fill current, new (8+ chars with upper/lower/digit), and matching confirm'
                   : undefined
               }
             >

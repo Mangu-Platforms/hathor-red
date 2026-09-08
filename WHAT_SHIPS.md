@@ -38,6 +38,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Settings password same-as-current blocked** (dose-2.88: live hint + disabled Update when new password equals current; submit handler also rejects; editing profile/password fields clears stale toasts immediately)
 - **Settings password complexity matches server** (dose-2.89: client live hint + passwordReady + submit guard require upper + lower + digit, same regex as `changePasswordValidation`; avoids server-only 400 after a “ready” button)
 - **Settings profile Save blocked on empty name** (dose-2.90: profileReady requires non-empty trimmed display name; Save stays disabled with title hint so empty name cannot submit after clearing the field)
+- **Settings avatar URL live validation** (dose-2.91: non-empty avatar URL must be valid http/https before Save enables; live err hint under the field; title on disabled Save; empty still clears avatar)
 
 ## Does not ship (honest)
 
@@ -51,4 +52,4 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## Next item
 
-Dose 2.90 closed (profile Save gated on non-empty display name). Remaining: further Dose 2 Settings polish if needed, or optional future shuffle-order drag. Do not start Dose 6+.
+Dose 2.91 closed (avatar URL live http(s) validation + gated Save). Remaining: further Dose 2 Settings polish if needed, or optional future shuffle-order drag. Do not start Dose 6+.
