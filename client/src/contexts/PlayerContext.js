@@ -260,7 +260,6 @@ export const PlayerProvider = ({ children }) => {
         setShuffleOrder([0]);
         setShufflePos(0);
       }
-      // Fire-and-forget load; callers only need the boolean "added" result.
       loadSong(song, { autoplay: true });
     }
     return true;
@@ -379,7 +378,6 @@ export const PlayerProvider = ({ children }) => {
     return () => audio.removeEventListener('ended', onEnded);
   }, [audio, playNext]);
 
-  // Dose 1: one automatic re-fetch of signed stream URL when <audio> errors
   useEffect(() => {
     const onError = async () => {
       const song = currentSongRef.current;
@@ -462,7 +460,7 @@ export const PlayerProvider = ({ children }) => {
   const setPlaybackSpeed = useCallback((s) => {
     const n = Number(s);
     if (!Number.isFinite(n) || n <= 0) return;
-    setPlaybackSpeedState(Math.max(0.5, Math.min(2, n));
+    setPlaybackSpeedState(Math.max(0.5, Math.min(2, n)));
   }, []);
 
   const formatTime = useCallback((sec) => {
@@ -472,7 +470,6 @@ export const PlayerProvider = ({ children }) => {
     return `${m}:${s.toString().padStart(2, '0')}`;
   }, []);
 
-  // Media Session metadata
   useEffect(() => {
     if (typeof navigator === 'undefined' || !navigator.mediaSession) return;
     try {
@@ -508,7 +505,6 @@ export const PlayerProvider = ({ children }) => {
 
   useEffect(() => {
     if (typeof navigator === 'undefined' || !navigator.mediaSession) return undefined;
-
     const handlers = {
       play: () => { play(); },
       pause: () => { pause(); },
@@ -528,7 +524,6 @@ export const PlayerProvider = ({ children }) => {
         if (details && Number.isFinite(details.seekTime)) seek(details.seekTime);
       },
     };
-
     try {
       Object.entries(handlers).forEach(([action, handler]) => {
         try {
@@ -536,7 +531,6 @@ export const PlayerProvider = ({ children }) => {
         } catch (_) {}
       });
     } catch (_) {}
-
     return () => {
       try {
         Object.keys(handlers).forEach((action) => {
@@ -591,25 +585,16 @@ export const PlayerProvider = ({ children }) => {
     const wasCurrent = index === queueIndexRef.current;
     const newQueue = q.filter((_, i) => i !== index);
     setQueue(newQueue);
-
-    // Remap shuffle order first so playNext/playPrevious stay aligned after remove.
     let remappedOrder = null;
     if (isShuffledRef.current && shuffleOrderRef.current.length) {
       remappedOrder = remapShuffleAfterRemove(shuffleOrderRef.current, index);
       setShuffleOrder(remappedOrder);
     }
-
     if (wasCurrent) {
       if (newQueue.length === 0) {
         clearQueue();
       } else if (remappedOrder && remappedOrder.length) {
-        // Under shuffle: removing current drops its entry from the order array,
-        // so the old shufflePos now points at the former next track. Prefer that
-        // over the linear index that slid into the hole (avoids skip/stall).
-        const pos = Math.min(
-          Math.max(0, shufflePosRef.current),
-          remappedOrder.length - 1
-        );
+        const pos = Math.min(Math.max(0, shufflePosRef.current), remappedOrder.length - 1);
         const nextIdx = remappedOrder[pos];
         setShufflePos(pos);
         setQueueIndex(nextIdx);
@@ -644,15 +629,12 @@ export const PlayerProvider = ({ children }) => {
     if (isShuffledRef.current && shuffleOrderRef.current.length) {
       const remapped = remapShuffleAfterMove(shuffleOrderRef.current, from, to);
       setShuffleOrder(remapped);
-      // Re-sync shuffle cursor to the current track after index remap so
-      // playNext/playPrevious stay on the same logical sequence position.
       const pos = remapped.indexOf(newQi);
       if (pos >= 0) setShufflePos(pos);
       else setShufflePos((p) => Math.min(p, Math.max(0, remapped.length - 1)));
     }
   }, []);
 
-  // Hydrate playback state once when authenticated
   useEffect(() => {
     if (!isAuthenticated || hydratedRef.current) return;
     let cancelled = false;
@@ -684,7 +666,6 @@ export const PlayerProvider = ({ children }) => {
     return () => { cancelled = true; };
   }, [isAuthenticated, loadSong]);
 
-  // Persist playback position (debounced)
   useEffect(() => {
     if (!isAuthenticated || !currentSong) return undefined;
     clearTimeout(persistTimer.current);
@@ -700,7 +681,6 @@ export const PlayerProvider = ({ children }) => {
     return () => clearTimeout(persistTimer.current);
   }, [isAuthenticated, currentSong, progress, volume, playbackSpeed]);
 
-  // Soft logout clears player
   useEffect(() => {
     const onLogout = () => {
       hydratedRef.current = false;
@@ -710,7 +690,6 @@ export const PlayerProvider = ({ children }) => {
     return () => window.removeEventListener('auth:logout', onLogout);
   }, [clearQueue]);
 
-  // If auth drops without the event (e.g. expired token cleared elsewhere), still reset.
   useEffect(() => {
     if (!isAuthenticated) {
       hydratedRef.current = false;
@@ -743,8 +722,6 @@ export const PlayerProvider = ({ children }) => {
     if (isShuffledRef.current) {
       setShuffleOrder((order) => {
         if (!order.length) return order;
-        // Remap indices >= insertAt, then insert new index immediately after current shuffle position
-        // so play-next under shuffle actually plays next (not at end of cycle).
         const remapped = order.map((i) => (i >= insertAt ? i + 1 : i));
         const pos = Math.max(0, Math.min(shufflePosRef.current, remapped.length));
         const withNext = [...remapped.slice(0, pos + 1), insertAt, ...remapped.slice(pos + 1)];
