@@ -305,6 +305,12 @@ const Settings = () => {
     }
   })();
   const profileReady = profileDirty && profileNameTrimmed.length > 0 && !avatarInvalid;
+  // dose-2.94: live empty-name hint (same honesty pattern as password / avatar hints)
+  // so users see why Save is disabled without relying only on the button title.
+  const profileNameEmpty = profileNameTrimmed.length === 0;
+  const profileNameLiveHint = profileNameEmpty
+    ? 'Display name cannot be empty'
+    : null;
   const avatarLiveHint = avatarInvalid
     ? 'Avatar URL must be a valid http or https URL'
     : null;
@@ -462,8 +468,21 @@ const Settings = () => {
               maxLength={100}
               disabled={profileBusy}
               placeholder="How you appear to others"
+              aria-invalid={profileNameEmpty || undefined}
+              aria-describedby={profileNameLiveHint ? 'profile-name-hint' : undefined}
             />
           </div>
+          {profileNameLiveHint && (
+            <div
+              id="profile-name-hint"
+              className="oly-msg err"
+              style={{ marginTop: -4, marginBottom: 12, maxWidth: 420 }}
+              role="status"
+              aria-live="polite"
+            >
+              {profileNameLiveHint}
+            </div>
+          )}
           <label className="muted" style={{ fontSize: '0.85rem', display: 'block', marginBottom: 4 }}>
             Avatar URL
           </label>
@@ -522,20 +541,14 @@ const Settings = () => {
           <div style={{ marginTop: 16 }}>
             <div className="muted" style={{ fontSize: '0.85rem', marginBottom: 4 }}>Listening</div>
             <div>
-              {typeof stats.totalPlays === 'number' || typeof stats.play_count === 'number'
-                ? `${stats.totalPlays ?? stats.play_count} plays`
-                : null}
-              {(stats.totalPlayTimeSeconds != null || stats.total_listen_seconds != null) && (
-                <span className="muted">
-                  {' · '}
-                  {(() => {
-                    const sec = Number(stats.totalPlayTimeSeconds ?? stats.total_listen_seconds) || 0;
-                    if (sec < 60) return `${sec}s listened`;
-                    const h = Math.floor(sec / 3600);
-                    const m = Math.floor((sec % 3600) / 60);
-                    if (h > 0) return `${h}h ${m}m listened`;
-                    return `${m}m listened`;
-                  })()}
+              {(typeof stats.totalPlays === 'number' || typeof stats.play_count === 'number') && (
+                <span className="oly-reason">
+                  {stats.totalPlays ?? stats.play_count} plays
+                </span>
+              )}
+              {(typeof stats.totalListenSeconds === 'number' || typeof stats.listen_seconds === 'number') && (
+                <span className="oly-reason">
+                  {Math.round((stats.totalListenSeconds ?? stats.listen_seconds) / 60)} min listened
                 </span>
               )}
             </div>
@@ -544,10 +557,10 @@ const Settings = () => {
       </div>
 
       <div className="oly-section">
-        <h2>Change password</h2>
+        <h2>Password</h2>
         <p className="muted" style={{ marginBottom: 12 }}>
-          Requires your current password. New password must be at least 8 characters with upper,
-          lower, and a digit.
+          Change your password. Requires the current password. New password must be at least 8
+          characters with uppercase, lowercase, and a number.
         </p>
         <form onSubmit={savePassword}>
           <label className="muted" style={{ fontSize: '0.85rem', display: 'block', marginBottom: 4 }}>
@@ -570,7 +583,6 @@ const Settings = () => {
               className="oly-btn-ghost"
               onClick={() => setShowCurrentPw((v) => !v)}
               disabled={pwBusy}
-              title={showCurrentPw ? 'Hide' : 'Show'}
             >
               {showCurrentPw ? 'Hide' : 'Show'}
             </button>
@@ -595,7 +607,6 @@ const Settings = () => {
               className="oly-btn-ghost"
               onClick={() => setShowNewPw((v) => !v)}
               disabled={pwBusy}
-              title={showNewPw ? 'Hide' : 'Show'}
             >
               {showNewPw ? 'Hide' : 'Show'}
             </button>
@@ -620,7 +631,6 @@ const Settings = () => {
               className="oly-btn-ghost"
               onClick={() => setShowConfirmPw((v) => !v)}
               disabled={pwBusy}
-              title={showConfirmPw ? 'Hide' : 'Show'}
             >
               {showConfirmPw ? 'Hide' : 'Show'}
             </button>
@@ -630,15 +640,7 @@ const Settings = () => {
               disabled={pwBusy || !passwordReady}
               title={
                 !passwordReady
-                  ? pwMismatch
-                    ? 'Passwords do not match'
-                    : pwTooShort
-                      ? 'New password needs at least 8 characters'
-                      : pwWeakComplexity
-                        ? 'Needs uppercase, lowercase, and a number'
-                        : pwSameAsCurrent
-                          ? 'New password must differ from current'
-                          : 'Fill current, new, and matching confirm'
+                  ? pwLiveHint || 'Fill current, new (8+ with upper/lower/digit), and matching confirm'
                   : undefined
               }
             >
@@ -647,7 +649,7 @@ const Settings = () => {
           </div>
           {pwLiveHint && (
             <div
-              className={`oly-msg ${pwMismatch || pwTooShort || pwWeakComplexity || pwSameAsCurrent ? 'err' : 'ok'}`}
+              className={`oly-msg ${pwLiveHint === 'Passwords match' ? 'ok' : 'err'}`}
               style={{ marginTop: 8, maxWidth: 420 }}
               role="status"
               aria-live="polite"

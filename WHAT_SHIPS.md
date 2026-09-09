@@ -41,6 +41,7 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 - **Settings avatar URL live validation** (dose-2.91: non-empty avatar URL must be valid http/https before Save enables; live err hint under the field; title on disabled Save; empty still clears avatar)
 - **Settings avatar live preview** (dose-2.92: typed valid http(s) avatar URL shows in the profile circle before Save; invalid/empty falls back to saved avatar)
 - **Settings avatar broken-image fallback** (dose-2.93: if live-preview or saved avatar URL fails to load, show initial letter instead of an empty circle; reset error when URL changes)
+- **Settings display-name empty live hint** (dose-2.94: clearing the display name shows an inline err under the field with aria-live, same honesty as password/avatar hints; Save remains disabled via profileReady)
 
 ## Does not ship (honest)
 
@@ -54,4 +55,4 @@ Snapshot of what the **main** branch actually does. Update every agent run.
 
 ## Next item
 
-Dose 2.93 closed (avatar broken-image falls back to letter). Remaining: further Dose 2 Settings polish if needed, or optional future shuffle-order drag. Do not start Dose 6+.
+Dose 2.94 closed (display-name empty live hint). Remaining: further Dose 2 Settings polish if needed, or optional future shuffle-order drag. Do not start Dose 6+.
