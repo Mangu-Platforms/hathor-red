@@ -13,14 +13,28 @@ const {
 } = require('../config/constants');
 const { resolveUploadPath } = require('../utils/uploadPath');
 
+/** Resolve a client genre string to the canonical ALLOWED_GENRES entry (case-insensitive). */
+function resolveAllowedGenre(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const lower = trimmed.toLowerCase();
+  const match = ALLOWED_GENRES.find((g) => g.toLowerCase() === lower);
+  return match || null;
+}
+
 const getSongs = async (req, res) => {
   try {
-    const { genre, search, limit, offset } = req.query;
+    const { genre: genreRaw, search, limit, offset } = req.query;
     const pageLimit = Math.min(parseInt(limit) || DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT);
     const pageOffset = Math.max(parseInt(offset) || 0, 0);
 
-    if (genre && !ALLOWED_GENRES.includes(genre)) {
-      return res.status(400).json({ error: 'Invalid genre', allowed: ALLOWED_GENRES });
+    let genre = null;
+    if (genreRaw) {
+      genre = resolveAllowedGenre(genreRaw);
+      if (!genre) {
+        return res.status(400).json({ error: 'Invalid genre', allowed: ALLOWED_GENRES });
+      }
     }
 
     const cacheKey = `songs:${genre || 'all'}:${search || ''}:${pageLimit}:${pageOffset}`;
@@ -38,8 +52,9 @@ const getSongs = async (req, res) => {
     const params = [];
 
     if (genre) {
-      params.push(genre);
-      query += ` AND genre = $${params.length}`;
+      // Case-insensitive match so client casing variance still filters correctly.
+      params.push(genre.toLowerCase());
+      query += ` AND LOWER(genre) = $${params.length}`;
     }
 
     if (search) {

@@ -1,6 +1,6 @@
 # WHAT_SHIPS — Hathor Red live capability snapshot
 
-Last updated: 2026-09-09 (dose-1.4 playback persist debounce).
+Last updated: 2026-09-09 (dose-3.1 genre filter case-insensitive).
 
 ## Ships today
 
@@ -10,6 +10,7 @@ Last updated: 2026-09-09 (dose-1.4 playback persist debounce).
 - **Playback hydrate**: `getPlaybackState` unwraps `{ state }` to the row; resume uses `current_song_id` / `is_playing` / `position` and restores volume + playback_speed from the saved row.
 - **Playback persist**: while playing, client debounces and interval-posts `updatePlaybackState` (position, isPlaying, volume, playbackSpeed, currentSongId) so Redis/DB stay warm for multi-device resume. Also persists on pause, seek, volume/speed, loadSong, clearQueue.
 - **Playlists**: list, detail route, add/remove/reorder, AI generate when OpenAI/Colab available (rule-based fallback otherwise).
+- **Home genre filter**: Home passes `{ genre }` to `GET /api/songs`; `songController.getSongs` resolves against `ALLOWED_GENRES` case-insensitively and filters with `LOWER(genre)`.
 - **Rooms**: create/join/leave, socket presence; disconnect path cleans `room_participants`. Listener counts refresh via poll.
 - **Olympus shells**: `/api/media`, `/api/commerce`, `/api/discovery`, `/api/social`, `/api/intel`, `/api/privacy` gated by `FEATURE_*` flags. Worker optional (`FEATURE_WORKER`). Client nav/routes gate on `/api/features`.
 - **Podcast**: honest coming-soon page; nav label "Podcasts (soon)".
@@ -31,12 +32,12 @@ Last updated: 2026-09-09 (dose-1.4 playback persist debounce).
 | 0 Truth (README/flags/nav honesty) | Done — README matches; Podcast coming-soon; flags gate Olympus; WHAT_SHIPS live |
 | 1 Playback | Core done (signed streams, seek/shuffle/queue guards). Hydrate + persist debounce done. Residual: optional polish only |
 | 2 Account basics | Profile in Settings present; soft logout without hard reload |
-| 3 Home/playlists | Genre filter + playlist routes present; verify filter actually filters |
+| 3 Home/playlists | Genre filter verified + case-insensitive server match; playlist routes present |
 | 4 Rooms | Disconnect cleanup + poll; host song picker / honest counts next |
 | 5 Olympus shells | Fallbacks + flag gating present; remove any remaining dead nav if found |
 
 ## Next item
 
-Dose 3: verify genre filter against server `genre` query param (Home already passes `{ genre }`; confirm songController filters). Or Dose 4 host song picker.
+Dose 4: host song picker in rooms (or honest listener counts polish).
 
 See also: [README.md](README.md), [BUGS.md](BUGS.md), [API.md](API.md).
