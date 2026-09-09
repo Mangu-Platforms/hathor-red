@@ -1,59 +1,40 @@
-# WHAT_SHIPS
+# WHAT_SHIPS — Hathor Red live capability snapshot
 
-Snapshot of what the **main** branch actually does. Update every agent run.
+Last updated: 2026-09-09 (dose-0.1 honesty pass).
 
-## CRITICAL — soft logout stops player (dose-2.83)
+## Ships today
 
-**Playback clears on sign-out.** `PlayerContext` listens for `auth:logout` (and `isAuthenticated` flipping false) and runs `clearQueue()` plus resets hydration so the next login can restore state. Soft logout already avoided hard reload; the player no longer keeps playing after Sign out.
+- **Auth**: email/password + JWT. No OAuth routes mounted.
+- **Playback (Dose 1 core)**: signed stream URLs (`GET /api/songs/:id/stream-url` → `/stream?t=…`) so HTML5 `<audio src>` works without Authorization headers. `streamAuth` + `streamToken` (short-lived, song-scoped). Client resolves absolute origin when `REACT_APP_API_URL` is set.
+- **Player**: queue, Fisher-Yates shuffle, repeat (none/one/all), seek with finite-duration guards, play-generation to avoid stale autoplay races, stream URL retry on media error, volume + playback-rate (0.5x–2x). Pitch-shift and stem UI **removed** (not on the audio graph).
+- **Playlists**: list, detail route, add/remove/reorder, AI generate when OpenAI/Colab available (rule-based fallback otherwise).
+- **Rooms**: create/join/leave, socket presence; disconnect path cleans `room_participants`. Listener counts refresh via poll.
+- **Olympus shells**: `/api/media`, `/api/commerce`, `/api/discovery`, `/api/social`, `/api/intel`, `/api/privacy` gated by `FEATURE_*` flags. Worker optional (`FEATURE_WORKER`). Client nav/routes gate on `/api/features`.
+- **Podcast**: honest coming-soon page; nav label "Podcasts (soon)".
+- **Static uploads**: **not** public; audio only via signed stream.
 
-## Works today
+## Does not ship (do not claim in UI)
 
-- Password register/login, JWT, profile GET/PUT
-- Change password from Settings
-- Soft logout without hard reload; player/queue clear on logout
-- Song list, upload, signed progressive stream endpoints (`stream-url` + `stream?t=`)
-- Client playback: loadSong via signed stream URL, seek guards, Fisher–Yates shuffle, queue UI (reorder, clear, play-at-index), stream error one-shot retry, Media Session, keyboard (space/n/p/arrows/M mute)
-- True insert-next (linear and under shuffle) and boolean queue feedback
-- **insertNext on idle player auto-starts** (empty queue + no currentSong → same as first addToQueue)
-- removeFromQueue with shuffle-order remap + shuffle-next when removing current
-- **removeFromQueue under shuffle: last-in-shuffle stops cleanly** (dose-1.109: do not jump backward when the current track was the final shuffle entry; repeat-all reshuffles)
-- moveInQueue with shuffle-order remap + shufflePos re-sync
-- **Playback hydrate restores last song after login** (`musicService.getSong` unwraps `{ song }` so `loadSong` receives a real row with `id`)
-- **Hydrate seeds queue with restored song** (dose-1.108: queue was empty after login restore; now `[song]` + index 0 so Up-next / next-prev stay usable)
-- **addToQueue on idle player auto-starts** (empty queue + no currentSong → first add loads and plays; later adds only append)
-- **Queue remaining time respects shuffle order** (dose-1.110: when shuffled, “X left” walks Fisher–Yates from shufflePos; linear path unchanged)
-- **MusicPlayer restored** (dose-1.111 / dose-1.114: full player UI + shuffle-aware remaining; ⤵ Play next calls `makeNext`)
-- **Media Session + keyboard wired** (dose-1.112: MediaMetadata + play/pause/next/prev/seek handlers; Space/N/P/←/→/M when not typing)
-- **Queue panel lists shuffle play order** (dose-1.113: when shuffled, Up next rows follow Fisher–Yates from shufflePos so the list matches what playNext will play; remove/move/play-at still use original queue indices)
-- **Queue “Play next” respects shuffle** (dose-1.114: `makeNext(index)` reorders Fisher–Yates so the track is next after current; linear path still moveInQueue to queueIndex+1; ↑↓ disabled under shuffle so linear reorder cannot fight the play-order panel)
-- **setPlaybackSpeed syntax fixed** (dose-1.115: missing `)` on `Math.min` call broke parse; playback-rate control works again)
-- **Queue drag-reorder disabled under shuffle** (dose-1.116: panel shows play-order; drag/touch moveInQueue would fight makeNext/displayRows — same honesty as ↑↓; handle shows · when locked)
-- Playlists, rooms, AI fallbacks, Olympus flags honesty
-- Docs honesty, room host/presence, genre filter, Settings status
-- Room host song picker, AI/Search/Store/Library/Artist Hub/SongList/Home empty-state honesty, privacy/social gates, Podcast shell, Sidebar flag gating
-- **Settings toasts auto-clear errors too** (dose-2.84: profile and password messages — success and failure — clear after 5s; success-only clear was dose-2.82)
-- **Privacy/export toast auto-clears** (dose-2.85: GDPR export / deletion request messages clear after 5s like profile and password toasts)
-- **Settings Save/Update disabled when no-op** (dose-2.86: profile Save disabled until display name or avatar URL differs from loaded user; password Update disabled until current + new (8+) + matching confirm are filled; toasts use role=status aria-live=polite)
-- **Settings password live hints** (dose-2.87: while typing, show mismatch / short-password / match status under confirm so users see issues before submit; Update still gated by passwordReady)
-- **Settings password same-as-current blocked** (dose-2.88: live hint + disabled Update when new password equals current; submit handler also rejects; editing profile/password fields clears stale toasts immediately)
-- **Settings password complexity matches server** (dose-2.89: client live hint + passwordReady + submit guard require upper + lower + digit, same regex as `changePasswordValidation`; avoids server-only 400 after a “ready” button)
-- **Settings profile Save blocked on empty name** (dose-2.90: profileReady requires non-empty trimmed display name; Save stays disabled with title hint so empty name cannot submit after clearing the field)
-- **Settings avatar URL live validation** (dose-2.91: non-empty avatar URL must be valid http/https before Save enables; live err hint under the field; title on disabled Save; empty still clears avatar)
-- **Settings avatar live preview** (dose-2.92: typed valid http(s) avatar URL shows in the profile circle before Save; invalid/empty falls back to saved avatar)
-- **Settings avatar broken-image fallback** (dose-2.93: if live-preview or saved avatar URL fails to load, show initial letter instead of an empty circle; reset error when URL changes)
-- **Settings display-name empty live hint** (dose-2.94: clearing the display name shows an inline err under the field with aria-live, same honesty as password/avatar hints; Save remains disabled via profileReady)
-- **Settings display-name character counter** (dose-2.95: live `N/100` next to the Display name label so the maxLength=100 limit is visible while typing)
+- HLS adaptive playback in the live player (transcode/HLS code exists behind media flag; progressive stream is what `<audio>` uses).
+- OAuth (Google/Spotify).
+- WebRTC video in rooms.
+- Stem separation / independent pitch shift.
+- Multi-device live queue sync beyond basic playback state Redis+DB write (socket path updates Redis; full cross-device queue UI not wired).
+- Podcast catalog, RSS, subscribe, or episode playback.
 
-## Does not ship (honest)
+## Dose status
 
-- OAuth, HLS in the React player, WebRTC video product, Demucs stems, pitch-shift DSP
-- Full multi-device live queue sync over sockets
-- Server-persisted multi-track queue
-- Telemetry/loudness/waveform
-- Redis-backed multi-instance room presence
-- Podcast product (catalog, RSS, episodes) — shell only
-- Shuffle play-order drag-reorder (panel is read-order + makeNext only while shuffled)
+| Dose | Status |
+|------|--------|
+| 0 Truth (README/flags/nav honesty) | Done — README matches; Podcast coming-soon; flags gate Olympus; WHAT_SHIPS live |
+| 1 Playback | Core done (signed streams, seek/shuffle/queue guards). Residual: multi-device live queue polish |
+| 2 Account basics | Profile in Settings present; verify logout without hard reload |
+| 3 Home/playlists | Genre filter + playlist routes present; verify filter actually filters |
+| 4 Rooms | Disconnect cleanup + poll; host song picker / honest counts next |
+| 5 Olympus shells | Fallbacks + flag gating present; remove any remaining dead nav if found |
 
 ## Next item
 
-Dose 2.95 closed (display-name character counter). Remaining: further Dose 2 Settings polish if needed, or optional future shuffle-order drag. Do not start Dose 6+.
+Dose 1 residual or Dose 2: confirm logout clears session without full page reload; then harden multi-device playback state if needed.
+
+See also: [README.md](README.md), [BUGS.md](BUGS.md), [API.md](API.md).
