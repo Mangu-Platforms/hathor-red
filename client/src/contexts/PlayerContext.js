@@ -7,6 +7,8 @@ const PlayerContext = createContext();
 const PREV_RESTART_THRESHOLD_SEC = 3;
 const KEYBOARD_SEEK_SEC = 5;
 const MEDIA_SESSION_SEEK_SEC = 10;
+const PERSIST_INTERVAL_MS = 8000;
+const PERSIST_DEBOUNCE_MS = 1200;
 
 function fisherYatesShuffle(length) {
   const order = Array.from({ length }, (_, i) => i);
@@ -94,7 +96,10 @@ export const PlayerProvider = ({ children }) => {
   const hydratedRef = useRef(false);
   const streamRetryGen = useRef(-1);
   const volumeRef = useRef(1);
+  const playbackSpeedRef = useRef(1);
   const preMuteVolumeRef = useRef(1);
+  const persistTimerRef = useRef(null);
+  const persistDebounceRef = useRef(null);
   const audio = audioRef.current;
 
   useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
@@ -106,6 +111,7 @@ export const PlayerProvider = ({ children }) => {
   useEffect(() => { repeatModeRef.current = repeatMode; }, [repeatMode]);
   useEffect(() => { currentSongRef.current = currentSong; }, [currentSong]);
   useEffect(() => { volumeRef.current = volume; }, [volume]);
+  useEffect(() => { playbackSpeedRef.current = playbackSpeed; }, [playbackSpeed]);
 
   useEffect(() => {
     const v = Number.isFinite(volume) ? volume : 1;
@@ -130,6 +136,62 @@ export const PlayerProvider = ({ children }) => {
     }
     return () => clearInterval(progressInterval.current);
   }, [isPlaying, audio]);
+
+  const persistPlaybackState = useCallback(async (overrides = {}) => {
+    if (!isAuthenticated) return;
+    const song = currentSongRef.current;
+    const position = Number.isFinite(overrides.position)
+      ? overrides.position
+      : (Number.isFinite(audio.currentTime) ? audio.currentTime : 0);
+    const payload = {
+      currentSongId: Object.prototype.hasOwnProperty.call(overrides, 'currentSongId')
+        ? overrides.currentSongId
+        : (song?.id ?? null),
+      position,
+      isPlaying: Object.prototype.hasOwnProperty.call(overrides, 'isPlaying')
+        ? overrides.isPlaying
+        : isPlayingRef.current,
+      volume: Object.prototype.hasOwnProperty.call(overrides, 'volume')
+        ? overrides.volume
+        : volumeRef.current,
+      playbackSpeed: Object.prototype.hasOwnProperty.call(overrides, 'playbackSpeed')
+        ? overrides.playbackSpeed
+        : playbackSpeedRef.current,
+    };
+    try {
+      await musicService.updatePlaybackState(payload);
+    } catch (err) {
+      console.warn('persistPlaybackState failed', err?.message || err);
+    }
+  }, [isAuthenticated, audio]);
+
+  const schedulePersist = useCallback((overrides) => {
+    if (persistDebounceRef.current) clearTimeout(persistDebounceRef.current);
+    persistDebounceRef.current = setTimeout(() => {
+      persistDebounceRef.current = null;
+      persistPlaybackState(overrides);
+    }, PERSIST_DEBOUNCE_MS);
+  }, [persistPlaybackState]);
+
+  // Keep Redis/DB warm while playing so multi-device resume sees recent position.
+  useEffect(() => {
+    if (!isAuthenticated || !isPlaying || !currentSong) {
+      if (persistTimerRef.current) {
+        clearInterval(persistTimerRef.current);
+        persistTimerRef.current = null;
+      }
+      return undefined;
+    }
+    persistTimerRef.current = setInterval(() => {
+      persistPlaybackState();
+    }, PERSIST_INTERVAL_MS);
+    return () => {
+      if (persistTimerRef.current) {
+        clearInterval(persistTimerRef.current);
+        persistTimerRef.current = null;
+      }
+    };
+  }, [isAuthenticated, isPlaying, currentSong, persistPlaybackState]);
 
   const loadSong = useCallback(async (song, { autoplay = true, startAt = 0 } = {}) => {
     if (!song || song.id == null) return;
@@ -162,12 +224,17 @@ export const PlayerProvider = ({ children }) => {
       } else {
         setIsPlaying(false);
       }
+      schedulePersist({
+        currentSongId: song.id,
+        position: Number.isFinite(startAt) ? startAt : 0,
+        isPlaying: autoplay,
+      });
     } catch (err) {
       console.error('loadSong failed', err);
       setIsPlaying(false);
       setAudioSrc(null);
     }
-  }, [audio]);
+  }, [audio, schedulePersist]);
 
   const play = useCallback(async () => {
     if (!currentSongRef.current) return;
@@ -178,16 +245,18 @@ export const PlayerProvider = ({ children }) => {
       }
       await audio.play();
       setIsPlaying(true);
+      schedulePersist({ isPlaying: true });
     } catch (err) {
       console.warn('play failed', err);
       setIsPlaying(false);
     }
-  }, [audio, loadSong]);
+  }, [audio, loadSong, schedulePersist]);
 
   const pause = useCallback(() => {
     audio.pause();
     setIsPlaying(false);
-  }, [audio]);
+    schedulePersist({ isPlaying: false, position: Number.isFinite(audio.currentTime) ? audio.currentTime : 0 });
+  }, [audio, schedulePersist]);
 
   const togglePlay = useCallback(() => {
     if (isPlayingRef.current) pause();
@@ -201,7 +270,8 @@ export const PlayerProvider = ({ children }) => {
     const clamped = Number.isFinite(d) && d > 0 ? Math.max(0, Math.min(d, time)) : Math.max(0, time);
     safeSetCurrentTime(audio, clamped);
     setProgress(clamped);
-  }, [audio]);
+    schedulePersist({ position: clamped });
+  }, [audio, schedulePersist]);
 
   const clearQueue = useCallback(() => {
     try {
@@ -227,32 +297,293 @@ export const PlayerProvider = ({ children }) => {
         navigator.mediaSession.playbackState = 'none';
       }
     } catch (_) {}
+    schedulePersist({ currentSongId: null, position: 0, isPlaying: false });
+  }, [audio, schedulePersist]);
+
+  const resolveNextIndex = useCallback(() => {
+    const q = queueRef.current;
+    if (!q.length) return null;
+    if (repeatModeRef.current === 'one') {
+      return isShuffledRef.current
+        ? (Number.isInteger(shufflePosRef.current) ? shuffleOrderRef.current[shufflePosRef.current] : queueIndexRef.current)
+        : queueIndexRef.current;
+    }
+    if (isShuffledRef.current && shuffleOrderRef.current.length === q.length) {
+      const nextPos = (Number.isInteger(shufflePosRef.current) ? shufflePosRef.current : 0) + 1;
+      if (nextPos < shuffleOrderRef.current.length) return { index: shuffleOrderRef.current[nextPos], shufflePos: nextPos };
+      if (repeatModeRef.current === 'all') return { index: shuffleOrderRef.current[0], shufflePos: 0 };
+      return null;
+    }
+    const next = queueIndexRef.current + 1;
+    if (next < q.length) return { index: next, shufflePos: null };
+    if (repeatModeRef.current === 'all') return { index: 0, shufflePos: null };
+    return null;
+  }, []);
+
+  const resolvePrevIndex = useCallback(() => {
+    const q = queueRef.current;
+    if (!q.length) return null;
+    const t = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+    if (t > PREV_RESTART_THRESHOLD_SEC) {
+      return { restart: true };
+    }
+    if (isShuffledRef.current && shuffleOrderRef.current.length === q.length) {
+      const pos = Number.isInteger(shufflePosRef.current) ? shufflePosRef.current : 0;
+      if (pos > 0) return { index: shuffleOrderRef.current[pos - 1], shufflePos: pos - 1 };
+      if (repeatModeRef.current === 'all') {
+        const last = shuffleOrderRef.current.length - 1;
+        return { index: shuffleOrderRef.current[last], shufflePos: last };
+      }
+      return { restart: true };
+    }
+    const idx = queueIndexRef.current;
+    if (idx > 0) return { index: idx - 1, shufflePos: null };
+    if (repeatModeRef.current === 'all') return { index: q.length - 1, shufflePos: null };
+    return { restart: true };
   }, [audio]);
 
-  // NOTE: remainder of PlayerContext restored in follow-up if truncated — full file in artifacts.
-  // Minimal viable provider surface so SPA does not crash on import.
-  const value = {
-    currentSong, isPlaying, volume, playbackSpeed, progress, duration, queue, queueIndex,
-    shuffleOrder, shufflePos, isShuffled, repeatMode, audioSrc, loudnessGain: 1, waveform: null,
-    play, pause, togglePlay, seek, playNext: async () => {}, playPrevious: async () => {}, loadSong,
-    clearQueue, addToQueue: () => false, setQueueAndPlay: async () => {},
-    setVolume: (v) => { const n = Number(v); if (Number.isFinite(n)) setVolumeState(Math.max(0, Math.min(1, n))); },
-    setPlaybackSpeed: (s) => { const n = Number(s); if (Number.isFinite(n) && n > 0) setPlaybackSpeedState(Math.max(0.5, Math.min(2, n))); },
-    toggleMute: () => setVolumeState((v) => (v > 0 ? 0 : 1)),
-    toggleShuffle: () => setIsShuffled((p) => !p),
-    cycleRepeat: () => setRepeatMode((prev) => (prev === 'none' ? 'all' : prev === 'all' ? 'one' : 'none')),
-    formatTime: (sec) => {
-      if (!Number.isFinite(sec) || sec < 0) return '0:00';
-      const m = Math.floor(sec / 60);
-      const s = Math.floor(sec % 60);
-      return `${m}:${s.toString().padStart(2, '0')}`;
-    },
-    removeFromQueue: () => {},
-    moveInQueue: () => {},
-    insertNext: () => false,
-    makeNext: () => {},
-    playAtIndex: async () => {},
-  };
+  const playNext = useCallback(async () => {
+    const next = resolveNextIndex();
+    if (!next) {
+      pause();
+      return;
+    }
+    const song = queueRef.current[next.index];
+    if (!song) return;
+    setQueueIndex(next.index);
+    if (next.shufflePos != null) setShufflePos(next.shufflePos);
+    await loadSong(song, { autoplay: true, startAt: 0 });
+  }, [resolveNextIndex, pause, loadSong]);
+
+  const playPrevious = useCallback(async () => {
+    const prev = resolvePrevIndex();
+    if (!prev) return;
+    if (prev.restart) {
+      seek(0);
+      if (!isPlayingRef.current) play();
+      return;
+    }
+    const song = queueRef.current[prev.index];
+    if (!song) return;
+    setQueueIndex(prev.index);
+    if (prev.shufflePos != null) setShufflePos(prev.shufflePos);
+    await loadSong(song, { autoplay: true, startAt: 0 });
+  }, [resolvePrevIndex, seek, play, loadSong]);
+
+  const playAtIndex = useCallback(async (idx) => {
+    const q = queueRef.current;
+    if (!Number.isInteger(idx) || idx < 0 || idx >= q.length) return;
+    setQueueIndex(idx);
+    if (isShuffledRef.current && shuffleOrderRef.current.length === q.length) {
+      const pos = shuffleOrderRef.current.indexOf(idx);
+      if (pos >= 0) setShufflePos(pos);
+    }
+    await loadSong(q[idx], { autoplay: true, startAt: 0 });
+  }, [loadSong]);
+
+  const setQueueAndPlay = useCallback(async (songs, startIndex = 0) => {
+    const list = Array.isArray(songs) ? songs.filter((s) => s && s.id != null) : [];
+    if (!list.length) return;
+    const idx = Math.max(0, Math.min(startIndex, list.length - 1));
+    setQueue(list);
+    setQueueIndex(idx);
+    if (isShuffledRef.current) {
+      const order = fisherYatesShuffle(list.length);
+      const pos = order.indexOf(idx);
+      setShuffleOrder(order);
+      setShufflePos(pos >= 0 ? pos : 0);
+    } else {
+      setShuffleOrder([]);
+      setShufflePos(0);
+    }
+    await loadSong(list[idx], { autoplay: true, startAt: 0 });
+  }, [loadSong]);
+
+  const addToQueue = useCallback((song) => {
+    if (!song || song.id == null) return false;
+    setQueue((prev) => {
+      const next = [...prev, song];
+      if (isShuffledRef.current) {
+        setShuffleOrder((so) => (so.length === prev.length ? [...so, prev.length] : fisherYatesShuffle(next.length)));
+      }
+      return next;
+    });
+    return true;
+  }, []);
+
+  const insertNext = useCallback((song) => {
+    if (!song || song.id == null) return false;
+    setQueue((prev) => {
+      const at = Math.min(queueIndexRef.current + 1, prev.length);
+      const next = [...prev.slice(0, at), song, ...prev.slice(at)];
+      if (isShuffledRef.current) {
+        setShuffleOrder((so) => {
+          if (so.length !== prev.length) return fisherYatesShuffle(next.length);
+          return so.map((i) => (i >= at ? i + 1 : i)).concat(at);
+        });
+      }
+      return next;
+    });
+    return true;
+  }, []);
+
+  const removeFromQueue = useCallback((idx) => {
+    if (!Number.isInteger(idx) || idx < 0) return;
+    const q = queueRef.current;
+    if (idx >= q.length) return;
+    const wasCurrent = idx === queueIndexRef.current;
+    const nextQueue = q.filter((_, i) => i !== idx);
+    setQueue(nextQueue);
+    if (isShuffledRef.current) {
+      setShuffleOrder((so) => remapShuffleAfterRemove(so, idx));
+      setShufflePos((pos) => Math.max(0, Math.min(pos, Math.max(0, nextQueue.length - 1))));
+    }
+    if (!nextQueue.length) {
+      clearQueue();
+      return;
+    }
+    if (wasCurrent) {
+      const newIdx = Math.min(idx, nextQueue.length - 1);
+      setQueueIndex(newIdx);
+      loadSong(nextQueue[newIdx], { autoplay: isPlayingRef.current, startAt: 0 });
+    } else if (idx < queueIndexRef.current) {
+      setQueueIndex((qi) => qi - 1);
+    }
+  }, [clearQueue, loadSong]);
+
+  const moveInQueue = useCallback((from, to) => {
+    if (!Number.isInteger(from) || !Number.isInteger(to)) return;
+    const q = queueRef.current;
+    if (from < 0 || to < 0 || from >= q.length || to >= q.length || from === to) return;
+    const next = [...q];
+    const [item] = next.splice(from, 1);
+    next.splice(to, 0, item);
+    setQueue(next);
+    setQueueIndex((qi) => remapIndexAfterMove(qi, from, to));
+    if (isShuffledRef.current) {
+      setShuffleOrder((so) => remapShuffleAfterMove(so, from, to));
+    }
+  }, []);
+
+  const makeNext = useCallback((idx) => {
+    if (!Number.isInteger(idx) || idx < 0) return;
+    const q = queueRef.current;
+    if (idx >= q.length || idx === queueIndexRef.current) return;
+    const target = queueIndexRef.current + 1;
+    if (idx === target) return;
+    moveInQueue(idx, Math.min(target, q.length - 1));
+  }, [moveInQueue]);
+
+  const setVolume = useCallback((v) => {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return;
+    const clamped = Math.max(0, Math.min(1, n));
+    setVolumeState(clamped);
+    if (clamped > 0) preMuteVolumeRef.current = clamped;
+    schedulePersist({ volume: clamped });
+  }, [schedulePersist]);
+
+  const setPlaybackSpeed = useCallback((s) => {
+    const n = Number(s);
+    if (!Number.isFinite(n) || n <= 0) return;
+    const clamped = Math.max(0.5, Math.min(2, n));
+    setPlaybackSpeedState(clamped);
+    schedulePersist({ playbackSpeed: clamped });
+  }, [schedulePersist]);
+
+  const toggleMute = useCallback(() => {
+    setVolumeState((v) => {
+      if (v > 0) {
+        preMuteVolumeRef.current = v;
+        schedulePersist({ volume: 0 });
+        return 0;
+      }
+      const restore = preMuteVolumeRef.current > 0 ? preMuteVolumeRef.current : 1;
+      schedulePersist({ volume: restore });
+      return restore;
+    });
+  }, [schedulePersist]);
+
+  const toggleShuffle = useCallback(() => {
+    setIsShuffled((prev) => {
+      const next = !prev;
+      if (next) {
+        const order = fisherYatesShuffle(queueRef.current.length);
+        const pos = order.indexOf(queueIndexRef.current);
+        setShuffleOrder(order);
+        setShufflePos(pos >= 0 ? pos : 0);
+      } else {
+        setShuffleOrder([]);
+        setShufflePos(0);
+      }
+      return next;
+    });
+  }, []);
+
+  const cycleRepeat = useCallback(() => {
+    setRepeatMode((prev) => (prev === 'none' ? 'all' : prev === 'all' ? 'one' : 'none'));
+  }, []);
+
+  const formatTime = useCallback((sec) => {
+    if (!Number.isFinite(sec) || sec < 0) return '0:00';
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  }, []);
+
+  useEffect(() => {
+    const onEnded = () => { playNext(); };
+    const onError = async () => {
+      const song = currentSongRef.current;
+      if (!song || streamRetryGen.current === playGeneration.current) return;
+      streamRetryGen.current = playGeneration.current;
+      try {
+        const data = await musicService.getStreamUrl(song.id);
+        if (playGeneration.current !== streamRetryGen.current) return;
+        const url = data?.url;
+        if (!url) return;
+        setAudioSrc(url);
+        audio.src = url;
+        audio.load();
+        if (isPlayingRef.current) {
+          try { await audio.play(); } catch (_) {}
+        }
+      } catch (_) {}
+    };
+    audio.addEventListener('ended', onEnded);
+    audio.addEventListener('error', onError);
+    return () => {
+      audio.removeEventListener('ended', onEnded);
+      audio.removeEventListener('error', onError);
+    };
+  }, [audio, playNext]);
+
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !navigator.mediaSession) return undefined;
+    try {
+      if (currentSong) {
+        navigator.mediaSession.metadata = new window.MediaMetadata({
+          title: currentSong.title || 'Unknown',
+          artist: currentSong.artist || currentSong.uploader_name || '',
+        });
+      }
+      navigator.mediaSession.playbackState = isPlaying ? 'playing' : (currentSong ? 'paused' : 'none');
+      navigator.mediaSession.setActionHandler('play', () => { play(); });
+      navigator.mediaSession.setActionHandler('pause', () => { pause(); });
+      navigator.mediaSession.setActionHandler('previoustrack', () => { playPrevious(); });
+      navigator.mediaSession.setActionHandler('nexttrack', () => { playNext(); });
+      navigator.mediaSession.setActionHandler('seekbackward', () => {
+        seek(Math.max(0, (Number.isFinite(audio.currentTime) ? audio.currentTime : 0) - MEDIA_SESSION_SEEK_SEC));
+      });
+      navigator.mediaSession.setActionHandler('seekforward', () => {
+        const d = audio.duration;
+        const t = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+        const max = Number.isFinite(d) && d > 0 ? d : t + MEDIA_SESSION_SEEK_SEC;
+        seek(Math.min(max, t + MEDIA_SESSION_SEEK_SEC));
+      });
+    } catch (_) {}
+    return undefined;
+  }, [currentSong, isPlaying, play, pause, playNext, playPrevious, seek, audio]);
 
   useEffect(() => {
     const onLogout = () => { clearQueue(); hydratedRef.current = false; };
@@ -263,9 +594,9 @@ export const PlayerProvider = ({ children }) => {
   useEffect(() => {
     if (!isAuthenticated) {
       if (hydratedRef.current) { clearQueue(); hydratedRef.current = false; }
-      return;
+      return undefined;
     }
-    if (hydratedRef.current) return;
+    if (hydratedRef.current) return undefined;
     let cancelled = false;
     (async () => {
       try {
@@ -297,6 +628,20 @@ export const PlayerProvider = ({ children }) => {
     })();
     return () => { cancelled = true; };
   }, [isAuthenticated, clearQueue, loadSong]);
+
+  useEffect(() => () => {
+    if (persistTimerRef.current) clearInterval(persistTimerRef.current);
+    if (persistDebounceRef.current) clearTimeout(persistDebounceRef.current);
+  }, []);
+
+  const value = {
+    currentSong, isPlaying, volume, playbackSpeed, progress, duration, queue, queueIndex,
+    shuffleOrder, shufflePos, isShuffled, repeatMode, audioSrc, loudnessGain: 1, waveform: null,
+    play, pause, togglePlay, seek, playNext, playPrevious, loadSong,
+    clearQueue, addToQueue, setQueueAndPlay, insertNext,
+    setVolume, setPlaybackSpeed, toggleMute, toggleShuffle, cycleRepeat, formatTime,
+    removeFromQueue, moveInQueue, makeNext, playAtIndex,
+  };
 
   return <PlayerContext.Provider value={value}>{children}</PlayerContext.Provider>;
 };
