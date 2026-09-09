@@ -6,6 +6,14 @@ import { usePlayer } from '../contexts/PlayerContext';
 import { musicService } from '../services/music';
 import './ListeningRoom.css';
 
+/** musicService.getSong already unwraps { song }; tolerate either shape. */
+function songFromGetSong(res) {
+  if (!res || typeof res !== 'object') return null;
+  if (res.id != null) return res;
+  if (res.song && typeof res.song === 'object' && res.song.id != null) return res.song;
+  return null;
+}
+
 const ListeningRoom = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -79,7 +87,8 @@ const ListeningRoom = () => {
         musicService
           .getSong(state.currentSongId)
           .then((res) => {
-            loadSong(res.song);
+            const song = songFromGetSong(res);
+            if (song) loadSong(song);
           })
           .catch(() => {});
       }
@@ -92,8 +101,11 @@ const ListeningRoom = () => {
         musicService
           .getSong(update.songId)
           .then((res) => {
-            loadSong(res.song);
-            play();
+            const song = songFromGetSong(res);
+            if (song) {
+              loadSong(song);
+              play();
+            }
           })
           .catch(() => {});
       }
