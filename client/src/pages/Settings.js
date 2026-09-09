@@ -30,6 +30,8 @@ const Settings = () => {
   const [stats, setStats] = useState(null);
   const [statusBusy, setStatusBusy] = useState(false);
   const [statusCheckedAt, setStatusCheckedAt] = useState(null);
+  // dose-2.93: track broken live-preview images so we show the letter fallback
+  const [avatarImgError, setAvatarImgError] = useState(false);
   const profileToastTimer = useRef(null);
   const pwToastTimer = useRef(null);
   const messageToastTimer = useRef(null);
@@ -38,8 +40,14 @@ const Settings = () => {
     if (user) {
       setDisplayName(user.display_name || user.displayName || '');
       setAvatarUrl(user.avatar_url || user.avatarUrl || '');
+      setAvatarImgError(false);
     }
   }, [user]);
+
+  // dose-2.93: clear load-error when the typed/preview URL changes so a new URL can retry
+  useEffect(() => {
+    setAvatarImgError(false);
+  }, [avatarUrl]);
 
   // dose-2.82 / dose-2.84: auto-clear profile & password toasts (success and error)
   // so Settings does not stay on "Profile updated" or a stale failure forever.
@@ -412,15 +420,16 @@ const Settings = () => {
                 fontSize: '1.25rem',
               }}
             >
-              {currentAvatar ? (
+              {currentAvatar && !avatarImgError ? (
                 <img
+                  key={currentAvatar}
                   src={currentAvatar}
                   alt=""
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                  onError={() => setAvatarImgError(true)}
                 />
               ) : (
-                (user.display_name || user.displayName || user.username)?.[0]?.toUpperCase()
+                (displayName || user.display_name || user.displayName || user.username)?.[0]?.toUpperCase() || '?'
               )}
             </div>
             <div>
@@ -511,64 +520,57 @@ const Settings = () => {
         )}
         {stats && (
           <div style={{ marginTop: 16 }}>
-            <div className="muted" style={{ fontSize: '0.85rem', marginBottom: 6 }}>Your listening</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              <span className="oly-reason">
-                {Number(stats.totalPlays) || 0} play{(Number(stats.totalPlays) || 0) === 1 ? '' : 's'}
-              </span>
-              <span className="oly-reason">
-                {(() => {
-                  const sec = Number(stats.totalListeningTimeSeconds) || 0;
-                  if (sec < 60) return `${sec}s listened`;
-                  const m = Math.floor(sec / 60);
-                  if (m < 60) return `${m} min listened`;
-                  const h = Math.floor(m / 60);
-                  const rm = m % 60;
-                  return rm ? `${h}h ${rm}m listened` : `${h}h listened`;
-                })()}
-              </span>
-              {Array.isArray(stats.topArtists) && stats.topArtists[0]?.artist && (
-                <span className="oly-reason">Top: {stats.topArtists[0].artist}</span>
+            <div className="muted" style={{ fontSize: '0.85rem', marginBottom: 4 }}>Listening</div>
+            <div>
+              {typeof stats.totalPlays === 'number' || typeof stats.play_count === 'number'
+                ? `${stats.totalPlays ?? stats.play_count} plays`
+                : null}
+              {(stats.totalPlayTimeSeconds != null || stats.total_listen_seconds != null) && (
+                <span className="muted">
+                  {' · '}
+                  {(() => {
+                    const sec = Number(stats.totalPlayTimeSeconds ?? stats.total_listen_seconds) || 0;
+                    if (sec < 60) return `${sec}s listened`;
+                    const h = Math.floor(sec / 3600);
+                    const m = Math.floor((sec % 3600) / 60);
+                    if (h > 0) return `${h}h ${m}m listened`;
+                    return `${m}m listened`;
+                  })()}
+                </span>
               )}
             </div>
           </div>
         )}
-        <div className="oly-row" style={{ marginTop: 16 }}>
-          <button className="oly-btn-ghost" type="button" onClick={() => logout()}>
-            Sign out
-          </button>
-        </div>
       </div>
 
       <div className="oly-section">
         <h2>Change password</h2>
         <p className="muted" style={{ marginBottom: 12 }}>
-          Use your current password, then a new one (8+ characters with upper, lower, and a number).
-          OAuth is not available yet.
+          Requires your current password. New password must be at least 8 characters with upper,
+          lower, and a digit.
         </p>
-        <form onSubmit={savePassword} style={{ maxWidth: 420 }}>
+        <form onSubmit={savePassword}>
           <label className="muted" style={{ fontSize: '0.85rem', display: 'block', marginBottom: 4 }}>
             Current password
           </label>
-          <div className="oly-row" style={{ marginBottom: 12 }}>
+          <div className="oly-row" style={{ maxWidth: 420, marginBottom: 12 }}>
             <input
               className="oly-input"
               type={showCurrentPw ? 'text' : 'password'}
-              autoComplete="current-password"
               value={currentPassword}
               onChange={(e) => {
                 setCurrentPassword(e.target.value);
                 if (pwMsg) setPwMsg(null);
               }}
               disabled={pwBusy}
-              style={{ flex: 1 }}
+              autoComplete="current-password"
             />
             <button
               type="button"
               className="oly-btn-ghost"
               onClick={() => setShowCurrentPw((v) => !v)}
               disabled={pwBusy}
-              aria-label={showCurrentPw ? 'Hide current password' : 'Show current password'}
+              title={showCurrentPw ? 'Hide' : 'Show'}
             >
               {showCurrentPw ? 'Hide' : 'Show'}
             </button>
@@ -576,25 +578,24 @@ const Settings = () => {
           <label className="muted" style={{ fontSize: '0.85rem', display: 'block', marginBottom: 4 }}>
             New password
           </label>
-          <div className="oly-row" style={{ marginBottom: 12 }}>
+          <div className="oly-row" style={{ maxWidth: 420, marginBottom: 12 }}>
             <input
               className="oly-input"
               type={showNewPw ? 'text' : 'password'}
-              autoComplete="new-password"
               value={newPassword}
               onChange={(e) => {
                 setNewPassword(e.target.value);
                 if (pwMsg) setPwMsg(null);
               }}
               disabled={pwBusy}
-              style={{ flex: 1 }}
+              autoComplete="new-password"
             />
             <button
               type="button"
               className="oly-btn-ghost"
               onClick={() => setShowNewPw((v) => !v)}
               disabled={pwBusy}
-              aria-label={showNewPw ? 'Hide new password' : 'Show new password'}
+              title={showNewPw ? 'Hide' : 'Show'}
             >
               {showNewPw ? 'Hide' : 'Show'}
             </button>
@@ -602,49 +603,52 @@ const Settings = () => {
           <label className="muted" style={{ fontSize: '0.85rem', display: 'block', marginBottom: 4 }}>
             Confirm new password
           </label>
-          <div className="oly-row" style={{ marginBottom: 12 }}>
+          <div className="oly-row" style={{ maxWidth: 420 }}>
             <input
               className="oly-input"
               type={showConfirmPw ? 'text' : 'password'}
-              autoComplete="new-password"
               value={confirmPassword}
               onChange={(e) => {
                 setConfirmPassword(e.target.value);
                 if (pwMsg) setPwMsg(null);
               }}
               disabled={pwBusy}
-              style={{ flex: 1 }}
+              autoComplete="new-password"
             />
             <button
               type="button"
               className="oly-btn-ghost"
               onClick={() => setShowConfirmPw((v) => !v)}
               disabled={pwBusy}
-              aria-label={showConfirmPw ? 'Hide confirm password' : 'Show confirm password'}
+              title={showConfirmPw ? 'Hide' : 'Show'}
             >
               {showConfirmPw ? 'Hide' : 'Show'}
             </button>
-          </div>
-          <div className="oly-row">
             <button
               className="oly-btn"
               type="submit"
               disabled={pwBusy || !passwordReady}
               title={
                 !passwordReady
-                  ? pwSameAsCurrent
-                    ? 'New password must differ from current'
-                    : 'Fill current, new (8+ chars with upper/lower/digit), and matching confirm'
+                  ? pwMismatch
+                    ? 'Passwords do not match'
+                    : pwTooShort
+                      ? 'New password needs at least 8 characters'
+                      : pwWeakComplexity
+                        ? 'Needs uppercase, lowercase, and a number'
+                        : pwSameAsCurrent
+                          ? 'New password must differ from current'
+                          : 'Fill current, new, and matching confirm'
                   : undefined
               }
             >
-              {pwBusy ? 'Updating…' : 'Update password'}
+              {pwBusy ? 'Updating…' : 'Update'}
             </button>
           </div>
           {pwLiveHint && (
             <div
               className={`oly-msg ${pwMismatch || pwTooShort || pwWeakComplexity || pwSameAsCurrent ? 'err' : 'ok'}`}
-              style={{ marginTop: 8 }}
+              style={{ marginTop: 8, maxWidth: 420 }}
               role="status"
               aria-live="polite"
             >
@@ -664,42 +668,58 @@ const Settings = () => {
         )}
       </div>
 
-      {features?.privacy !== false && (
-        <div className="oly-section">
-          <h2>Privacy & data</h2>
-          <p className="muted" style={{ marginBottom: 12 }}>
-            Request a GDPR export or account deletion. Export jobs need the background worker
-            when FEATURE_WORKER is on.
-          </p>
-          {message && (
-            <div
-              className={`oly-msg ${message.ok ? 'ok' : 'err'}`}
-              style={{ marginBottom: 12 }}
-              role="status"
-              aria-live="polite"
-            >
-              {message.text}
+      <div className="oly-section">
+        <h2>Privacy &amp; data</h2>
+        {features?.privacy === false ? (
+          <p className="muted">Privacy pillar is off on this deployment. Export and deletion are unavailable.</p>
+        ) : (
+          <>
+            <p className="muted" style={{ marginBottom: 12 }}>
+              Request a copy of your data or account deletion. Exports are prepared by the background
+              worker when enabled.
+            </p>
+            {exportInfo && (
+              <div style={{ marginBottom: 12 }}>
+                <span className="oly-reason">Export status: {exportInfo.status || 'unknown'}</span>
+                {exportInfo.readyAt && (
+                  <span className="oly-reason">Ready at {new Date(exportInfo.readyAt).toLocaleString()}</span>
+                )}
+              </div>
+            )}
+            <div className="oly-row" style={{ flexWrap: 'wrap', gap: 8 }}>
+              <button type="button" className="oly-btn" onClick={requestExport} disabled={busy}>
+                Request data export
+              </button>
+              <button type="button" className="oly-btn-ghost" onClick={requestDeletion} disabled={busy}>
+                Request account deletion
+              </button>
+              <button type="button" className="oly-btn-ghost" onClick={cancelDeletion} disabled={busy}>
+                Cancel deletion request
+              </button>
             </div>
-          )}
-          <div className="oly-row" style={{ flexWrap: 'wrap', gap: 8 }}>
-            <button className="oly-btn" type="button" onClick={requestExport} disabled={busy}>
-              Request data export
-            </button>
-            <button className="oly-btn-ghost" type="button" onClick={requestDeletion} disabled={busy}>
-              Request account deletion
-            </button>
-            <button className="oly-btn-ghost" type="button" onClick={cancelDeletion} disabled={busy}>
-              Cancel deletion request
-            </button>
-          </div>
-          {exportInfo && (
-            <div style={{ marginTop: 12 }} className="muted">
-              Last export: {exportInfo.status || 'unknown'}
-              {exportInfo.requestedAt && ` (requested ${new Date(exportInfo.requestedAt).toLocaleString()})`}
-            </div>
-          )}
-        </div>
-      )}
+            {message && (
+              <div
+                className={`oly-msg ${message.ok ? 'ok' : 'err'}`}
+                style={{ marginTop: 12 }}
+                role="status"
+                aria-live="polite"
+              >
+                {message.text}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      <div className="oly-section">
+        <h2>Session</h2>
+        <p className="muted" style={{ marginBottom: 12 }}>
+          Sign out clears the JWT and stops playback without a full page reload.
+        </p>
+        <button type="button" className="oly-btn" onClick={() => logout()}>
+          Sign out
+        </button>
+      </div>
     </div>
   );
 };
