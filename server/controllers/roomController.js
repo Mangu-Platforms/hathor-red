@@ -16,9 +16,8 @@ const getRooms = async (req, res) => {
        ORDER BY lr.created_at DESC`
     );
 
-    // dose-4.67: when this process has live socket presence for a room, prefer
-    // unique connected users over room_participants (handles multi-tab refcount
-    // and recent disconnects before the next DB cleanup lands on the list poll).
+    // Prefer live unique-user presence over room_participants when this process
+    // has sockets for a room (handles multi-tab refcount and recent disconnects).
     let presenceCounts = {};
     try {
       if (typeof setupSocketHandlers.getRoomPresenceCounts === 'function') {
@@ -31,10 +30,13 @@ const getRooms = async (req, res) => {
     const rooms = result.rows.map((row) => {
       const id = row.id;
       const live = presenceCounts[id];
+      let count;
       if (live != null && Number.isFinite(Number(live))) {
-        return { ...row, listener_count: String(Number(live)) };
+        count = Number(live);
+      } else {
+        count = Number(row.listener_count) || 0;
       }
-      return row;
+      return { ...row, listener_count: count };
     });
 
     res.json({ rooms });
@@ -73,11 +75,8 @@ const getRoomById = async (req, res) => {
 
     let participants = participantsResult.rows;
 
-    // dose-4.69: when this process has live socket presence for the room,
-    // prefer that unique-user roster over room_participants so the detail
-    // page matches list counts (4.67) and does not show sticky ghosts after
-    // disconnect before DB cleanup. Fall back to DB when presence is empty
-    // (cold process / no sockets yet).
+    // Prefer live presence roster over DB rows so detail matches list counts
+    // and does not show sticky ghosts after disconnect before DB cleanup.
     try {
       if (typeof setupSocketHandlers.getRoomPresenceRoster === 'function') {
         const live = setupSocketHandlers.getRoomPresenceRoster(id);
@@ -97,8 +96,12 @@ const getRoomById = async (req, res) => {
       // keep DB participants
     }
 
+    const room = result.rows[0];
+    // Honest listener_count on detail (same source preference as list).
+    const listener_count = participants.length;
+
     res.json({
-      room: result.rows[0],
+      room: { ...room, listener_count },
       participants,
     });
   } catch (error) {

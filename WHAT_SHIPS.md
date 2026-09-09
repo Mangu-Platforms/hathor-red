@@ -1,6 +1,6 @@
 # WHAT_SHIPS — Hathor Red live capability snapshot
 
-Last updated: 2026-09-09 (dose-4.2 room song load after getSong unwrap).
+Last updated: 2026-09-09 (dose-4.3 honest listener_count number + detail attach).
 
 ## Ships today
 
@@ -11,7 +11,7 @@ Last updated: 2026-09-09 (dose-4.2 room song load after getSong unwrap).
 - **Playback persist**: while playing, client debounces and interval-posts `updatePlaybackState` (position, isPlaying, volume, playbackSpeed, currentSongId) so Redis/DB stay warm for multi-device resume. Also persists on pause, seek, volume/speed, loadSong, clearQueue.
 - **Playlists**: list, detail route, add/remove/reorder, AI generate when OpenAI/Colab available (rule-based fallback otherwise).
 - **Home genre filter**: Home passes `{ genre }` to `GET /api/songs`; `songController.getSongs` resolves against `ALLOWED_GENRES` case-insensitively and filters with `LOWER(genre)`.
-- **Rooms**: create/join/leave, socket presence; disconnect path cleans `room_participants`. Listener counts refresh via poll. Host song picker (Change Song) + play/pause controls. Room `room-state` / `change-song` load the track via `musicService.getSong` (already unwrapped) then `loadSong` (dose-4.2 fixed prior `res.song` miss).
+- **Rooms**: create/join/leave, socket presence; disconnect path cleans `room_participants`. Listener counts refresh via poll. Host song picker (Change Song) + play/pause controls. Room `room-state` / `change-song` load the track via `musicService.getSong` (already unwrapped) then `loadSong`. List and detail prefer live socket presence for `listener_count` / roster; counts are numeric.
 - **Olympus shells**: `/api/media`, `/api/commerce`, `/api/discovery`, `/api/social`, `/api/intel`, `/api/privacy` gated by `FEATURE_*` flags. Worker optional (`FEATURE_WORKER`). Client nav/routes gate on `/api/features`.
 - **Podcast**: honest coming-soon page; nav label "Podcasts (soon)".
 - **Static uploads**: **not** public; audio only via signed stream.
@@ -33,11 +33,11 @@ Last updated: 2026-09-09 (dose-4.2 room song load after getSong unwrap).
 | 1 Playback | Core done (signed streams, seek/shuffle/queue guards). Hydrate + persist debounce done. Residual: optional polish only |
 | 2 Account basics | Profile in Settings present; soft logout without hard reload |
 | 3 Home/playlists | Genre filter verified + case-insensitive server match; playlist routes present |
-| 4 Rooms | Disconnect cleanup + poll; host song picker wired; room track load fixed (dose-4.2). Honest listener counts polish residual |
+| 4 Rooms | Disconnect cleanup + poll; host song picker wired; room track load fixed; listener_count numeric + detail attach (dose-4.3) |
 | 5 Olympus shells | Fallbacks + flag gating present; remove any remaining dead nav if found |
 
 ## Next item
 
-Dose 4 residual: honest listener counts polish (or Dose 5 dead-nav sweep).
+Dose 5 dead-nav sweep / residual Olympus honesty, or optional Dose 1 queue UI polish.
 
 See also: [README.md](README.md), [BUGS.md](BUGS.md), [API.md](API.md).
