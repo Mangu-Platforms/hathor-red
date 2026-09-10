@@ -13,7 +13,8 @@ const SongList = ({ songs, title, showSearch = false, onRefresh, onRemoveSong })
 
   const filtered = songs.filter(s => {
     const matchesSearch = !search || s.title?.toLowerCase().includes(search.toLowerCase()) || s.artist?.toLowerCase().includes(search.toLowerCase());
-    const matchesGenre = !selectedGenre || s.genre === selectedGenre;
+    // Case-insensitive genre match so local filter aligns with server LOWER(genre) / ALLOWED_GENRES resolution.
+    const matchesGenre = !selectedGenre || (s.genre && s.genre.toLowerCase() === selectedGenre.toLowerCase());
     return matchesSearch && matchesGenre;
   });
 
