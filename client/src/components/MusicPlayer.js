@@ -342,7 +342,7 @@ const MusicPlayer = () => {
                   <li
                     key={`${song.id}-${idx}`}
                     data-queue-index={idx}
-                    className={`player-queue-row ${isCurrent ? 'current' : ''} ${dragFrom === idx ? 'dragging' : ''} ${dragOver === idx ? 'drag-over' : ''}`}
+                    className={`player-queue-row ${isCurrent ? 'current' : ''} ${dragFrom === idx ? 'is-dragging' : ''} ${dragOver === idx ? 'drag-over' : ''}`}
                     role="option"
                     aria-selected={isCurrent}
                     aria-label={rowLabel}
