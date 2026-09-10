@@ -1,6 +1,6 @@
 # WHAT_SHIPS — Hathor Red live capability snapshot
 
-Last updated: 2026-09-09 (dose-4.3 honest listener_count number + detail attach).
+Last updated: 2026-09-09 (dose-5.1 .env.example legacy FEATURE_* honesty).
 
 ## Ships today
 
@@ -15,6 +15,7 @@ Last updated: 2026-09-09 (dose-4.3 honest listener_count number + detail attach)
 - **Olympus shells**: `/api/media`, `/api/commerce`, `/api/discovery`, `/api/social`, `/api/intel`, `/api/privacy` gated by `FEATURE_*` flags. Worker optional (`FEATURE_WORKER`). Client nav/routes gate on `/api/features`.
 - **Podcast**: honest coming-soon page; nav label "Podcasts (soon)".
 - **Static uploads**: **not** public; audio only via signed stream.
+- **Env honesty**: `.env.example` documents only the Olympus flags that `server/config/features.js` reads; legacy `FEATURE_HLS_STREAMING` / `FEATURE_OAUTH` / stems / WebRTC names are commented so they cannot be mistaken for live toggles.
 
 ## Does not ship (do not claim in UI)
 
@@ -34,10 +35,10 @@ Last updated: 2026-09-09 (dose-4.3 honest listener_count number + detail attach)
 | 2 Account basics | Profile in Settings present; soft logout without hard reload |
 | 3 Home/playlists | Genre filter verified + case-insensitive server match; playlist routes present |
 | 4 Rooms | Disconnect cleanup + poll; host song picker wired; room track load fixed; listener_count numeric + detail attach (dose-4.3) |
-| 5 Olympus shells | Fallbacks + flag gating present; remove any remaining dead nav if found |
+| 5 Olympus shells | Fallbacks + flag gating present; dead-nav gated; .env.example legacy flags clarified (dose-5.1) |
 
 ## Next item
 
-Dose 5 dead-nav sweep / residual Olympus honesty, or optional Dose 1 queue UI polish.
+Optional Dose 1 queue UI polish, or residual Olympus empty-state honesty on commerce/discovery pages when flags off.
 
 See also: [README.md](README.md), [BUGS.md](BUGS.md), [API.md](API.md).
