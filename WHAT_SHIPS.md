@@ -1,6 +1,6 @@
 # WHAT_SHIPS — Hathor Red live capability snapshot
 
-Last updated: 2026-09-10 (dose-1.2 Radar playAll unwrap + discovery empty-state honesty).
+Last updated: 2026-09-10 (dose-1.3 clear-queue confirm).
 
 ## Ships today
 
@@ -9,6 +9,7 @@ Last updated: 2026-09-10 (dose-1.2 Radar playAll unwrap + discovery empty-state 
 - **Player**: queue, Fisher-Yates shuffle, repeat (none/one/all), seek with finite-duration guards, play-generation to avoid stale autoplay races, stream URL retry on media error, volume + playback-rate (0.5x–2x). Pitch-shift and stem UI **removed** (not on the audio graph).
 - **Playback hydrate**: `getPlaybackState` unwraps `{ state }` to the row; resume uses `current_song_id` / `is_playing` / `position` and restores volume + playback_speed from the saved row.
 - **Playback persist**: while playing, client debounces and interval-posts `updatePlaybackState` (position, isPlaying, volume, playbackSpeed, currentSongId) so Redis/DB stay warm for multi-device resume. Also persists on pause, seek, volume/speed, loadSong, clearQueue.
+- **Queue UI**: Up-next panel with drag/touch reorder (linear order only; disabled under shuffle), move up/down, play-next, remove, totals/remaining. **Clear** asks for confirm before wiping the queue (dose-1.3).
 - **Playlists**: list, detail route, add/remove/reorder, AI generate when OpenAI/Colab available (rule-based fallback otherwise).
 - **Home genre filter**: Home passes `{ genre }` to `GET /api/songs`; `songController.getSongs` resolves against `ALLOWED_GENRES` case-insensitively and filters with `LOWER(genre)`.
 - **Rooms**: create/join/leave, socket presence; disconnect path cleans `room_participants`. Listener counts refresh via poll. Host song picker (Change Song) + play/pause controls. Room `room-state` / `change-song` load the track via `musicService.getSong` (already unwrapped) then `loadSong`. List and detail prefer live socket presence for `listener_count` / roster; counts are numeric.
@@ -32,7 +33,7 @@ Last updated: 2026-09-10 (dose-1.2 Radar playAll unwrap + discovery empty-state 
 | Dose | Status |
 |------|--------|
 | 0 Truth (README/flags/nav honesty) | Done — README matches; Podcast coming-soon; flags gate Olympus; WHAT_SHIPS live |
-| 1 Playback | Core done (signed streams, seek/shuffle/queue guards). Hydrate + persist debounce done. Radar playAll unwrap fixed (dose-1.2). Residual: optional queue UI polish only |
+| 1 Playback | Core done (signed streams, seek/shuffle/queue guards). Hydrate + persist debounce done. Radar playAll unwrap fixed (dose-1.2). Clear-queue confirm (dose-1.3). Residual: optional drag feedback polish only |
 | 2 Account basics | Profile in Settings present; soft logout without hard reload |
 | 3 Home/playlists | Genre filter verified + case-insensitive server match; playlist routes present |
 | 4 Rooms | Disconnect cleanup + poll; host song picker wired; room track load fixed; listener_count numeric + detail attach (dose-4.3) |
@@ -40,6 +41,6 @@ Last updated: 2026-09-10 (dose-1.2 Radar playAll unwrap + discovery empty-state 
 
 ## Next item
 
-Optional Dose 1 queue UI polish (drag reorder feedback, clear-queue confirm), or residual Olympus empty-state honesty on other gated pages.
+Optional Dose 1 drag-reorder visual feedback polish, or residual Olympus empty-state honesty on other gated pages.
 
 See also: [README.md](README.md), [BUGS.md](BUGS.md), [API.md](API.md).

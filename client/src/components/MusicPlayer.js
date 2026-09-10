@@ -65,6 +65,14 @@ const MusicPlayer = () => {
     else if (e.key === 'End') { e.preventDefault(); setPlaybackSpeed(2); }
   };
 
+  const onClearQueue = useCallback(() => {
+    if (!queue.length) return;
+    const n = queue.length;
+    const ok = typeof window === 'undefined'
+      || window.confirm(`Clear ${n} track${n === 1 ? '' : 's'} from the queue?`);
+    if (ok) clearQueue();
+  }, [queue.length, clearQueue]);
+
   const displayRows = useMemo(() => {
     if (!queue.length) return [];
     if (
@@ -317,7 +325,7 @@ const MusicPlayer = () => {
               {queueTotalLabel ? ` · ${queueTotalLabel} total` : ''}
             </span>
             {queue.length > 0 && (
-              <button type="button" className="player-queue-clear" onClick={clearQueue} aria-label="Clear queue">Clear</button>
+              <button type="button" className="player-queue-clear" onClick={onClearQueue} aria-label="Clear queue">Clear</button>
             )}
           </div>
           {queue.length === 0 ? (
