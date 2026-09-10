@@ -30,6 +30,14 @@ const Radar = () => {
   const discoveryOff = features != null && features.discovery === false;
 
   const load = useCallback(async (refresh = false) => {
+    // dose-1.17: when FEATURE_DISCOVERY is known-off, do not hit the API
+    // (routes are not mounted). Same honesty pattern as Search (dose-1.14).
+    if (features != null && features.discovery === false) {
+      setRadar(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -45,9 +53,13 @@ const Radar = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [features]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    // Wait until features resolve so we can skip the call when discovery is off.
+    if (features == null) return;
+    load();
+  }, [load, features]);
 
   // musicService.getSong already unwraps { song } → row; do not read .song again.
   const playAll = async () => {
@@ -82,6 +94,12 @@ const Radar = () => {
         {radar?.generatedAt && ` Updated ${new Date(radar.generatedAt).toLocaleString()}.`}
       </div>
 
+      {/* dose-1.17: explicit banner when discovery is off (match Search dose-1.14) */}
+      {discoveryOff && (
+        <div className="oly-empty" style={{ marginBottom: 16 }} role="status">
+          Discovery is disabled on this server (FEATURE_DISCOVERY). Radar routes are not mounted.
+        </div>
+      )}
       {workerLive === false && !discoveryOff && (
         <div className="oly-empty" style={{ marginBottom: 16 }} role="status">
           Background job worker is not running — Radar refresh may serve a cached or empty
@@ -90,16 +108,18 @@ const Radar = () => {
       )}
 
       <div className="oly-row" style={{ marginBottom: 20 }}>
-        <button className="oly-btn" onClick={playAll} disabled={!radar?.tracks?.length}>
+        <button className="oly-btn" onClick={playAll} disabled={!radar?.tracks?.length || discoveryOff}>
           Play the mix
         </button>
-        <button className="oly-btn-ghost" onClick={() => load(true)} disabled={discoveryOff}>
+        <button className="oly-btn-ghost" onClick={() => load(true)} disabled={discoveryOff || features == null}>
           Refresh
         </button>
       </div>
 
-      {loading ? (
+      {features == null || (loading && !discoveryOff) ? (
         <div className="oly-empty">Tuning your radar…</div>
+      ) : discoveryOff ? (
+        null
       ) : error ? (
         <div className="oly-empty">{error}</div>
       ) : !radar?.tracks?.length ? (
