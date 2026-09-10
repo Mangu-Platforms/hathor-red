@@ -1,6 +1,6 @@
 # WHAT_SHIPS — Hathor Red live capability snapshot
 
-Last updated: 2026-09-10 (dose-1.5 queue CSS class aliases).
+Last updated: 2026-09-10 (dose-1.6 Search playOne unwrap).
 
 ## Ships today
 
@@ -15,6 +15,7 @@ Last updated: 2026-09-10 (dose-1.5 queue CSS class aliases).
 - **Rooms**: create/join/leave, socket presence; disconnect path cleans `room_participants`. Listener counts refresh via poll. Host song picker (Change Song) + play/pause controls. Room `room-state` / `change-song` load the track via `musicService.getSong` (already unwrapped) then `loadSong`. List and detail prefer live socket presence for `listener_count` / roster; counts are numeric.
 - **Olympus shells**: `/api/media`, `/api/commerce`, `/api/discovery`, `/api/social`, `/api/intel`, `/api/privacy` gated by `FEATURE_*` flags. Worker optional (`FEATURE_WORKER`). Client nav/routes gate on `/api/features`.
 - **Radar play-all**: uses unwrapped `musicService.getSong` rows (no double `.song`); empty state honest when discovery flag off or worker not live.
+- **Search play**: `Search` Play button uses unwrapped `musicService.getSong` row (dose-1.6; was destructuring `{ song }` after service already unwrapped).
 - **Podcast**: honest coming-soon page; nav label "Podcasts (soon)".
 - **Static uploads**: **not** public; audio only via signed stream.
 - **Env honesty**: `.env.example` documents only the Olympus flags that `server/config/features.js` reads; legacy `FEATURE_HLS_STREAMING` / `FEATURE_OAUTH` / stems / WebRTC names are commented so they cannot be mistaken for live toggles.
@@ -33,7 +34,7 @@ Last updated: 2026-09-10 (dose-1.5 queue CSS class aliases).
 | Dose | Status |
 |------|--------|
 | 0 Truth (README/flags/nav honesty) | Done — README matches; Podcast coming-soon; flags gate Olympus; WHAT_SHIPS live |
-| 1 Playback | Core done (signed streams, seek/shuffle/queue guards). Hydrate + persist debounce done. Radar playAll unwrap fixed (dose-1.2). Clear-queue confirm (dose-1.3). Drag visual feedback class wired to CSS (dose-1.4). Queue CSS class aliases for live MusicPlayer DOM (dose-1.5). |
+| 1 Playback | Core done (signed streams, seek/shuffle/queue guards). Hydrate + persist debounce done. Radar playAll unwrap fixed (dose-1.2). Clear-queue confirm (dose-1.3). Drag visual feedback class wired to CSS (dose-1.4). Queue CSS class aliases for live MusicPlayer DOM (dose-1.5). Search playOne unwrap fixed (dose-1.6). |
 | 2 Account basics | Profile in Settings present; soft logout without hard reload |
 | 3 Home/playlists | Genre filter verified + case-insensitive server match; playlist routes present |
 | 4 Rooms | Disconnect cleanup + poll; host song picker wired; room track load fixed; listener_count numeric + detail attach (dose-4.3) |
@@ -41,6 +42,6 @@ Last updated: 2026-09-10 (dose-1.5 queue CSS class aliases).
 
 ## Next item
 
-Residual Olympus empty-state honesty on other gated pages (Store/Social/Intel/Privacy when flag off), or minor player chrome polish if still needed.
+Residual Olympus empty-state honesty on other gated pages if any remain soft, or minor player chrome polish if still needed.
 
 See also: [README.md](README.md), [BUGS.md](BUGS.md), [API.md](API.md).

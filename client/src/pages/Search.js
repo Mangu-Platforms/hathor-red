@@ -47,10 +47,11 @@ const Search = () => {
     }
   };
 
+  // musicService.getSong already unwraps { song } → row; do not destructure .song again.
   const playOne = async (songId) => {
     try {
-      const { song } = await musicService.getSong(songId);
-      if (song) setQueueAndPlay([song], 0);
+      const song = await musicService.getSong(songId);
+      if (song && song.id != null) setQueueAndPlay([song], 0);
     } catch (err) {
       // song may have been removed
     }
