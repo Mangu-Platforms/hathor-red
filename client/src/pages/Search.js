@@ -9,26 +9,29 @@ const Search = () => {
   const [query, setQuery] = useState('');
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [workerLive, setWorkerLive] = useState(null);
+  const [features, setFeatures] = useState(null);
   const { setQueueAndPlay } = usePlayer();
 
   useEffect(() => {
     let cancelled = false;
     getFeatures()
       .then((f) => {
-        if (!cancelled) setWorkerLive(Boolean(f?.workerLive));
+        if (!cancelled) setFeatures(f);
       })
       .catch(() => {
-        if (!cancelled) setWorkerLive(false);
+        if (!cancelled) setFeatures(null);
       });
     return () => {
       cancelled = true;
     };
   }, []);
 
+  const workerLive = features == null ? null : Boolean(features.workerLive);
+  const discoveryOff = features != null && features.discovery === false;
+
   const run = async (e) => {
     e.preventDefault();
-    if (!query.trim()) return;
+    if (!query.trim() || discoveryOff) return;
     setLoading(true);
     try {
       setResult(await discoveryService.search(query.trim(), 20));
@@ -62,8 +65,13 @@ const Search = () => {
       <h1>Semantic Search</h1>
       <div className="oly-sub">Describe a feeling, a scene, a tempo — “sad rainy night synthwave”, “bass-heavy techno 128 bpm”.</div>
 
-      {/* Dose 5.2: honest note when background worker is not live (embedding jobs stall) */}
-      {workerLive === false && (
+      {/* Dose 5 / 1.14: honest notes when discovery is off or background worker is not live */}
+      {discoveryOff && (
+        <div className="oly-empty" style={{ marginBottom: 16 }} role="status">
+          Discovery is disabled on this server (FEATURE_DISCOVERY). Semantic search routes are not mounted.
+        </div>
+      )}
+      {workerLive === false && !discoveryOff && (
         <div className="oly-empty" style={{ marginBottom: 16 }} role="status">
           Background job worker is not running — semantic embeddings may be missing or stale
           until the worker is up (see Settings → Platform status).
@@ -77,8 +85,9 @@ const Search = () => {
           onChange={(e) => setQuery(e.target.value)}
           placeholder="What do you want to hear?"
           maxLength={200}
+          disabled={discoveryOff}
         />
-        <button className="oly-btn" type="submit" disabled={loading}>
+        <button className="oly-btn" type="submit" disabled={loading || discoveryOff}>
           {loading ? 'Searching…' : 'Search'}
         </button>
       </form>
