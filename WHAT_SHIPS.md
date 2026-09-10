@@ -1,6 +1,6 @@
 # WHAT_SHIPS — Hathor Red live capability snapshot
 
-Last updated: 2026-09-09 (dose-5.1 .env.example legacy FEATURE_* honesty).
+Last updated: 2026-09-10 (dose-1.2 Radar playAll unwrap + discovery empty-state honesty).
 
 ## Ships today
 
@@ -13,6 +13,7 @@ Last updated: 2026-09-09 (dose-5.1 .env.example legacy FEATURE_* honesty).
 - **Home genre filter**: Home passes `{ genre }` to `GET /api/songs`; `songController.getSongs` resolves against `ALLOWED_GENRES` case-insensitively and filters with `LOWER(genre)`.
 - **Rooms**: create/join/leave, socket presence; disconnect path cleans `room_participants`. Listener counts refresh via poll. Host song picker (Change Song) + play/pause controls. Room `room-state` / `change-song` load the track via `musicService.getSong` (already unwrapped) then `loadSong`. List and detail prefer live socket presence for `listener_count` / roster; counts are numeric.
 - **Olympus shells**: `/api/media`, `/api/commerce`, `/api/discovery`, `/api/social`, `/api/intel`, `/api/privacy` gated by `FEATURE_*` flags. Worker optional (`FEATURE_WORKER`). Client nav/routes gate on `/api/features`.
+- **Radar play-all**: uses unwrapped `musicService.getSong` rows (no double `.song`); empty state honest when discovery flag off or worker not live.
 - **Podcast**: honest coming-soon page; nav label "Podcasts (soon)".
 - **Static uploads**: **not** public; audio only via signed stream.
 - **Env honesty**: `.env.example` documents only the Olympus flags that `server/config/features.js` reads; legacy `FEATURE_HLS_STREAMING` / `FEATURE_OAUTH` / stems / WebRTC names are commented so they cannot be mistaken for live toggles.
@@ -31,14 +32,14 @@ Last updated: 2026-09-09 (dose-5.1 .env.example legacy FEATURE_* honesty).
 | Dose | Status |
 |------|--------|
 | 0 Truth (README/flags/nav honesty) | Done — README matches; Podcast coming-soon; flags gate Olympus; WHAT_SHIPS live |
-| 1 Playback | Core done (signed streams, seek/shuffle/queue guards). Hydrate + persist debounce done. Residual: optional polish only |
+| 1 Playback | Core done (signed streams, seek/shuffle/queue guards). Hydrate + persist debounce done. Radar playAll unwrap fixed (dose-1.2). Residual: optional queue UI polish only |
 | 2 Account basics | Profile in Settings present; soft logout without hard reload |
 | 3 Home/playlists | Genre filter verified + case-insensitive server match; playlist routes present |
 | 4 Rooms | Disconnect cleanup + poll; host song picker wired; room track load fixed; listener_count numeric + detail attach (dose-4.3) |
-| 5 Olympus shells | Fallbacks + flag gating present; dead-nav gated; .env.example legacy flags clarified (dose-5.1) |
+| 5 Olympus shells | Fallbacks + flag gating present; dead-nav gated; .env.example legacy flags clarified (dose-5.1); Radar/Store empty states honest |
 
 ## Next item
 
-Optional Dose 1 queue UI polish, or residual Olympus empty-state honesty on commerce/discovery pages when flags off.
+Optional Dose 1 queue UI polish (drag reorder feedback, clear-queue confirm), or residual Olympus empty-state honesty on other gated pages.
 
 See also: [README.md](README.md), [BUGS.md](BUGS.md), [API.md](API.md).
