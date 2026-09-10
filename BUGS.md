@@ -64,7 +64,7 @@ This document lists identified bugs, security vulnerabilities, and architectural
 *   **Impact**: Potential for unnecessary re-renders or infinite loops if dependencies are not managed correctly.
 *   **Root Cause**: Deviation from React best practices for hook dependencies.
 *   **Suggested Fix**: Wrap data-fetching functions in `useCallback`.
-*   **Status**: Rooms.js fetch path now uses `useCallback` (dose-4.1). SongList / ListeningRoom may still lag — low priority.
+*   **Status**: Rooms.js fetch path now uses `useCallback` (dose-4.1). **ListeningRoom `fetchRoom` wrapped in `useCallback` (dose-1.9)**. SongList has no internal fetch-in-effect (receives `songs` as props) — closed for ListeningRoom.
 
 ### 9. Potential NaN in Player Seek
 *   **Description**: Legacy seek paths calculated seek position using `duration * percent` without guarding finite duration.

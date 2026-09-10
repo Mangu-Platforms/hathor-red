@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { useAuth } from '../contexts/AuthContext';
@@ -49,24 +49,26 @@ const ListeningRoom = () => {
     );
   };
 
+  // dose-1.9: stable fetch so useEffect deps stay honest (BUGS #8 hygiene)
+  const fetchRoom = useCallback(async () => {
+    try {
+      const res = await musicService.getRoom(id);
+      setRoom(res.room);
+      setHostId(res.room?.host_id ?? null);
+      setParticipants(res.participants || []);
+    } catch (err) {
+      console.error('Failed to fetch room:', err);
+    }
+  }, [id]);
+
   useEffect(() => {
-    const fetchRoom = async () => {
-      try {
-        const res = await musicService.getRoom(id);
-        setRoom(res.room);
-        setHostId(res.room?.host_id ?? null);
-        setParticipants(res.participants || []);
-      } catch (err) {
-        console.error('Failed to fetch room:', err);
-      }
-    };
     fetchRoom();
     musicService.joinRoom(id).catch(() => {});
 
     return () => {
       musicService.leaveRoom(id).catch(() => {});
     };
-  }, [id]);
+  }, [id, fetchRoom]);
 
   useEffect(() => {
     if (!token) return;
