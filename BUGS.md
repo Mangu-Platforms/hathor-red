@@ -4,6 +4,13 @@ This document lists identified bugs, security vulnerabilities, and architectural
 
 ## 🔴 Critical Severity
 
+### 1b. PlayerContext.js Placeholder on Main (dose-1.15)
+*   **Description**: `client/src/contexts/PlayerContext.js` is a 24–35 byte stub (`SEE_LOCAL_FILE_TOO_LARGE_FOR_INLINE` or push truncation residue). The SPA imports `PlayerProvider` from this path; playback is non-functional.
+*   **Impact**: Critical — no queue, stream, shuffle, or hydrate.
+*   **Root Cause**: Agent `github___push_files` / large-file path truncates or substitutes a placeholder string for ~25KB+ content.
+*   **Suggested Fix**: Restore full file from commit `c971941b` / `afba348b` (or re-author) via a path that preserves full content; verify blob size > 20KB after push.
+*   **Status**: Open — documented dose-1.15. Block further Dose 1 player claims until blob size is real.
+
 ### 1. Playback Streaming Broken (Auth Mismatch)
 *   **Description**: The `/api/songs/:id/stream` route uses `authMiddleware` which expects a JWT in the `Authorization` header. However, the frontend `PlayerContext.js` sets this URL directly to the `src` attribute of an HTML5 `<audio>` tag.
 *   **Impact**: Browsers do not send custom headers (like `Authorization`) for `<audio>` tag source requests. This results in all streaming requests failing with a 401 Unauthorized error.
