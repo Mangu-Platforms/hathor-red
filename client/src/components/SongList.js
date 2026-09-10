@@ -18,7 +18,18 @@ const SongList = ({ songs, title, showSearch = false, onRefresh, onRemoveSong })
     return matchesSearch && matchesGenre;
   });
 
-  const genres = [...new Set(songs.map(s => s.genre).filter(Boolean))].sort();
+  // Dedupe by lower-case key so "Rock" / "rock" do not both appear in the select (dose-1.11).
+  // Prefer first-seen casing for the option label.
+  const genres = (() => {
+    const seen = new Map();
+    for (const g of songs.map((s) => s.genre).filter(Boolean)) {
+      const key = String(g).toLowerCase();
+      if (!seen.has(key)) seen.set(key, g);
+    }
+    return [...seen.values()].sort((a, b) =>
+      String(a).localeCompare(String(b), undefined, { sensitivity: 'base' })
+    );
+  })();
   const hasActiveFilter = Boolean(search.trim() || selectedGenre);
 
   /** Play the visible (filtered) list from the clicked row — index matches what the user sees. */
@@ -145,8 +156,8 @@ const SongList = ({ songs, title, showSearch = false, onRefresh, onRemoveSong })
             >
               <option value="">All genres</option>
               {genres.map((g) => (
-                <option key={g} value={g}>{g}</option>)
-              )}
+                <option key={String(g).toLowerCase()} value={g}>{g}</option>
+              ))}
             </select>
           )}
         </div>
