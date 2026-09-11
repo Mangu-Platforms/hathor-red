@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const { verifyStreamToken } = require('../utils/streamToken');
+const { verifyStreamToken, toPositiveInt } = require('../utils/streamToken');
 
 /**
  * Auth for progressive stream responses.
@@ -10,6 +10,7 @@ const { verifyStreamToken } = require('../utils/streamToken');
  * dose-1.28: when a stream token is present and the route has :id, reject if
  * token.songId does not match the path param (defense in depth; controller
  * still re-checks).
+ * dose-1.37: path :id check uses shared toPositiveInt (same bar as token/controller).
  */
 function streamAuth(req, res, next) {
   try {
@@ -20,13 +21,8 @@ function streamAuth(req, res, next) {
       // verifyStreamToken already requires positive integer userId/songId
       const pathId = req.params?.id;
       if (pathId != null) {
-        const routeSongId = Number(pathId);
-        if (
-          !Number.isFinite(routeSongId) ||
-          !Number.isInteger(routeSongId) ||
-          routeSongId <= 0 ||
-          routeSongId !== decoded.songId
-        ) {
+        const routeSongId = toPositiveInt(pathId);
+        if (routeSongId == null || routeSongId !== decoded.songId) {
           return res.status(401).json({ error: 'Invalid stream token for song' });
         }
       }
@@ -63,8 +59,8 @@ function streamAuth(req, res, next) {
     }
 
     const userId = decoded.userId ?? decoded.id;
-    const uid = Number(userId);
-    if (userId == null || !Number.isFinite(uid) || !Number.isInteger(uid) || uid <= 0) {
+    const uid = toPositiveInt(userId);
+    if (uid == null) {
       return res.status(401).json({ error: 'Invalid authentication token' });
     }
 
