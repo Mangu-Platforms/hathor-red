@@ -148,7 +148,7 @@ async function handleHostHandoff(io, roomId, leavingUserId) {
   io.to(`room-${roomId}`).emit('host-changed', {
     roomId,
     newHostId,
-    newHostUsername: newHost ? newHost.username : null,
+    newHostUsername: newHost ? newHost.username,
     timestamp: Date.now(),
   });
   logger.info({ action: 'host_handoff', roomId, from: leavingUserId, to: newHostId });
@@ -173,15 +173,15 @@ async function departRoom(io, socket, roomId, { announce = true } = {}) {
       timestamp: Date.now(),
     });
   }
-  await handleHostHandoff(io, socket, roomId, socket.userId);
+  await handleHostHandoff(io, roomId, socket.userId);
 }
 
 function sanitizeChatMessage(message) {
   return String(message || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/\"/g, '&quot;')
+    .replace(/&/g, '&')
+    .replace(/</g, '<')
+    .replace(/>/g, '>')
+    .replace(/\"/g, '"')
     .replace(/'/g, '&#39;')
     .trim()
     .slice(0, MAX_CHAT_MESSAGE_LENGTH);
