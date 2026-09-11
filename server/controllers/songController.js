@@ -3,7 +3,7 @@ const fsp = require('fs/promises');
 const mime = require('mime-types');
 const db = require('../config/database');
 const { redisClient } = require('../config/redis');
-const { signStreamToken } = require('../utils/streamToken');
+const { signStreamToken, toPositiveInt } = require('../utils/streamToken');
 const { logger } = require('../utils/logger');
 const {
   DEFAULT_PAGE_LIMIT,
@@ -186,9 +186,14 @@ const uploadSong = async (req, res) => {
 
 const getStreamUrl = async (req, res) => {
   try {
-    const { id } = req.params;
+    // dose-1.29: same positive-int bar as stream tokens (defense in depth vs
+    // validation middleware order / bypass). Reject before DB or token mint.
+    const songId = toPositiveInt(req.params.id);
+    if (songId == null) {
+      return res.status(400).json({ error: 'Invalid song ID' });
+    }
 
-    const songCheck = await db.query('SELECT * FROM songs WHERE id = $1', [id]);
+    const songCheck = await db.query('SELECT * FROM songs WHERE id = $1', [songId]);
     if (songCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Song not found' });
     }
@@ -209,12 +214,12 @@ const getStreamUrl = async (req, res) => {
 
     const token = signStreamToken({
       userId: req.user.userId,
-      songId: Number(id),
+      songId,
       username: req.user.username || null,
     });
 
     return res.json({
-      url: `/api/songs/${id}/stream?t=${encodeURIComponent(token)}`,
+      url: `/api/songs/${songId}/stream?t=${encodeURIComponent(token)}`,
     });
   } catch (error) {
     logger.error('Get stream URL error:', error);
@@ -224,13 +229,17 @@ const getStreamUrl = async (req, res) => {
 
 const streamSong = async (req, res) => {
   try {
-    const { id } = req.params;
+    // dose-1.29: positive-int path id before DB / range work (matches token bar).
+    const songId = toPositiveInt(req.params.id);
+    if (songId == null) {
+      return res.status(400).json({ error: 'Invalid song ID' });
+    }
 
-    if (req.streamToken?.songId != null && Number(req.streamToken.songId) !== Number(id)) {
+    if (req.streamToken?.songId != null && Number(req.streamToken.songId) !== songId) {
       return res.status(401).json({ error: 'Invalid stream token for song' });
     }
 
-    const result = await db.query('SELECT * FROM songs WHERE id = $1', [id]);
+    const result = await db.query('SELECT * FROM songs WHERE id = $1', [songId]);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Song not found' });
     }
