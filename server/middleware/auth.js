@@ -1,10 +1,12 @@
 const jwt = require('jsonwebtoken');
+const { toPositiveInt } = require('../utils/streamToken');
 
 /**
  * Standard Bearer JWT auth. Normalizes req.user to { userId, username }
  * so controllers can rely on the same shape as streamAuth.
  * Rejects stream-typed tokens (those must use ?t= on the stream path).
- * Requires finite positive integer userId (same bar as stream tokens, dose-1.27).
+ * Requires finite positive integer userId (same bar as stream tokens).
+ * dose-1.38: uses shared toPositiveInt (DRY with streamAuth / streamToken).
  */
 const authMiddleware = (req, res, next) => {
   try {
@@ -34,8 +36,8 @@ const authMiddleware = (req, res, next) => {
     }
 
     const userId = decoded.userId ?? decoded.id;
-    const uid = Number(userId);
-    if (userId == null || !Number.isFinite(uid) || !Number.isInteger(uid) || uid <= 0) {
+    const uid = toPositiveInt(userId);
+    if (uid == null) {
       return res.status(401).json({ error: 'Invalid authentication token' });
     }
 
