@@ -73,27 +73,29 @@ function toStrictBoolean(body, key) {
 /**
  * pitchShift: optional finite number in [-24, 24] semitones (defense in depth).
  * Pitch UI does not ship; still reject NaN/Infinity/out-of-range before DB.
- * Omitted key leaves prior value; explicit null clears to null.
+ * Omitted key -> undefined (leave prior); explicit null -> null (clear);
+ * invalid present value -> 'INVALID' (400).
  */
 function toPitchShift(body) {
   if (!Object.prototype.hasOwnProperty.call(body, 'pitchShift')) return undefined;
   const raw = body.pitchShift;
   if (raw === null) return null; // explicit clear
   const n = Number(raw);
-  if (!Number.isFinite(n) || n < -24 || n > 24) return null; // invalid -> 400
+  if (!Number.isFinite(n) || n < -24 || n > 24) return 'INVALID';
   return n;
 }
 
 /**
  * stemsConfig: optional plain object or null (defense in depth).
  * Stems UI does not ship; reject arrays/primitives/string junk before DB.
- * Omitted key leaves prior value; explicit null clears.
+ * Omitted key -> undefined (leave prior); explicit null -> null (clear);
+ * invalid present value -> 'INVALID' (400).
  */
 function toStemsConfig(body) {
   if (!Object.prototype.hasOwnProperty.call(body, 'stemsConfig')) return undefined;
   const raw = body.stemsConfig;
   if (raw === null) return null;
-  if (typeof raw !== 'object' || Array.isArray(raw)) return null; // invalid -> 400
+  if (typeof raw !== 'object' || Array.isArray(raw)) return 'INVALID';
   return raw;
 }
 
@@ -141,38 +143,21 @@ const updatePlaybackState = async (req, res) => {
       return res.status(400).json({ error: 'Invalid isPlaying' });
     }
 
-    // dose-1.35: pitchShift / stemsConfig defense-in-depth (features do not ship;
-    // still reject junk before DB upsert). Explicit null clears; omitted leaves prior.
-    const pitchShift = toPitchShift(body);
-    if (pitchShift === null && Object.prototype.hasOwnProperty.call(body, 'pitchShift') && body.pitchShift !== null) {
-      return res.status(400).json({ error: 'Invalid pitchShift' });
-    }
-    // toPitchShift returns null for both explicit null (clear) and invalid.
-    // Distinguish: only 400 when present and not null and failed the finite/range check.
-    const pitchShiftVal = (() => {
-      if (!Object.prototype.hasOwnProperty.call(body, 'pitchShift')) return undefined;
-      if (body.pitchShift === null) return null;
-      const n = Number(body.pitchShift);
-      if (!Number.isFinite(n) || n < -24 || n > 24) {
-        return 'INVALID';
-      }
-      return n;
-    })();
+    // dose-1.35 / dose-1.36: pitchShift / stemsConfig defense-in-depth (features do not
+    // ship; still reject junk before DB upsert). Explicit null clears; omitted leaves prior.
+    // dose-1.36: SQL uses CASE flags so explicit null actually writes NULL (COALESCE
+    // cannot clear a column).
+    const pitchShiftVal = toPitchShift(body);
     if (pitchShiftVal === 'INVALID') {
       return res.status(400).json({ error: 'Invalid pitchShift' });
     }
+    const hasPitchShift = pitchShiftVal !== undefined;
 
-    const stemsConfigVal = (() => {
-      if (!Object.prototype.hasOwnProperty.call(body, 'stemsConfig')) return undefined;
-      if (body.stemsConfig === null) return null;
-      if (typeof body.stemsConfig !== 'object' || Array.isArray(body.stemsConfig)) {
-        return 'INVALID';
-      }
-      return body.stemsConfig;
-    })();
+    const stemsConfigVal = toStemsConfig(body);
     if (stemsConfigVal === 'INVALID') {
       return res.status(400).json({ error: 'Invalid stemsConfig' });
     }
+    const hasStemsConfig = stemsConfigVal !== undefined;
 
     const result = await db.query(
       `INSERT INTO playback_states (user_id, current_song_id, position, is_playing, volume, playback_speed, pitch_shift, stems_config)
@@ -183,8 +168,8 @@ const updatePlaybackState = async (req, res) => {
          is_playing = COALESCE($4, playback_states.is_playing),
          volume = COALESCE($5, playback_states.volume),
          playback_speed = COALESCE($6, playback_states.playback_speed),
-         pitch_shift = COALESCE($7, playback_states.pitch_shift),
-         stems_config = COALESCE($8, playback_states.stems_config),
+         pitch_shift = CASE WHEN $10::boolean THEN $7 ELSE playback_states.pitch_shift END,
+         stems_config = CASE WHEN $11::boolean THEN $8 ELSE playback_states.stems_config END,
          updated_at = CURRENT_TIMESTAMP
        RETURNING *`,
       [
@@ -194,9 +179,11 @@ const updatePlaybackState = async (req, res) => {
         isPlaying !== undefined ? isPlaying : null,
         volume !== undefined ? volume : null,
         playbackSpeed !== undefined ? playbackSpeed : null,
-        pitchShiftVal !== undefined ? pitchShiftVal : null,
-        stemsConfigVal !== undefined ? stemsConfigVal : null,
+        hasPitchShift ? pitchShiftVal : null,
+        hasStemsConfig ? stemsConfigVal : null,
         hasSongId,
+        hasPitchShift,
+        hasStemsConfig,
       ]
     );
 
