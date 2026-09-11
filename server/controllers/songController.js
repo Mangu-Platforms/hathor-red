@@ -210,6 +210,7 @@ const getStreamUrl = async (req, res) => {
     const token = signStreamToken({
       userId: req.user.userId,
       songId: Number(id),
+      username: req.user.username || null,
     });
 
     return res.json({
