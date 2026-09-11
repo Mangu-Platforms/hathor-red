@@ -6,6 +6,7 @@ const { verifyStreamToken } = require('../utils/streamToken');
  * Prefer short-lived signed query token (`?t=`) so <audio src> works without
  * Authorization headers. Fall back to Bearer JWT for non-media callers.
  * Always normalize req.user to { userId, username } so controllers can rely on it.
+ * Stream tokens must carry finite positive integer userId + songId (dose-1.26).
  */
 function streamAuth(req, res, next) {
   try {
@@ -13,11 +14,9 @@ function streamAuth(req, res, next) {
 
     if (streamToken) {
       const decoded = verifyStreamToken(streamToken);
-      if (decoded.songId == null || decoded.userId == null) {
-        return res.status(401).json({ error: 'Invalid stream token payload' });
-      }
+      // verifyStreamToken already requires positive integer userId/songId
       req.user = {
-        userId: Number(decoded.userId),
+        userId: decoded.userId,
         username: decoded.username || null,
       };
       req.streamToken = decoded;
@@ -49,12 +48,13 @@ function streamAuth(req, res, next) {
     }
 
     const userId = decoded.userId ?? decoded.id;
-    if (userId == null) {
+    const uid = Number(userId);
+    if (userId == null || !Number.isFinite(uid) || !Number.isInteger(uid) || uid <= 0) {
       return res.status(401).json({ error: 'Invalid authentication token' });
     }
 
     req.user = {
-      userId: Number(userId),
+      userId: uid,
       username: decoded.username || null,
     };
     return next();
