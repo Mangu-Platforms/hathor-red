@@ -1,5 +1,6 @@
 const db = require('../config/database');
 const { redisClient } = require('../config/redis');
+const { toPositiveInt } = require('../utils/streamToken');
 
 const getPlaybackState = async (req, res) => {
   try {
@@ -56,8 +57,17 @@ const updatePlaybackState = async (req, res) => {
     } = body;
 
     // Explicit null clears current_song_id (e.g. Clear queue). Omitted key leaves prior value.
+    // dose-1.32: when present and non-null, require finite positive integer (same bar as
+    // stream/getSong/recordListening; independent of validation middleware order).
     const hasSongId = Object.prototype.hasOwnProperty.call(body, 'currentSongId');
-    const currentSongId = hasSongId ? body.currentSongId : undefined;
+    let currentSongId = hasSongId ? body.currentSongId : undefined;
+    if (hasSongId && currentSongId != null) {
+      const sid = toPositiveInt(currentSongId);
+      if (sid == null) {
+        return res.status(400).json({ error: 'Invalid song ID' });
+      }
+      currentSongId = sid;
+    }
 
     const result = await db.query(
       `INSERT INTO playback_states (user_id, current_song_id, position, is_playing, volume, playback_speed, pitch_shift, stems_config)
