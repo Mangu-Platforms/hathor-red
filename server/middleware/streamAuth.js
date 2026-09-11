@@ -7,6 +7,9 @@ const { verifyStreamToken } = require('../utils/streamToken');
  * Authorization headers. Fall back to Bearer JWT for non-media callers.
  * Always normalize req.user to { userId, username } so controllers can rely on it.
  * Stream tokens must carry finite positive integer userId + songId (dose-1.26).
+ * dose-1.28: when a stream token is present and the route has :id, reject if
+ * token.songId does not match the path param (defense in depth; controller
+ * still re-checks).
  */
 function streamAuth(req, res, next) {
   try {
@@ -15,6 +18,18 @@ function streamAuth(req, res, next) {
     if (streamToken) {
       const decoded = verifyStreamToken(streamToken);
       // verifyStreamToken already requires positive integer userId/songId
+      const pathId = req.params?.id;
+      if (pathId != null) {
+        const routeSongId = Number(pathId);
+        if (
+          !Number.isFinite(routeSongId) ||
+          !Number.isInteger(routeSongId) ||
+          routeSongId <= 0 ||
+          routeSongId !== decoded.songId
+        ) {
+          return res.status(401).json({ error: 'Invalid stream token for song' });
+        }
+      }
       req.user = {
         userId: decoded.userId,
         username: decoded.username || null,
