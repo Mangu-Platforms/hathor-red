@@ -1,5 +1,6 @@
 const db = require('../config/database');
 const setupSocketHandlers = require('../socket/handlers');
+const { toPositiveInt } = require('../utils/streamToken');
 
 const getRooms = async (req, res) => {
   try {
@@ -48,7 +49,11 @@ const getRooms = async (req, res) => {
 
 const getRoomById = async (req, res) => {
   try {
-    const { id } = req.params;
+    // dose-1.42: same positive-int bar as socket room handlers / stream endpoints
+    const id = toPositiveInt(req.params.id);
+    if (id == null) {
+      return res.status(400).json({ error: 'Invalid room ID' });
+    }
 
     const result = await db.query(
       `SELECT lr.*, u.username as host_username, u.display_name as host_display_name,
@@ -141,7 +146,11 @@ const createRoom = async (req, res) => {
 
 const joinRoom = async (req, res) => {
   try {
-    const { id } = req.params;
+    // dose-1.42: same positive-int bar as socket join-room
+    const id = toPositiveInt(req.params.id);
+    if (id == null) {
+      return res.status(400).json({ error: 'Invalid room ID' });
+    }
 
     const roomResult = await db.query(
       'SELECT * FROM listening_rooms WHERE id = $1',
@@ -187,7 +196,11 @@ const joinRoom = async (req, res) => {
 
 const leaveRoom = async (req, res) => {
   try {
-    const { id } = req.params;
+    // dose-1.42: same positive-int bar as socket leave-room
+    const id = toPositiveInt(req.params.id);
+    if (id == null) {
+      return res.status(400).json({ error: 'Invalid room ID' });
+    }
 
     await db.query(
       'DELETE FROM room_participants WHERE room_id = $1 AND user_id = $2',
@@ -203,7 +216,11 @@ const leaveRoom = async (req, res) => {
 
 const deleteRoom = async (req, res) => {
   try {
-    const { id } = req.params;
+    // dose-1.42: same positive-int bar as other room path handlers
+    const id = toPositiveInt(req.params.id);
+    if (id == null) {
+      return res.status(400).json({ error: 'Invalid room ID' });
+    }
 
     const result = await db.query(
       'DELETE FROM listening_rooms WHERE id = $1 AND host_id = $2 RETURNING *',
