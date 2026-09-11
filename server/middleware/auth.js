@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
  * Standard Bearer JWT auth. Normalizes req.user to { userId, username }
  * so controllers can rely on the same shape as streamAuth.
  * Rejects stream-typed tokens (those must use ?t= on the stream path).
+ * Requires finite positive integer userId (same bar as stream tokens, dose-1.27).
  */
 const authMiddleware = (req, res, next) => {
   try {
@@ -33,12 +34,13 @@ const authMiddleware = (req, res, next) => {
     }
 
     const userId = decoded.userId ?? decoded.id;
-    if (userId == null || !Number.isFinite(Number(userId))) {
+    const uid = Number(userId);
+    if (userId == null || !Number.isFinite(uid) || !Number.isInteger(uid) || uid <= 0) {
       return res.status(401).json({ error: 'Invalid authentication token' });
     }
 
     req.user = {
-      userId: Number(userId),
+      userId: uid,
       username: decoded.username || null,
     };
     return next();

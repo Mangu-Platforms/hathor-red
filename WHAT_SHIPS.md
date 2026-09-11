@@ -1,10 +1,10 @@
 # WHAT_SHIPS — Hathor Red live capability snapshot
 
-Last updated: 2026-09-11 (dose-1.26 stream token positive-int ids).
+Last updated: 2026-09-11 (dose-1.27 authMiddleware positive-int userId).
 
 ## Ships today
 
-- **Auth**: email/password + JWT. No OAuth routes mounted. `authMiddleware` normalizes `req.user` to `{ userId, username }` (same shape as `streamAuth`) and rejects stream-typed tokens on the Bearer path.
+- **Auth**: email/password + JWT. No OAuth routes mounted. `authMiddleware` normalizes `req.user` to `{ userId, username }` (same shape as `streamAuth`) and rejects stream-typed tokens on the Bearer path. **dose-1.27**: `authMiddleware` requires finite positive integer `userId` (reject NaN/0/negative/non-integer before `req.user` is set), matching the stream-token bar from dose-1.26.
 - **Playback (Dose 1 core)**: signed stream URLs (`GET /api/songs/:id/stream-url` → `/stream?t=…`) so HTML5 `<audio src>` works without Authorization headers. `streamAuth` + `streamToken` (short-lived, song-scoped). streamAuth normalizes `req.user` to `{ userId, username }`, rejects stream-typed tokens on the Bearer path, and requires `songId`/`userId` on query tokens. **dose-1.24**: stream tokens optionally carry `username` from the minting session so `req.user.username` is populated on the query-token path without a DB lookup. **dose-1.26**: `signStreamToken` / `verifyStreamToken` require finite positive integer `userId` and `songId` (reject NaN/0/negative/string junk before `req.user` is set).
 - **Player**: full `PlayerContext` on main (queue, Fisher-Yates shuffle, repeat, seek guards, play-generation, stream error retry preserves seek, volume/speed, hydrate from `/playback/state`, persist debounce). **Logout clear** (dose-1.20/1.21): when `isAuthenticated` becomes false, `clearQueue()` runs and `hydratedRef` resets so signed streams stop and a later login can hydrate again.
 - **Queue UI**: up-next panel, drag reorder (linear only), play-next / makeNext / insertNext (shuffle-aware), dedupe on add.
@@ -20,7 +20,7 @@ Last updated: 2026-09-11 (dose-1.26 stream token positive-int ids).
 | Dose | Status |
 |------|--------|
 | 0 Truth | Done |
-| 1 Playback | Core done; streamAuth hardened (dose-1.23); stream token username (dose-1.24); authMiddleware normalize (dose-1.25); stream token positive-int ids (dose-1.26) |
+| 1 Playback | Core done; streamAuth hardened (dose-1.23); stream token username (dose-1.24); authMiddleware normalize (dose-1.25); stream token positive-int ids (dose-1.26); authMiddleware positive-int userId (dose-1.27) |
 | 2 Account | Soft logout + profile path present |
 | 3–5 | Routes/flags/rooms as prior |
 
