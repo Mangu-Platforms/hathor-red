@@ -1,6 +1,6 @@
 # WHAT_SHIPS — Hathor Red live capability snapshot
 
-Last updated: 2026-09-10 (dose-1.17 Radar discovery-off skip + banner honesty).
+Last updated: 2026-09-10 (dose-1.18 Store/Library commerce-off skip + banner honesty).
 
 ## Ships today
 
@@ -19,6 +19,7 @@ Last updated: 2026-09-10 (dose-1.17 Radar discovery-off skip + banner honesty).
 - **Radar discovery-off honesty** (dose-1.17): when `FEATURE_DISCOVERY` is false, Radar shows an explicit status banner, disables Play/Refresh, skips the Radar API call after features resolve (same pattern as Search dose-1.14). Worker-stale note remains only when discovery is on.
 - **Search play**: `Search` Play button uses unwrapped `musicService.getSong` row (dose-1.6; was destructuring `{ song }` after service already unwrapped).
 - **Search discovery-off honesty** (dose-1.14): when `FEATURE_DISCOVERY` is false, Search shows an explicit status banner, disables the query input and submit button, and skips the API call. Worker-stale note remains only when discovery is on.
+- **Store/Library commerce-off honesty** (dose-1.18): when `FEATURE_COMMERCE` is false, Store and Library show an explicit status banner, skip the commerce API call after features resolve (same pattern as Search/Radar), and avoid a 404 flash on first paint. Worker-stale note remains only when commerce is on.
 - **Podcast**: honest coming-soon page; nav label "Podcasts (soon)".
 - **Static uploads**: **not** public; audio only via signed stream.
 - **Env honesty**: `.env.example` documents only the Olympus flags that `server/config/features.js` reads; legacy `FEATURE_HLS_STREAMING` / `FEATURE_OAUTH` / stems / WebRTC names are commented so they cannot be mistaken for live toggles.
@@ -38,7 +39,7 @@ Last updated: 2026-09-10 (dose-1.17 Radar discovery-off skip + banner honesty).
 | Dose | Status |
 |------|--------|
 | 0 Truth (README/flags/nav honesty) | Done — README matches; Podcast coming-soon; flags gate Olympus; WHAT_SHIPS live |
-| 1 Playback | Core done (signed streams, seek/shuffle/queue guards). Hydrate + persist debounce done. Radar playAll unwrap fixed (dose-1.2). Clear-queue confirm (dose-1.3). Drag visual feedback class wired to CSS (dose-1.4). Queue CSS class aliases for live MusicPlayer DOM (dose-1.5). Search playOne unwrap fixed (dose-1.6). Queue add/insertNext dedupe by song id (dose-1.7). Dead loudnessGain/waveform stubs removed from PlayerContext value (dose-1.8). ListeningRoom fetchRoom useCallback (dose-1.9 / BUGS #8). SongList local genre filter case-insensitive (dose-1.10). Genre select options deduped case-insensitively (dose-1.11). insertNext moves existing queue row to play-next (dose-1.12). Shuffle-aware makeNext/insertNext (dose-1.13). Search discovery-off empty/banner honesty (dose-1.14). **PlayerContext restored on main** (dose-1.16) with full implementation + insertNext move + shuffle-aware play-next. **Radar discovery-off skip + banner** (dose-1.17). |
+| 1 Playback | Core done (signed streams, seek/shuffle/queue guards). Hydrate + persist debounce done. Radar playAll unwrap fixed (dose-1.2). Clear-queue confirm (dose-1.3). Drag visual feedback class wired to CSS (dose-1.4). Queue CSS class aliases for live MusicPlayer DOM (dose-1.5). Search playOne unwrap fixed (dose-1.6). Queue add/insertNext dedupe by song id (dose-1.7). Dead loudnessGain/waveform stubs removed from PlayerContext value (dose-1.8). ListeningRoom fetchRoom useCallback (dose-1.9 / BUGS #8). SongList local genre filter case-insensitive (dose-1.10). Genre select options deduped case-insensitively (dose-1.11). insertNext moves existing queue row to play-next (dose-1.12). Shuffle-aware makeNext/insertNext (dose-1.13). Search discovery-off empty/banner honesty (dose-1.14). **PlayerContext restored on main** (dose-1.16) with full implementation + insertNext move + shuffle-aware play-next. **Radar discovery-off skip + banner** (dose-1.17). **Store/Library commerce-off skip + banner** (dose-1.18). |
 | 2 Account basics | Profile in Settings present; soft logout without hard reload |
 | 3 Home/playlists | Genre filter verified + case-insensitive server match; playlist routes present |
 | 4 Rooms | Disconnect cleanup + poll; host song picker wired; room track load fixed; listener_count numeric + detail attach (dose-4.3) |
@@ -46,6 +47,6 @@ Last updated: 2026-09-10 (dose-1.17 Radar discovery-off skip + banner honesty).
 
 ## Next item
 
-Settings platform-status polish / residual empty-state honesty on Store/Library when flags resolve after first paint; optional multi-device queue list (not claimed).
+Settings platform-status polish residual; optional multi-device queue list (not claimed).
 
 See also: [README.md](README.md), [BUGS.md](BUGS.md), [API.md](API.md).

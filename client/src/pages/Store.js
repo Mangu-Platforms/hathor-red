@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { commerceService, newIdempotencyKey } from '../services/olympus';
 import { getFeatures } from '../services/api';
 import './Olympus.css';
@@ -73,32 +73,56 @@ const Store = () => {
 
   useEffect(() => {
     let cancelled = false;
-    getFeatures().then((f) => {
-      if (!cancelled) setFeatures(f);
-    });
-    return () => { cancelled = true; };
+    getFeatures()
+      .then((f) => {
+        if (!cancelled) setFeatures(f);
+      })
+      .catch(() => {
+        if (!cancelled) setFeatures(null);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  const commerceOff = features != null && features.commerce === false;
+  const workerLive = features == null ? null : Boolean(features.workerLive);
+
+  const load = useCallback(async () => {
+    // dose-1.18: when FEATURE_COMMERCE is known-off, do not hit the API
+    // (routes are not mounted). Same honesty pattern as Search/Radar (dose-1.14/1.17).
+    if (features != null && features.commerce === false) {
+      setProducts([]);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await commerceService.listProducts();
+      setProducts(data.products || []);
+    } catch (err) {
+      setProducts([]);
+      const status = err.response?.status;
+      if (status === 404) {
+        setError('Store is not available on this server (commerce feature flag off or route missing).');
+      } else {
+        setError(err.response?.data?.error || 'Could not load store. Try again later.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [features]);
 
   useEffect(() => {
-    commerceService.listProducts()
-      .then((data) => {
-        setProducts(data.products || []);
-        setError(null);
-      })
-      .catch((err) => {
-        setProducts([]);
-        const status = err.response?.status;
-        if (status === 404) {
-          setError('Store is not available on this server (commerce feature flag off or route missing).');
-        } else {
-          setError(err.response?.data?.error || 'Could not load store. Try again later.');
-        }
-      })
-      .finally(() => setLoading(false));
-  }, []);
+    // Wait until features resolve so we can skip the call when commerce is off.
+    if (features == null) return;
+    load();
+  }, [load, features]);
 
   const emptyHint = (() => {
-    if (features?.commerce === false) {
+    if (commerceOff) {
       return 'Commerce is disabled on this server (FEATURE_COMMERCE). Store routes are not mounted.';
     }
     const parts = [
@@ -106,7 +130,7 @@ const Store = () => {
     ];
     if (features?.worker === false) {
       parts.push('Background worker flag is off — subscription expiry jobs will not run.');
-    } else if (features?.workerLive === false) {
+    } else if (workerLive === false) {
       parts.push('Background job worker is not running — some commerce jobs may stall.');
     }
     return parts.join(' ');
@@ -116,8 +140,24 @@ const Store = () => {
     <div className="oly-page">
       <h1>Store</h1>
       <div className="oly-sub">Buy directly from artists — 80% of every sale goes to them.</div>
-      {loading ? (
+
+      {/* dose-1.18: explicit banner when commerce is off (match Search/Radar) */}
+      {commerceOff && (
+        <div className="oly-empty" style={{ marginBottom: 16 }} role="status">
+          Commerce is disabled on this server (FEATURE_COMMERCE). Store routes are not mounted.
+        </div>
+      )}
+      {workerLive === false && !commerceOff && (
+        <div className="oly-empty" style={{ marginBottom: 16 }} role="status">
+          Background job worker is not running — subscription expiry and some commerce jobs may
+          stall until the worker is up (see Settings → Platform status).
+        </div>
+      )}
+
+      {features == null || (loading && !commerceOff) ? (
         <div className="oly-empty">Loading store…</div>
+      ) : commerceOff ? (
+        null
       ) : error ? (
         <div className="oly-empty">{error}</div>
       ) : products.length === 0 ? (

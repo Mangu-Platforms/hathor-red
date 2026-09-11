@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { commerceService } from '../services/olympus';
 import { usePlayer } from '../contexts/PlayerContext';
 import { getFeatures } from '../services/api';
@@ -14,29 +14,53 @@ const Library = () => {
 
   useEffect(() => {
     let cancelled = false;
-    getFeatures().then((f) => {
-      if (!cancelled) setFeatures(f);
-    });
-    return () => { cancelled = true; };
+    getFeatures()
+      .then((f) => {
+        if (!cancelled) setFeatures(f);
+      })
+      .catch(() => {
+        if (!cancelled) setFeatures(null);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
+  const commerceOff = features != null && features.commerce === false;
+  const workerLive = features == null ? null : Boolean(features.workerLive);
+
+  const load = useCallback(async () => {
+    // dose-1.18: when FEATURE_COMMERCE is known-off, do not hit the API
+    // (routes are not mounted). Same honesty pattern as Search/Radar (dose-1.14/1.17).
+    if (features != null && features.commerce === false) {
+      setLibrary([]);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await commerceService.getLibrary();
+      setLibrary(data.library || []);
+    } catch (err) {
+      setLibrary([]);
+      const status = err.response?.status;
+      if (status === 404) {
+        setError('Library is not available on this server (commerce feature flag off or route missing).');
+      } else {
+        setError(err.response?.data?.error || 'Could not load library. Try again later.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [features]);
+
   useEffect(() => {
-    commerceService.getLibrary()
-      .then((data) => {
-        setLibrary(data.library || []);
-        setError(null);
-      })
-      .catch((err) => {
-        setLibrary([]);
-        const status = err.response?.status;
-        if (status === 404) {
-          setError('Library is not available on this server (commerce feature flag off or route missing).');
-        } else {
-          setError(err.response?.data?.error || 'Could not load library. Try again later.');
-        }
-      })
-      .finally(() => setLoading(false));
-  }, []);
+    // Wait until features resolve so we can skip the call when commerce is off.
+    if (features == null) return;
+    load();
+  }, [load, features]);
 
   const download = async (songId) => {
     setMessage(null);
@@ -62,7 +86,7 @@ const Library = () => {
   };
 
   const emptyHint = (() => {
-    if (features?.commerce === false) {
+    if (commerceOff) {
       return 'Commerce is disabled on this server (FEATURE_COMMERCE). Library routes are not mounted.';
     }
     const parts = [
@@ -70,7 +94,7 @@ const Library = () => {
     ];
     if (features?.worker === false) {
       parts.push('Background worker flag is off — subscription expiry jobs will not run.');
-    } else if (features?.workerLive === false) {
+    } else if (workerLive === false) {
       parts.push('Background job worker is not running — some commerce jobs may stall.');
     }
     return parts.join(' ');
@@ -81,8 +105,24 @@ const Library = () => {
       <h1>Your Library</h1>
       <div className="oly-sub">Tracks you own forever — stream anywhere, download the lossless original.</div>
       {message && <div className={`oly-msg ${message.ok ? 'ok' : 'err'}`}>{message.text}</div>}
-      {loading ? (
+
+      {/* dose-1.18: explicit banner when commerce is off (match Search/Radar) */}
+      {commerceOff && (
+        <div className="oly-empty" style={{ marginBottom: 16 }} role="status">
+          Commerce is disabled on this server (FEATURE_COMMERCE). Library routes are not mounted.
+        </div>
+      )}
+      {workerLive === false && !commerceOff && (
+        <div className="oly-empty" style={{ marginBottom: 16 }} role="status">
+          Background job worker is not running — subscription expiry and some commerce jobs may
+          stall until the worker is up (see Settings → Platform status).
+        </div>
+      )}
+
+      {features == null || (loading && !commerceOff) ? (
         <div className="oly-empty">Loading library…</div>
+      ) : commerceOff ? (
+        null
       ) : error ? (
         <div className="oly-empty">{error}</div>
       ) : library.length === 0 ? (
