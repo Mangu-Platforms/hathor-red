@@ -342,11 +342,25 @@ const streamSong = async (req, res) => {
 
 const recordListening = async (req, res) => {
   try {
-    const { songId, duration } = req.body;
+    // dose-1.31: same positive-int bar as stream/getSong paths (defense in depth
+    // vs validation middleware order / bypass). Reject before DB insert.
+    const songId = toPositiveInt(req.body?.songId);
+    if (songId == null) {
+      return res.status(400).json({ error: 'Invalid song ID' });
+    }
+
+    let durationPlayed = 0;
+    if (req.body?.duration != null) {
+      const d = Number(req.body.duration);
+      if (!Number.isFinite(d) || !Number.isInteger(d) || d < 0) {
+        return res.status(400).json({ error: 'Invalid duration' });
+      }
+      durationPlayed = d;
+    }
 
     await db.query(
       'INSERT INTO listening_history (user_id, song_id, duration_played) VALUES ($1, $2, $3)',
-      [req.user.userId, songId, duration || 0]
+      [req.user.userId, songId, durationPlayed]
     );
 
     res.json({ message: 'Listening recorded' });
