@@ -148,7 +148,7 @@ async function handleHostHandoff(io, roomId, leavingUserId) {
   io.to(`room-${roomId}`).emit('host-changed', {
     roomId,
     newHostId,
-    newHostUsername: newHost ? newHost.username,
+    newHostUsername: newHost ? newHost.username : null,
     timestamp: Date.now(),
   });
   logger.info({ action: 'host_handoff', roomId, from: leavingUserId, to: newHostId });
