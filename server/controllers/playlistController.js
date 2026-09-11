@@ -2,6 +2,7 @@ const db = require('../config/database');
 const colabAIService = require('../services/colabAIService');
 const { logger } = require('../utils/logger');
 const { DEFAULT_AI_PLAYLIST_SIZE, MAX_AI_PLAYLIST_SIZE } = require('../config/constants');
+const { toPositiveInt } = require('../utils/streamToken');
 
 const getPlaylists = async (req, res) => {
   try {
@@ -31,7 +32,11 @@ const getPlaylists = async (req, res) => {
 
 const getPlaylistById = async (req, res) => {
   try {
-    const { id } = req.params;
+    // dose-1.43: same positive-int bar as room/song controllers (defense in depth)
+    const id = toPositiveInt(req.params.id);
+    if (id == null) {
+      return res.status(400).json({ error: 'Invalid playlist ID' });
+    }
 
     const playlistResult = await db.query('SELECT * FROM playlists WHERE id = $1', [id]);
     if (playlistResult.rows.length === 0) {
@@ -84,7 +89,12 @@ const createPlaylist = async (req, res) => {
 
 const addSongToPlaylist = async (req, res) => {
   try {
-    const { playlistId, songId } = req.body;
+    // dose-1.43: positive-int bar on body ids (same as path handlers)
+    const playlistId = toPositiveInt(req.body.playlistId);
+    const songId = toPositiveInt(req.body.songId);
+    if (playlistId == null || songId == null) {
+      return res.status(400).json({ error: 'Invalid playlist ID or song ID' });
+    }
 
     const playlistResult = await db.query(
       'SELECT user_id FROM playlists WHERE id = $1',
@@ -250,7 +260,11 @@ const generateAIPlaylist = async (req, res) => {
 
 const deletePlaylist = async (req, res) => {
   try {
-    const { id } = req.params;
+    // dose-1.43: same positive-int bar as getPlaylistById
+    const id = toPositiveInt(req.params.id);
+    if (id == null) {
+      return res.status(400).json({ error: 'Invalid playlist ID' });
+    }
 
     const result = await db.query(
       'DELETE FROM playlists WHERE id = $1 AND user_id = $2 RETURNING *',
@@ -286,7 +300,12 @@ const renumberPlaylistPositions = async (playlistId, client = db) => {
 
 const removeSongFromPlaylist = async (req, res) => {
   try {
-    const { id, songId } = req.params;
+    // dose-1.43: positive-int on path :id and :songId
+    const id = toPositiveInt(req.params.id);
+    const songId = toPositiveInt(req.params.songId);
+    if (id == null || songId == null) {
+      return res.status(400).json({ error: 'Invalid playlist ID or song ID' });
+    }
 
     const playlistResult = await db.query(
       'SELECT user_id FROM playlists WHERE id = $1',
@@ -325,15 +344,20 @@ const removeSongFromPlaylist = async (req, res) => {
  */
 const reorderPlaylistSongs = async (req, res) => {
   try {
-    const { id } = req.params;
+    // dose-1.43: positive-int on path :id; songIds already normalized below
+    const id = toPositiveInt(req.params.id);
+    if (id == null) {
+      return res.status(400).json({ error: 'Invalid playlist ID' });
+    }
+
     const { songIds } = req.body;
 
     if (!Array.isArray(songIds) || songIds.length === 0) {
       return res.status(400).json({ error: 'songIds must be a non-empty array' });
     }
 
-    const normalized = songIds.map((x) => parseInt(x, 10));
-    if (normalized.some((n) => !Number.isFinite(n) || n < 1)) {
+    const normalized = songIds.map((x) => toPositiveInt(x)).filter((n) => n != null);
+    if (normalized.length !== songIds.length) {
       return res.status(400).json({ error: 'Invalid song ID in songIds' });
     }
     if (new Set(normalized).size !== normalized.length) {
