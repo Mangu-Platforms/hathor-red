@@ -109,8 +109,13 @@ const getMySongs = async (req, res) => {
 
 const getSongById = async (req, res) => {
   try {
-    const { id } = req.params;
-    const result = await db.query('SELECT * FROM songs WHERE id = $1', [id]);
+    // dose-1.30: same positive-int bar as stream endpoints (defense in depth).
+    const songId = toPositiveInt(req.params.id);
+    if (songId == null) {
+      return res.status(400).json({ error: 'Invalid song ID' });
+    }
+
+    const result = await db.query('SELECT * FROM songs WHERE id = $1', [songId]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Song not found' });
@@ -276,7 +281,7 @@ const streamSong = async (req, res) => {
     res.setHeader('Content-Type', contentType);
     res.setHeader('Cache-Control', 'private, max-age=0, must-revalidate');
     res.setHeader('Last-Modified', stat.mtime.toUTCString());
-    res.setHeader('ETag', `"${fileSize}-${Math.round(stat.mtimeMs)}"`);
+    res.setHeader('ETag', `\"${fileSize}-${Math.round(stat.mtimeMs)}\"`);
 
     if (range) {
       const match = String(range).match(/^bytes=(\d*)-(\d*)$/);
