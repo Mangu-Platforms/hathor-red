@@ -1,5 +1,10 @@
 const jwt = require('jsonwebtoken');
 
+/**
+ * Standard Bearer JWT auth. Normalizes req.user to { userId, username }
+ * so controllers can rely on the same shape as streamAuth.
+ * Rejects stream-typed tokens (those must use ?t= on the stream path).
+ */
 const authMiddleware = (req, res, next) => {
   try {
     const authHeader = req.header('Authorization');
@@ -21,7 +26,21 @@ const authMiddleware = (req, res, next) => {
       issuer: 'hathor-music',
       clockTolerance: 60,
     });
-    req.user = decoded;
+
+    // Stream tokens must use the query-parameter path, not Authorization.
+    if (decoded.typ === 'stream') {
+      return res.status(401).json({ error: 'Stream tokens must use the query parameter' });
+    }
+
+    const userId = decoded.userId ?? decoded.id;
+    if (userId == null || !Number.isFinite(Number(userId))) {
+      return res.status(401).json({ error: 'Invalid authentication token' });
+    }
+
+    req.user = {
+      userId: Number(userId),
+      username: decoded.username || null,
+    };
     return next();
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
