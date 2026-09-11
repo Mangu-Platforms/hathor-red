@@ -349,10 +349,12 @@ const recordListening = async (req, res) => {
       return res.status(400).json({ error: 'Invalid song ID' });
     }
 
+    // dose-1.34: duration must be a non-negative integer and bounded to the same
+    // 2h ceiling used for position / upload duration (reject NaN/Infinity/out-of-range).
     let durationPlayed = 0;
     if (req.body?.duration != null) {
       const d = Number(req.body.duration);
-      if (!Number.isFinite(d) || !Number.isInteger(d) || d < 0) {
+      if (!Number.isFinite(d) || !Number.isInteger(d) || d < 0 || d > 7200) {
         return res.status(400).json({ error: 'Invalid duration' });
       }
       durationPlayed = d;

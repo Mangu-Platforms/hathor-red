@@ -57,11 +57,24 @@ function toBoundedNumber(body, key, min, max) {
   return n;
 }
 
+/**
+ * Strict boolean for isPlaying when the key is present.
+ * Accepts true/false only (not "true", 1, 0, null).
+ * Returns undefined when omitted (leave prior DB value).
+ * Returns null when present but invalid (caller should 400).
+ */
+function toStrictBoolean(body, key) {
+  if (!Object.prototype.hasOwnProperty.call(body, key)) return undefined;
+  const raw = body[key];
+  if (typeof raw === 'boolean') return raw;
+  return null;
+}
+
 const updatePlaybackState = async (req, res) => {
   try {
     const { userId } = req.user;
     const body = req.body || {};
-    const { isPlaying, pitchShift, stemsConfig } = body;
+    const { pitchShift, stemsConfig } = body;
 
     // Explicit null clears current_song_id (e.g. Clear queue). Omitted key leaves prior value.
     // dose-1.32: when present and non-null, require finite positive integer (same bar as
@@ -95,6 +108,13 @@ const updatePlaybackState = async (req, res) => {
       return res.status(400).json({ error: 'Invalid playback speed' });
     }
 
+    // dose-1.34: isPlaying must be a real boolean when present (reject "true"/1/null).
+    // Omitted key still leaves prior value via COALESCE.
+    const isPlaying = toStrictBoolean(body, 'isPlaying');
+    if (isPlaying === null) {
+      return res.status(400).json({ error: 'Invalid isPlaying' });
+    }
+
     const result = await db.query(
       `INSERT INTO playback_states (user_id, current_song_id, position, is_playing, volume, playback_speed, pitch_shift, stems_config)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -112,7 +132,7 @@ const updatePlaybackState = async (req, res) => {
         userId,
         hasSongId ? currentSongId : null,
         position !== undefined ? position : null,
-        isPlaying,
+        isPlaying !== undefined ? isPlaying : null,
         volume !== undefined ? volume : null,
         playbackSpeed !== undefined ? playbackSpeed : null,
         pitchShift,
