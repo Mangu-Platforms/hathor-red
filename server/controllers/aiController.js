@@ -8,6 +8,7 @@
 const colabAIService = require('../services/colabAIService');
 const db = require('../config/database');
 const { toPositiveInt } = require('../utils/streamToken');
+const { toNonNegInt } = require('../services/commerce/commerceService');
 
 const AI_DEFAULT_LIMIT = 20;
 const AI_SIMILAR_DEFAULT_LIMIT = 10;
@@ -222,6 +223,9 @@ const getRecommendations = async (req, res) => {
 
     const songsResult = await db.query(query, params);
 
+    // dose-1.66: play_count from COUNT(*) (pg bigint string) uses shared toNonNegInt
+    // (finite non-negative integer; allow 0; reject NaN/negative/non-integer
+    // instead of raw parseInt that can leave NaN in the sum).
     res.json({
       recommendations: {
         songs: songsResult.rows,
@@ -232,7 +236,10 @@ const getRecommendations = async (req, res) => {
       userProfile: {
         favoriteGenres: favoriteGenres.slice(0, 5),
         favoriteArtists: favoriteArtists.slice(0, 5),
-        totalPlays: historyResult.rows.reduce((sum, r) => sum + parseInt(r.play_count), 0)
+        totalPlays: historyResult.rows.reduce(
+          (sum, r) => sum + (toNonNegInt(r.play_count) ?? 0),
+          0
+        )
       }
     });
   } catch (error) {
