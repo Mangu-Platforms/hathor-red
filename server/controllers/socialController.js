@@ -3,6 +3,32 @@ const { isAdmin } = require('../utils/roles');
 const commentService = require('../services/social/commentService');
 const { toPositiveInt } = require('../utils/streamToken');
 
+const COMMENTS_DEFAULT_LIMIT = 100;
+const COMMENTS_MAX_LIMIT = 500;
+
+/**
+ * Parse comments limit: finite positive integer when present, else default.
+ * Rejects NaN / non-integer / <=0 / Infinity with null (caller returns 400).
+ * Caps at COMMENTS_MAX_LIMIT.
+ * dose-1.54: same bar as discovery search/similar and getSongs / privacy audit.
+ */
+function parseCommentsLimit(raw) {
+  if (raw == null || raw === '') return COMMENTS_DEFAULT_LIMIT;
+  const n = toPositiveInt(raw);
+  if (n == null) return null;
+  return Math.min(n, COMMENTS_MAX_LIMIT);
+}
+
+/**
+ * Non-negative finite integer for timestamp window bounds (fromMs/toMs).
+ * Allows 0; rejects NaN / negative / non-integer / Infinity.
+ */
+function toNonNegativeInt(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) return null;
+  return n;
+}
+
 /** GET /api/social/songs/:id/comments?fromMs&toMs&limit — timed window. */
 const getComments = async (req, res) => {
   try {
@@ -11,9 +37,29 @@ const getComments = async (req, res) => {
     if (songId == null) {
       return res.status(400).json({ error: 'Invalid song ID' });
     }
-    const fromMs = req.query.fromMs !== undefined ? parseInt(req.query.fromMs, 10) : 0;
-    const toMs = req.query.toMs !== undefined ? parseInt(req.query.toMs, 10) : null;
-    const limit = Math.min(parseInt(req.query.limit, 10) || 100, 500);
+
+    // dose-1.54: finite-int bar on fromMs / toMs / limit (no more raw parseInt
+    // that coerced junk to defaults).
+    let fromMs = 0;
+    if (req.query.fromMs !== undefined && req.query.fromMs !== '') {
+      fromMs = toNonNegativeInt(req.query.fromMs);
+      if (fromMs == null) {
+        return res.status(400).json({ error: 'Invalid fromMs' });
+      }
+    }
+
+    let toMs = null;
+    if (req.query.toMs !== undefined && req.query.toMs !== '') {
+      toMs = toNonNegativeInt(req.query.toMs);
+      if (toMs == null) {
+        return res.status(400).json({ error: 'Invalid toMs' });
+      }
+    }
+
+    const limit = parseCommentsLimit(req.query.limit);
+    if (limit == null) {
+      return res.status(400).json({ error: 'Invalid limit' });
+    }
 
     const result = await commentService.getCommentsWindow({ songId, fromMs, toMs, limit });
     res.json(result);
