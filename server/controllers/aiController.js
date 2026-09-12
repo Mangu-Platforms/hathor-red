@@ -7,6 +7,7 @@
 
 const colabAIService = require('../services/colabAIService');
 const db = require('../config/database');
+const { toPositiveInt } = require('../utils/streamToken');
 
 /**
  * Get AI service status
@@ -357,11 +358,15 @@ const chat = async (req, res) => {
 
 /**
  * Get song similarity suggestions
+ * dose-1.48: apply shared toPositiveInt on path :songId (same bar as discovery/social/song controllers)
  */
 const getSimilarSongs = async (req, res) => {
   try {
-    const { songId } = req.params;
-    const { limit = 10 } = req.query;
+    const songId = toPositiveInt(req.params.songId);
+    if (songId == null) {
+      return res.status(400).json({ error: 'Invalid song ID' });
+    }
+    const limit = Math.min(parseInt(req.query.limit, 10) || 10, 50);
 
     // Get the reference song
     const songResult = await db.query(
@@ -384,7 +389,7 @@ const getSimilarSongs = async (req, res) => {
          CASE WHEN artist = $3 THEN 0 ELSE 1 END,
          RANDOM()
        LIMIT $4`,
-      [songId, song.genre, song.artist, parseInt(limit)]
+      [songId, song.genre, song.artist, limit]
     );
 
     res.json({
