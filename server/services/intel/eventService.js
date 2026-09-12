@@ -5,12 +5,20 @@
  * periodic `segment` heartbeats) and posts it here. Retried batches dedupe
  * via the (user_id, client_event_id) partial unique index — inserts use
  * ON CONFLICT DO NOTHING so replays are free.
+ *
+ * dose-1.56: songId uses shared toPositiveInt (same bar as stream/playback
+ * controllers); positionMs/durationMs require finite non-negative integers
+ * capped at 7_200_000 ms (2h, matching position/duration second ceiling).
+ * Rejects NaN/0/negative/string junk instead of raw parseInt coercion.
  */
 
 const db = require('../../config/database');
+const { toPositiveInt } = require('../../utils/streamToken');
 
 const EVENT_TYPES = ['play', 'pause', 'seek', 'skip', 'complete', 'segment'];
 const MAX_BATCH = 100;
+/** Max position/duration in milliseconds (2 hours). */
+const MAX_MS = 7_200_000;
 
 /**
  * Country attribution from proxy/CDN headers. First match wins; 'XX'
@@ -28,6 +36,19 @@ function countryFromHeaders(headers = {}) {
     if (/^[A-Z]{2}$/.test(country) && country !== 'XX') return country;
   }
   return null;
+}
+
+/**
+ * Finite non-negative integer in [0, MAX_MS], or null if absent.
+ * Rejects NaN / negative / non-integer / Infinity / out-of-range.
+ */
+function parseNonNegMs(raw) {
+  if (raw === undefined || raw === null || raw === '') return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0 || n > MAX_MS) {
+    return undefined; // signal invalid (distinct from absent)
+  }
+  return n;
 }
 
 /**
@@ -51,18 +72,18 @@ async function ingestBatch({ userId, events, country = null, source = 'web' }) {
 
   for (let i = 0; i < events.length; i += 1) {
     const event = events[i] || {};
-    const songId = parseInt(event.songId, 10);
+    // dose-1.56: same positive-int bar as stream tokens / song controllers
+    const songId = toPositiveInt(event.songId);
     const type = String(event.type || '');
 
-    if (!songId || songId < 1 || !EVENT_TYPES.includes(type)) {
+    if (songId == null || !EVENT_TYPES.includes(type)) {
       rejected.push({ index: i, reason: 'invalid songId or type' });
       continue;
     }
 
-    const positionMs = event.positionMs !== undefined ? parseInt(event.positionMs, 10) : null;
-    const durationMs = event.durationMs !== undefined ? parseInt(event.durationMs, 10) : null;
-    if ((positionMs !== null && (Number.isNaN(positionMs) || positionMs < 0))
-      || (durationMs !== null && (Number.isNaN(durationMs) || durationMs < 0))) {
+    const positionMs = parseNonNegMs(event.positionMs);
+    const durationMs = parseNonNegMs(event.durationMs);
+    if (positionMs === undefined || durationMs === undefined) {
       rejected.push({ index: i, reason: 'invalid positionMs/durationMs' });
       continue;
     }
@@ -85,4 +106,4 @@ async function ingestBatch({ userId, events, country = null, source = 'web' }) {
   return { accepted, rejected, deduplicated: events.length - accepted - rejected.length };
 }
 
-module.exports = { EVENT_TYPES, MAX_BATCH, countryFromHeaders, ingestBatch };
+module.exports = { EVENT_TYPES, MAX_BATCH, MAX_MS, countryFromHeaders, ingestBatch };
