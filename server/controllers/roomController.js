@@ -1,6 +1,7 @@
 const db = require('../config/database');
 const setupSocketHandlers = require('../socket/handlers');
 const { toPositiveInt } = require('../utils/streamToken');
+const { DEFAULT_ROOM_MAX_LISTENERS, MAX_ROOM_MAX_LISTENERS } = require('../config/constants');
 
 const getRooms = async (req, res) => {
   try {
@@ -123,9 +124,21 @@ const createRoom = async (req, res) => {
       return res.status(400).json({ error: 'Room name is required' });
     }
 
+    // dose-1.57: finite positive-int bar on body maxListeners (default DEFAULT_ROOM_MAX_LISTENERS,
+    // ceiling MAX_ROOM_MAX_LISTENERS). Reject NaN/0/negative/non-integer with 400 instead of
+    // raw coercion that silently fell back to 50.
+    let max = DEFAULT_ROOM_MAX_LISTENERS;
+    if (maxListeners != null && maxListeners !== '') {
+      const n = toPositiveInt(maxListeners);
+      if (n == null) {
+        return res.status(400).json({ error: 'Invalid maxListeners' });
+      }
+      max = Math.min(n, MAX_ROOM_MAX_LISTENERS);
+    }
+
     const result = await db.query(
       'INSERT INTO listening_rooms (name, host_id, is_public, max_listeners) VALUES ($1, $2, $3, $4) RETURNING *',
-      [name, req.user.userId, isPublic !== false, maxListeners || 50]
+      [name, req.user.userId, isPublic !== false, max]
     );
 
     // Auto-join host to room

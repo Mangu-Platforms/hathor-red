@@ -132,13 +132,23 @@ const addSongToPlaylist = async (req, res) => {
 
 const generateAIPlaylist = async (req, res) => {
   try {
-    const { prompt, name, songCount = DEFAULT_AI_PLAYLIST_SIZE } = req.body;
+    const { prompt, name } = req.body;
 
     if (!prompt) {
       return res.status(400).json({ error: 'Prompt is required' });
     }
 
-    const count = Math.min(parseInt(songCount) || DEFAULT_AI_PLAYLIST_SIZE, MAX_AI_PLAYLIST_SIZE);
+    // dose-1.57: finite positive-int bar on body songCount (default DEFAULT_AI_PLAYLIST_SIZE,
+    // ceiling MAX_AI_PLAYLIST_SIZE). Reject NaN/0/negative/non-integer with 400 instead of
+    // raw parseInt coercion that silently fell back to default (same bar as aiController.generatePlaylist).
+    let count = DEFAULT_AI_PLAYLIST_SIZE;
+    if (req.body.songCount != null && req.body.songCount !== '') {
+      const n = toPositiveInt(req.body.songCount);
+      if (n == null) {
+        return res.status(400).json({ error: 'Invalid songCount' });
+      }
+      count = Math.min(n, MAX_AI_PLAYLIST_SIZE);
+    }
 
     const historyResult = await db.query(
       `SELECT s.genre, s.artist, COUNT(*) as play_count
@@ -263,7 +273,7 @@ const deletePlaylist = async (req, res) => {
     // dose-1.43: same positive-int bar as getPlaylistById
     const id = toPositiveInt(req.params.id);
     if (id == null) {
-      return res.status(400).json({ error: 'Invalid playlist ID' });
+      return res.status(404).json({ error: 'Playlist not found or access denied' });
     }
 
     const result = await db.query(
