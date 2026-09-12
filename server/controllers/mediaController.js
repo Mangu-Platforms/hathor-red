@@ -8,6 +8,7 @@ const jobQueue = require('../services/jobs/jobQueue');
 const features = require('../config/features');
 const jobWorker = require('../services/jobs/worker');
 const { buildMasterManifest, resolveHlsPath, appendTokenToPlaylist } = require('../services/media/hlsService');
+const { toPositiveInt } = require('../utils/streamToken');
 
 const WAVEFORM_CACHE_TTL = 3600;
 
@@ -67,7 +68,11 @@ function workerSnapshot() {
  */
 const getPipeline = async (req, res) => {
   try {
-    const songId = parseInt(req.params.id, 10);
+    // dose-1.46: same positive-int bar as song/playlist/room/social/discovery controllers
+    const songId = toPositiveInt(req.params.id);
+    if (songId == null) {
+      return res.status(400).json({ error: 'Invalid song ID' });
+    }
     const access = await canManageSong(req.user.userId, songId);
     if (!access.found) return res.status(404).json({ error: 'Song not found' });
     if (!access.allowed) return res.status(403).json({ error: 'Only the uploader or an admin can view the pipeline' });
@@ -119,7 +124,11 @@ const getPipeline = async (req, res) => {
  */
 const getWaveform = async (req, res) => {
   try {
-    const songId = parseInt(req.params.id, 10);
+    // dose-1.46: same positive-int bar as other path :id handlers
+    const songId = toPositiveInt(req.params.id);
+    if (songId == null) {
+      return res.status(400).json({ error: 'Invalid song ID' });
+    }
     const cacheKey = `waveform:${songId}`;
 
     try {
@@ -198,7 +207,11 @@ async function deniedByEarlyAccess(req, res, songId) {
  */
 const getHlsMaster = async (req, res) => {
   try {
-    const songId = parseInt(req.params.id, 10);
+    // dose-1.46: same positive-int bar as other path :id handlers
+    const songId = toPositiveInt(req.params.id);
+    if (songId == null) {
+      return res.status(400).json({ error: 'Invalid song ID' });
+    }
     if (!streamTokenMatchesSong(req, songId)) {
       return res.status(401).json({ error: 'Invalid stream token for song' });
     }
@@ -231,7 +244,11 @@ const getHlsMaster = async (req, res) => {
  */
 const getHlsResource = async (req, res) => {
   try {
-    const songId = parseInt(req.params.id, 10);
+    // dose-1.46: same positive-int bar as other path :id handlers
+    const songId = toPositiveInt(req.params.id);
+    if (songId == null) {
+      return res.status(400).json({ error: 'Invalid song ID' });
+    }
     const { variantKey, file } = req.params;
 
     if (!streamTokenMatchesSong(req, songId)) {
@@ -303,7 +320,11 @@ const getHlsResource = async (req, res) => {
  */
 const reprocessSong = async (req, res) => {
   try {
-    const songId = parseInt(req.params.id, 10);
+    // dose-1.46: same positive-int bar as other path :id handlers
+    const songId = toPositiveInt(req.params.id);
+    if (songId == null) {
+      return res.status(400).json({ error: 'Invalid song ID' });
+    }
     const access = await canManageSong(req.user.userId, songId);
     if (!access.found) return res.status(404).json({ error: 'Song not found' });
     if (!access.allowed) return res.status(403).json({ error: 'Only the uploader or an admin can reprocess' });
@@ -353,7 +374,11 @@ const reprocessSong = async (req, res) => {
  */
 const getJobStatus = async (req, res) => {
   try {
-    const jobId = parseInt(req.params.id, 10);
+    // dose-1.46: same positive-int bar for job path :id
+    const jobId = toPositiveInt(req.params.id);
+    if (jobId == null) {
+      return res.status(400).json({ error: 'Invalid job ID' });
+    }
     const job = await jobQueue.getJob(jobId);
     if (!job) return res.status(404).json({ error: 'Job not found' });
 
