@@ -136,15 +136,31 @@ const uploadSong = async (req, res) => {
 
     const { title, artist, album, duration, genre, year } = req.body;
 
-    if (!title || !artist || !duration) {
+    if (!title || !artist || duration == null || duration === '') {
       return res.status(400).json({ error: 'Title, artist, and duration are required' });
+    }
+
+    // dose-1.49: same finite positive-int / bounded bar as recordListening position
+    // (reject NaN/Infinity/0/negative/out-of-range before DB insert).
+    const durationSec = Number(duration);
+    if (!Number.isFinite(durationSec) || !Number.isInteger(durationSec) || durationSec < 1 || durationSec > 7200) {
+      return res.status(400).json({ error: 'Invalid duration' });
+    }
+
+    let yearVal = null;
+    if (year != null && year !== '') {
+      const y = Number(year);
+      if (!Number.isFinite(y) || !Number.isInteger(y) || y < 1900 || y > 2100) {
+        return res.status(400).json({ error: 'Invalid year' });
+      }
+      yearVal = y;
     }
 
     const filePath = `/uploads/${req.file.filename}`;
 
     const result = await db.query(
       'INSERT INTO songs (title, artist, album, duration, file_path, genre, year, uploaded_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
-      [title, artist, album || null, parseInt(duration, 10), filePath, genre || null, year ? parseInt(year, 10) : null, req.user.userId]
+      [title, artist, album || null, durationSec, filePath, genre || null, yearVal, req.user.userId]
     );
 
     const song = result.rows[0];
