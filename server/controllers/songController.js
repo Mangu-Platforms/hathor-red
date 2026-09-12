@@ -23,11 +23,43 @@ function resolveAllowedGenre(raw) {
   return match || null;
 }
 
+/**
+ * Parse pagination limit: finite positive integer when present, else default.
+ * Rejects NaN / non-integer / <=0 / Infinity with null (caller returns 400).
+ * Caps at MAX_PAGE_LIMIT.
+ */
+function parsePageLimit(raw) {
+  if (raw == null || raw === '') return DEFAULT_PAGE_LIMIT;
+  const n = toPositiveInt(raw);
+  if (n == null) return null;
+  return Math.min(n, MAX_PAGE_LIMIT);
+}
+
+/**
+ * Parse pagination offset: finite non-negative integer when present, else 0.
+ * Rejects NaN / non-integer / negative / Infinity with null (caller returns 400).
+ */
+function parsePageOffset(raw) {
+  if (raw == null || raw === '') return 0;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) return null;
+  return n;
+}
+
 const getSongs = async (req, res) => {
   try {
     const { genre: genreRaw, search, limit, offset } = req.query;
-    const pageLimit = Math.min(parseInt(limit) || DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT);
-    const pageOffset = Math.max(parseInt(offset) || 0, 0);
+
+    // dose-1.52: same finite-int bar as privacy audit limit / stream ids
+    // (reject NaN/0/negative/non-integer when limit/offset are present).
+    const pageLimit = parsePageLimit(limit);
+    if (pageLimit == null) {
+      return res.status(400).json({ error: 'Invalid limit' });
+    }
+    const pageOffset = parsePageOffset(offset);
+    if (pageOffset == null) {
+      return res.status(400).json({ error: 'Invalid offset' });
+    }
 
     let genre = null;
     if (genreRaw) {
@@ -88,8 +120,15 @@ const getSongs = async (req, res) => {
  */
 const getMySongs = async (req, res) => {
   try {
-    const pageLimit = Math.min(parseInt(req.query.limit, 10) || DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT);
-    const pageOffset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+    // dose-1.52: same finite-int bar as getSongs pagination.
+    const pageLimit = parsePageLimit(req.query.limit);
+    if (pageLimit == null) {
+      return res.status(400).json({ error: 'Invalid limit' });
+    }
+    const pageOffset = parsePageOffset(req.query.offset);
+    if (pageOffset == null) {
+      return res.status(400).json({ error: 'Invalid offset' });
+    }
 
     const result = await db.query(
       `SELECT id, title, artist, album, duration, genre, year, file_path, created_at, uploaded_by
