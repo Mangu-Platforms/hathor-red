@@ -6,6 +6,7 @@ const db = require('../config/database');
 const { logger } = require('../utils/logger');
 const auditService = require('../services/privacy/auditService');
 const exportService = require('../services/privacy/exportService');
+const { toPositiveInt } = require('../utils/streamToken');
 
 /** POST /api/privacy/export — queue a GDPR export (72h SLA). */
 const requestExport = async (req, res) => {
@@ -154,7 +155,16 @@ const cancelDeletion = async (req, res) => {
 /** GET /api/privacy/audit — the caller's own audit trail. */
 const myAuditTrail = async (req, res) => {
   try {
-    const limit = Math.min(parseInt(req.query.limit, 10) || 100, 500);
+    // dose-1.51: same finite positive-int bar as stream/playback path ids
+    // (reject NaN/0/negative/non-integer; default 100; hard ceiling 500).
+    let limit = 100;
+    if (req.query?.limit != null && req.query.limit !== '') {
+      const n = toPositiveInt(req.query.limit);
+      if (n == null) {
+        return res.status(400).json({ error: 'Invalid limit' });
+      }
+      limit = Math.min(n, 500);
+    }
     const entries = await auditService.forUser(req.user.userId, { limit });
     res.json({ entries });
   } catch (error) {
