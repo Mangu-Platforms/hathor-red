@@ -1,11 +1,16 @@
 const { logger } = require('../utils/logger');
 const { isAdmin } = require('../utils/roles');
 const commentService = require('../services/social/commentService');
+const { toPositiveInt } = require('../utils/streamToken');
 
 /** GET /api/social/songs/:id/comments?fromMs&toMs&limit — timed window. */
 const getComments = async (req, res) => {
   try {
-    const songId = parseInt(req.params.id, 10);
+    // dose-1.44: same positive-int bar as song/playlist/room controllers
+    const songId = toPositiveInt(req.params.id);
+    if (songId == null) {
+      return res.status(400).json({ error: 'Invalid song ID' });
+    }
     const fromMs = req.query.fromMs !== undefined ? parseInt(req.query.fromMs, 10) : 0;
     const toMs = req.query.toMs !== undefined ? parseInt(req.query.toMs, 10) : null;
     const limit = Math.min(parseInt(req.query.limit, 10) || 100, 500);
@@ -21,8 +26,13 @@ const getComments = async (req, res) => {
 /** POST /api/social/songs/:id/comments — drop a comment at a timestamp. */
 const addComment = async (req, res) => {
   try {
+    // dose-1.44: same positive-int bar as getComments
+    const songId = toPositiveInt(req.params.id);
+    if (songId == null) {
+      return res.status(400).json({ error: 'Invalid song ID' });
+    }
     const comment = await commentService.addComment({
-      songId: parseInt(req.params.id, 10),
+      songId,
       userId: req.user.userId,
       body: req.body.body,
       timestampMs: req.body.timestampMs,
@@ -38,7 +48,11 @@ const addComment = async (req, res) => {
 /** DELETE /api/social/comments/:id — author or admin. */
 const deleteComment = async (req, res) => {
   try {
-    const commentId = parseInt(req.params.id, 10);
+    // dose-1.44: same positive-int bar as other controllers
+    const commentId = toPositiveInt(req.params.id);
+    if (commentId == null) {
+      return res.status(400).json({ error: 'Invalid comment ID' });
+    }
     const authorId = await commentService.getCommentAuthor(commentId);
     if (authorId === null) return res.status(404).json({ error: 'Comment not found' });
     if (authorId !== req.user.userId && !(await isAdmin(req.user.userId))) {
