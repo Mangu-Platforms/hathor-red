@@ -14,7 +14,12 @@
  *   truePosition = positionMs + (Date.now() + offset - serverTimeMs)  [if playing]
  *
  * All functions are pure and unit tested.
+ *
+ * dose-1.65: current_position / elapsed_ms use shared toNonNegInt (reject
+ * NaN/negative/non-integer) instead of raw parseInt coercion.
  */
+
+const { toNonNegInt } = require('../commerce/commerceService');
 
 /**
  * Estimated playback position of a room in milliseconds at `nowMs`.
@@ -27,12 +32,13 @@
  * The wall-clock subtraction is only the fallback for rows fetched without it.
  */
 function estimatePositionMs(room, nowMs = Date.now()) {
-  const baseMs = Math.max(0, (parseInt(room.current_position, 10) || 0) * 1000);
+  const baseSec = toNonNegInt(room.current_position) ?? 0;
+  const baseMs = baseSec * 1000;
   if (!room.is_playing) return baseMs;
 
   if (room.elapsed_ms !== undefined && room.elapsed_ms !== null) {
-    const elapsedDb = parseInt(room.elapsed_ms, 10);
-    if (!Number.isNaN(elapsedDb)) return baseMs + Math.max(0, elapsedDb);
+    const elapsedDb = toNonNegInt(room.elapsed_ms);
+    if (elapsedDb != null) return baseMs + elapsedDb;
   }
 
   const updatedAtMs = new Date(room.updated_at).getTime();
@@ -61,7 +67,7 @@ function offsetUncertaintyMs(clientSendMs, clientReceiveMs) {
 function buildRoomStatePayload(room, nowMs = Date.now()) {
   return {
     currentSongId: room.current_song_id,
-    position: parseInt(room.current_position, 10) || 0,
+    position: toNonNegInt(room.current_position) ?? 0,
     positionMs: estimatePositionMs(room, nowMs),
     isPlaying: Boolean(room.is_playing),
     serverTimeMs: nowMs,
