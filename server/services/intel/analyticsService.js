@@ -1,13 +1,19 @@
 /**
  * Artist analytics queries (Pillar 5, FR-502). Every COUNT/SUM comes back
- * from pg as a string — parseInt at the boundary, always.
+ * from pg as a string — coerce at the boundary with toNonNegInt (dose-1.61),
+ * never raw parseInt that can leave NaN.
  *
  * Rollups: the intel-rollup job compacts yesterday's events into
  * song_daily_stats; on-demand queries here read raw events so numbers are
  * live — at catalog scale the WHERE created_at window keeps them indexed.
+ *
+ * dose-1.61: plays/completes/skips/uniqueListeners/totalListenMs/bucket/
+ * listeners/sales/artistCents use shared toNonNegInt (finite non-negative
+ * integer; allow 0; reject NaN/negative/non-integer instead of raw parseInt).
  */
 
 const db = require('../../config/database');
+const { toNonNegInt } = require('../commerce/commerceService');
 
 const RETENTION_BUCKET_MS = 10000; // 10s segments for the skip/retention curve
 
@@ -30,16 +36,16 @@ async function overview(artistUserId, { days = 30 } = {}) {
   );
 
   const row = result.rows[0] || {};
-  const plays = parseInt(row.plays, 10) || 0;
-  const completes = parseInt(row.completes, 10) || 0;
-  const skips = parseInt(row.skips, 10) || 0;
+  const plays = toNonNegInt(row.plays) ?? 0;
+  const completes = toNonNegInt(row.completes) ?? 0;
+  const skips = toNonNegInt(row.skips) ?? 0;
   return {
     days,
     plays,
     completes,
     skips,
-    uniqueListeners: parseInt(row.unique_listeners, 10) || 0,
-    totalListenMs: parseInt(row.total_listen_ms, 10) || 0,
+    uniqueListeners: toNonNegInt(row.unique_listeners) ?? 0,
+    totalListenMs: toNonNegInt(row.total_listen_ms) ?? 0,
     completionRate: plays > 0 ? Math.round((completes / plays) * 1000) / 1000 : 0,
     skipRate: plays > 0 ? Math.round((skips / plays) * 1000) / 1000 : 0,
   };
@@ -64,16 +70,16 @@ async function topTracks(artistUserId, { days = 30, limit = 10 } = {}) {
   );
 
   return result.rows.map((row) => {
-    const plays = parseInt(row.plays, 10) || 0;
-    const skips = parseInt(row.skips, 10) || 0;
+    const plays = toNonNegInt(row.plays) ?? 0;
+    const skips = toNonNegInt(row.skips) ?? 0;
     return {
       songId: row.id,
       title: row.title,
       genre: row.genre,
       plays,
-      completes: parseInt(row.completes, 10) || 0,
+      completes: toNonNegInt(row.completes) ?? 0,
       skips,
-      uniqueListeners: parseInt(row.unique_listeners, 10) || 0,
+      uniqueListeners: toNonNegInt(row.unique_listeners) ?? 0,
       skipRate: plays > 0 ? Math.round((skips / plays) * 1000) / 1000 : 0,
     };
   });
@@ -89,9 +95,9 @@ function buildRetentionCurve(rows, plays, durationMs) {
   const curve = new Array(bucketCount).fill(0);
 
   for (const row of rows) {
-    const bucket = parseInt(row.bucket, 10);
-    const listeners = parseInt(row.listeners, 10) || 0;
-    if (bucket >= 0 && bucket < bucketCount) {
+    const bucket = toNonNegInt(row.bucket);
+    const listeners = toNonNegInt(row.listeners) ?? 0;
+    if (bucket != null && bucket < bucketCount) {
       curve[bucket] = plays > 0 ? Math.min(1, listeners / plays) : 0;
     }
   }
@@ -117,14 +123,14 @@ async function songRetention(songId) {
   const songResult = await db.query('SELECT id, title, duration, uploaded_by FROM songs WHERE id = $1', [songId]);
   const song = songResult.rows[0];
   if (!song) return null;
-  const durationMs = (parseInt(song.duration, 10) || 0) * 1000;
+  const durationMs = (toNonNegInt(song.duration) ?? 0) * 1000;
 
   const playsResult = await db.query(
     `SELECT COUNT(DISTINCT user_id) AS plays FROM listening_events
      WHERE song_id = $1 AND event_type = 'play'`,
     [songId]
   );
-  const plays = parseInt(playsResult.rows[0].plays, 10) || 0;
+  const plays = toNonNegInt(playsResult.rows[0].plays) ?? 0;
 
   const segments = await db.query(
     `SELECT FLOOR(position_ms / ${RETENTION_BUCKET_MS})::int AS bucket,
@@ -153,11 +159,14 @@ async function songRetention(songId) {
     uploadedBy: song.uploaded_by,
     plays,
     retention: buildRetentionCurve(segments.rows, plays, durationMs),
-    skipHotspots: skips.rows.map((row) => ({
-      bucket: parseInt(row.bucket, 10),
-      startMs: parseInt(row.bucket, 10) * RETENTION_BUCKET_MS,
-      skips: parseInt(row.skips, 10),
-    })),
+    skipHotspots: skips.rows.map((row) => {
+      const bucket = toNonNegInt(row.bucket) ?? 0;
+      return {
+        bucket,
+        startMs: bucket * RETENTION_BUCKET_MS,
+        skips: toNonNegInt(row.skips) ?? 0,
+      };
+    }),
   };
 }
 
@@ -178,8 +187,8 @@ async function geography(artistUserId, { days = 30 } = {}) {
   );
   return result.rows.map((row) => ({
     country: row.country,
-    plays: parseInt(row.plays, 10) || 0,
-    uniqueListeners: parseInt(row.unique_listeners, 10) || 0,
+    plays: toNonNegInt(row.plays) ?? 0,
+    uniqueListeners: toNonNegInt(row.unique_listeners) ?? 0,
   }));
 }
 
@@ -202,8 +211,8 @@ async function revenueByTrack(artistUserId) {
   return result.rows.map((row) => ({
     songId: row.id,
     title: row.title,
-    artistCents: parseInt(row.artist_cents, 10) || 0,
-    sales: parseInt(row.sales, 10) || 0,
+    artistCents: toNonNegInt(row.artist_cents) ?? 0,
+    sales: toNonNegInt(row.sales) ?? 0,
   }));
 }
 
