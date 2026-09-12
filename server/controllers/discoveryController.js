@@ -3,6 +3,7 @@ const { isAdmin } = require('../utils/roles');
 const searchService = require('../services/discovery/searchService');
 const radarService = require('../services/discovery/radarService');
 const jobQueue = require('../services/jobs/jobQueue');
+const { toPositiveInt } = require('../utils/streamToken');
 
 /** GET /api/discovery/search?q=…&limit=… — semantic catalog search. */
 const search = async (req, res) => {
@@ -31,8 +32,13 @@ const getRadar = async (req, res) => {
 /** GET /api/discovery/similar/:id — embedding neighbors of a song. */
 const similar = async (req, res) => {
   try {
+    // dose-1.45: same positive-int bar as song/playlist/room/social controllers
+    const songId = toPositiveInt(req.params.id);
+    if (songId == null) {
+      return res.status(400).json({ error: 'Invalid song ID' });
+    }
     const limit = Math.min(parseInt(req.query.limit, 10) || 10, 50);
-    const result = await searchService.similarSongs(parseInt(req.params.id, 10), { limit });
+    const result = await searchService.similarSongs(songId, { limit });
     if (!result) return res.status(404).json({ error: 'Song not found' });
     res.json(result);
   } catch (error) {
