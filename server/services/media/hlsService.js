@@ -6,10 +6,14 @@
  * uploads/transcoded/<assetId>/hls/<variantKey>/. When no HLS variant exists
  * (e.g. transcode ran in plan-only mode without ffmpeg), callers fall back to
  * the direct byte-range stream at /api/songs/:id/stream.
+ *
+ * dose-1.59: resolveHlsPath assetId uses shared toPositiveInt (reject NaN/0/
+ * negative/string junk instead of raw parseInt coercion).
  */
 
 const path = require('path');
 const { UPLOAD_DIR } = require('../../config/constants');
+const { toPositiveInt } = require('../../utils/streamToken');
 
 // AAC-LC in MPEG-TS — what the transcode service produces for HLS tiers.
 const HLS_CODECS = 'mp4a.40.2';
@@ -49,7 +53,12 @@ function resolveHlsPath(assetId, variantKey, fileName) {
     throw new Error('Invalid HLS variant key');
   }
 
-  const root = path.resolve(UPLOAD_DIR, 'transcoded', String(parseInt(assetId, 10)), 'hls', variantKey);
+  const id = toPositiveInt(assetId);
+  if (id == null) {
+    throw new Error('Invalid HLS asset id');
+  }
+
+  const root = path.resolve(UPLOAD_DIR, 'transcoded', String(id), 'hls', variantKey);
   const resolved = path.resolve(root, fileName);
   const relative = path.relative(root, resolved);
   if (relative.startsWith('..') || path.isAbsolute(relative) || relative.includes(path.sep)) {

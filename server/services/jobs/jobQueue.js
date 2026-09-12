@@ -11,11 +11,16 @@
  *   so two workers can never claim the same job.
  * - retry backoff reschedules via run_at; after max_attempts the job goes to
  *   status 'dead' and stays inspectable.
+ *
+ * dose-1.59: jobId / attempts / maxAttempts / enqueue options use shared
+ * toPositiveInt (same bar as stream/playback/controller ids; no raw parseInt
+ * coercion of junk).
  */
 
 const db = require('../../config/database');
 const { redisClient } = require('../../config/redis');
 const { logger } = require('../../utils/logger');
+const { toPositiveInt } = require('../../utils/streamToken');
 
 const WAKE_CHANNEL = 'olympus:jobs:wake';
 
@@ -37,14 +42,37 @@ async function publishWake(jobType) {
 
 /**
  * Enqueue a job. Returns the inserted job row.
+ * priority: non-negative integer (default 0); maxAttempts: positive int (default 3).
  */
 async function enqueue(jobType, payload = {}, options = {}) {
-  const {
-    priority = 0,
-    maxAttempts = 3,
-    runAt = null,
-    createdBy = null,
-  } = options;
+  let priority = 0;
+  if (options.priority != null && options.priority !== '') {
+    const p = Number(options.priority);
+    if (!Number.isFinite(p) || !Number.isInteger(p) || p < 0) {
+      throw new Error('enqueue priority must be a non-negative integer');
+    }
+    priority = p;
+  }
+
+  let maxAttempts = 3;
+  if (options.maxAttempts != null && options.maxAttempts !== '') {
+    const m = toPositiveInt(options.maxAttempts);
+    if (m == null) {
+      throw new Error('enqueue maxAttempts must be a positive integer');
+    }
+    maxAttempts = m;
+  }
+
+  let createdBy = null;
+  if (options.createdBy != null && options.createdBy !== '') {
+    const uid = toPositiveInt(options.createdBy);
+    if (uid == null) {
+      throw new Error('enqueue createdBy must be a positive integer');
+    }
+    createdBy = uid;
+  }
+
+  const runAt = options.runAt ?? null;
 
   const result = await db.query(
     `INSERT INTO jobs (job_type, payload, priority, max_attempts, run_at, created_by)
@@ -110,11 +138,15 @@ async function claimNext(jobTypes = null) {
 
 /** Mark a running job completed with an optional result payload. */
 async function complete(jobId, result = null) {
+  const id = toPositiveInt(jobId);
+  if (id == null) {
+    throw new Error('complete requires a positive integer jobId');
+  }
   await db.query(
     `UPDATE jobs SET status = 'completed', result = $2,
        finished_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
      WHERE id = $1`,
-    [jobId, result === null ? null : JSON.stringify(result)]
+    [id, result === null ? null : JSON.stringify(result)]
   );
 }
 
@@ -123,8 +155,17 @@ async function complete(jobId, result = null) {
  * max_attempts, then parks the job as 'dead'.
  */
 async function fail(job, errorMessage) {
-  const attempts = parseInt(job.attempts, 10) || 0;
-  const maxAttempts = parseInt(job.max_attempts, 10) || 3;
+  if (!job || job.id == null) {
+    throw new Error('fail requires a job row with id');
+  }
+  const id = toPositiveInt(job.id);
+  if (id == null) {
+    throw new Error('fail requires a positive integer job.id');
+  }
+
+  // DB rows can arrive as strings; prefer toPositiveInt, fall back to 0/3.
+  const attempts = toPositiveInt(job.attempts) ?? 0;
+  const maxAttempts = toPositiveInt(job.max_attempts) ?? 3;
   const message = String(errorMessage || 'Unknown error').slice(0, 2000);
 
   if (attempts >= maxAttempts) {
@@ -132,7 +173,7 @@ async function fail(job, errorMessage) {
       `UPDATE jobs SET status = 'dead', last_error = $2,
          finished_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
        WHERE id = $1`,
-      [job.id, message]
+      [id, message]
     );
     return { status: 'dead' };
   }
@@ -143,14 +184,16 @@ async function fail(job, errorMessage) {
        run_at = CURRENT_TIMESTAMP + ($3 || ' seconds')::interval,
        updated_at = CURRENT_TIMESTAMP
      WHERE id = $1`,
-    [job.id, message, String(delay)]
+    [id, message, String(delay)]
   );
   return { status: 'queued', retryInSeconds: delay };
 }
 
 /** Fetch one job by id. */
 async function getJob(jobId) {
-  const result = await db.query('SELECT * FROM jobs WHERE id = $1', [jobId]);
+  const id = toPositiveInt(jobId);
+  if (id == null) return null;
+  const result = await db.query('SELECT * FROM jobs WHERE id = $1', [id]);
   return result.rows[0] || null;
 }
 
