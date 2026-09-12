@@ -5,6 +5,11 @@ const eventService = require('../services/intel/eventService');
 const analyticsService = require('../services/intel/analyticsService');
 const { toPositiveInt } = require('../utils/streamToken');
 
+const INTEL_DEFAULT_DAYS = 30;
+const INTEL_MAX_DAYS = 365;
+const INTEL_DEFAULT_LIMIT = 10;
+const INTEL_MAX_LIMIT = 50;
+
 /** Resolve which artist's analytics the caller may see (self, or any via admin). */
 async function resolveArtistScope(req) {
   if (req.query.artistId && (await isAdmin(req.user.userId))) {
@@ -16,8 +21,30 @@ async function resolveArtistScope(req) {
   return req.user.userId;
 }
 
-function windowDays(req) {
-  return Math.min(Math.max(parseInt(req.query.days, 10) || 30, 1), 365);
+/**
+ * Parse window days: finite positive integer when present, else default 30.
+ * Rejects NaN / non-integer / <=0 / Infinity with null (caller returns 400).
+ * Caps at INTEL_MAX_DAYS (365).
+ * dose-1.55: same bar as discovery/getSongs/privacy/social limits (no more raw parseInt).
+ */
+function parseWindowDays(raw) {
+  if (raw == null || raw === '') return INTEL_DEFAULT_DAYS;
+  const n = toPositiveInt(raw);
+  if (n == null) return null;
+  return Math.min(n, INTEL_MAX_DAYS);
+}
+
+/**
+ * Parse intel limit: finite positive integer when present, else default 10.
+ * Rejects NaN / non-integer / <=0 / Infinity with null (caller returns 400).
+ * Caps at INTEL_MAX_LIMIT (50).
+ * dose-1.55: same bar as discovery search/similar.
+ */
+function parseIntelLimit(raw) {
+  if (raw == null || raw === '') return INTEL_DEFAULT_LIMIT;
+  const n = toPositiveInt(raw);
+  if (n == null) return null;
+  return Math.min(n, INTEL_MAX_LIMIT);
 }
 
 /** POST /api/intel/events — batched player telemetry ingestion. */
@@ -44,7 +71,11 @@ const getOverview = async (req, res) => {
     if (artistUserId == null) {
       return res.status(400).json({ error: 'Invalid artist ID' });
     }
-    res.json({ artistUserId, ...(await analyticsService.overview(artistUserId, { days: windowDays(req) })) });
+    const days = parseWindowDays(req.query.days);
+    if (days == null) {
+      return res.status(400).json({ error: 'Invalid days' });
+    }
+    res.json({ artistUserId, ...(await analyticsService.overview(artistUserId, { days })) });
   } catch (error) {
     logger.error('Intel overview error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -58,10 +89,17 @@ const getTopTracks = async (req, res) => {
     if (artistUserId == null) {
       return res.status(400).json({ error: 'Invalid artist ID' });
     }
-    const limit = Math.min(parseInt(req.query.limit, 10) || 10, 50);
+    const days = parseWindowDays(req.query.days);
+    if (days == null) {
+      return res.status(400).json({ error: 'Invalid days' });
+    }
+    const limit = parseIntelLimit(req.query.limit);
+    if (limit == null) {
+      return res.status(400).json({ error: 'Invalid limit' });
+    }
     res.json({
       artistUserId,
-      tracks: await analyticsService.topTracks(artistUserId, { days: windowDays(req), limit }),
+      tracks: await analyticsService.topTracks(artistUserId, { days, limit }),
     });
   } catch (error) {
     logger.error('Intel top tracks error:', error);
@@ -98,10 +136,14 @@ const getGeography = async (req, res) => {
     if (artistUserId == null) {
       return res.status(400).json({ error: 'Invalid artist ID' });
     }
+    const days = parseWindowDays(req.query.days);
+    if (days == null) {
+      return res.status(400).json({ error: 'Invalid days' });
+    }
     res.json({
       artistUserId,
-      days: windowDays(req),
-      countries: await analyticsService.geography(artistUserId, { days: windowDays(req) }),
+      days,
+      countries: await analyticsService.geography(artistUserId, { days }),
     });
   } catch (error) {
     logger.error('Intel geography error:', error);

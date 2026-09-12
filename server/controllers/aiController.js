@@ -9,6 +9,24 @@ const colabAIService = require('../services/colabAIService');
 const db = require('../config/database');
 const { toPositiveInt } = require('../utils/streamToken');
 
+const AI_DEFAULT_LIMIT = 20;
+const AI_SIMILAR_DEFAULT_LIMIT = 10;
+const AI_MAX_LIMIT = 50;
+const AI_PLAYLIST_DEFAULT_COUNT = 10;
+
+/**
+ * Parse AI limit: finite positive integer when present, else default.
+ * Rejects NaN / non-integer / <=0 / Infinity with null (caller returns 400).
+ * Caps at AI_MAX_LIMIT.
+ * dose-1.55: same bar as discovery search/similar and getSongs / privacy / social.
+ */
+function parseAiLimit(raw, defaultLimit = AI_DEFAULT_LIMIT) {
+  if (raw == null || raw === '') return defaultLimit;
+  const n = toPositiveInt(raw);
+  if (n == null) return null;
+  return Math.min(n, AI_MAX_LIMIT);
+}
+
 /**
  * Get AI service status
  */
@@ -27,11 +45,21 @@ const getStatus = async (req, res) => {
  */
 const generatePlaylist = async (req, res) => {
   try {
-    const { prompt, name, songCount = 10 } = req.body;
+    const { prompt, name } = req.body;
     const { userId } = req.user;
 
     if (!prompt) {
       return res.status(400).json({ error: 'Prompt is required' });
+    }
+
+    // dose-1.55: finite positive-int bar on body songCount (default 10, ceiling 50)
+    let songCount = AI_PLAYLIST_DEFAULT_COUNT;
+    if (req.body.songCount != null && req.body.songCount !== '') {
+      const n = toPositiveInt(req.body.songCount);
+      if (n == null) {
+        return res.status(400).json({ error: 'Invalid songCount' });
+      }
+      songCount = Math.min(n, AI_MAX_LIMIT);
     }
 
     // Get user's listening history for context
@@ -83,7 +111,7 @@ const generatePlaylist = async (req, res) => {
     // Order by energy level match and randomness
     query += ' ORDER BY RANDOM()';
     query += ` LIMIT $${paramIndex}`;
-    params.push(Math.min(songCount, 50));
+    params.push(songCount);
 
     const songsResult = await db.query(query, params);
 
@@ -130,7 +158,12 @@ const generatePlaylist = async (req, res) => {
 const getRecommendations = async (req, res) => {
   try {
     const { userId } = req.user;
-    const { limit = 20 } = req.query;
+
+    // dose-1.55: finite positive-int bar on query limit (default 20, ceiling 50)
+    const limit = parseAiLimit(req.query.limit, AI_DEFAULT_LIMIT);
+    if (limit == null) {
+      return res.status(400).json({ error: 'Invalid limit' });
+    }
 
     // Get user's listening history
     const historyResult = await db.query(
@@ -185,7 +218,7 @@ const getRecommendations = async (req, res) => {
 
     query += ' ORDER BY RANDOM()';
     query += ` LIMIT $${paramIndex}`;
-    params.push(parseInt(limit));
+    params.push(limit);
 
     const songsResult = await db.query(query, params);
 
@@ -246,10 +279,16 @@ const detectMood = async (req, res) => {
  */
 const semanticSearch = async (req, res) => {
   try {
-    const { query: searchQuery, limit = 20 } = req.query;
+    const { query: searchQuery } = req.query;
 
     if (!searchQuery) {
       return res.status(400).json({ error: 'Search query is required' });
+    }
+
+    // dose-1.55: finite positive-int bar on query limit (default 20, ceiling 50)
+    const limit = parseAiLimit(req.query.limit, AI_DEFAULT_LIMIT);
+    if (limit == null) {
+      return res.status(400).json({ error: 'Invalid limit' });
     }
 
     // Get AI-enhanced search parameters
@@ -279,7 +318,7 @@ const semanticSearch = async (req, res) => {
 
     query += ' ORDER BY title';
     query += ` LIMIT $${paramIndex}`;
-    params.push(parseInt(limit));
+    params.push(limit);
 
     const songsResult = await db.query(query, params);
 
@@ -359,6 +398,7 @@ const chat = async (req, res) => {
 /**
  * Get song similarity suggestions
  * dose-1.48: apply shared toPositiveInt on path :songId (same bar as discovery/social/song controllers)
+ * dose-1.55: finite positive-int bar on query limit (default 10, ceiling 50)
  */
 const getSimilarSongs = async (req, res) => {
   try {
@@ -366,7 +406,10 @@ const getSimilarSongs = async (req, res) => {
     if (songId == null) {
       return res.status(400).json({ error: 'Invalid song ID' });
     }
-    const limit = Math.min(parseInt(req.query.limit, 10) || 10, 50);
+    const limit = parseAiLimit(req.query.limit, AI_SIMILAR_DEFAULT_LIMIT);
+    if (limit == null) {
+      return res.status(400).json({ error: 'Invalid limit' });
+    }
 
     // Get the reference song
     const songResult = await db.query(
