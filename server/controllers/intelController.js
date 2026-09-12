@@ -3,11 +3,15 @@ const { isAdmin } = require('../utils/roles');
 const db = require('../config/database');
 const eventService = require('../services/intel/eventService');
 const analyticsService = require('../services/intel/analyticsService');
+const { toPositiveInt } = require('../utils/streamToken');
 
 /** Resolve which artist's analytics the caller may see (self, or any via admin). */
 async function resolveArtistScope(req) {
   if (req.query.artistId && (await isAdmin(req.user.userId))) {
-    return parseInt(req.query.artistId, 10);
+    // dose-1.47: positive-int bar on query artistId
+    const parsed = toPositiveInt(req.query.artistId);
+    if (parsed == null) return null;
+    return parsed;
   }
   return req.user.userId;
 }
@@ -37,6 +41,9 @@ const ingestEvents = async (req, res) => {
 const getOverview = async (req, res) => {
   try {
     const artistUserId = await resolveArtistScope(req);
+    if (artistUserId == null) {
+      return res.status(400).json({ error: 'Invalid artist ID' });
+    }
     res.json({ artistUserId, ...(await analyticsService.overview(artistUserId, { days: windowDays(req) })) });
   } catch (error) {
     logger.error('Intel overview error:', error);
@@ -48,6 +55,9 @@ const getOverview = async (req, res) => {
 const getTopTracks = async (req, res) => {
   try {
     const artistUserId = await resolveArtistScope(req);
+    if (artistUserId == null) {
+      return res.status(400).json({ error: 'Invalid artist ID' });
+    }
     const limit = Math.min(parseInt(req.query.limit, 10) || 10, 50);
     res.json({
       artistUserId,
@@ -62,7 +72,11 @@ const getTopTracks = async (req, res) => {
 /** GET /api/intel/songs/:id/retention — uploader/admin only (ANA-02). */
 const getSongRetention = async (req, res) => {
   try {
-    const songId = parseInt(req.params.id, 10);
+    // dose-1.47: positive-int bar on path :id
+    const songId = toPositiveInt(req.params.id);
+    if (songId == null) {
+      return res.status(400).json({ error: 'Invalid song ID' });
+    }
     const songResult = await db.query('SELECT uploaded_by FROM songs WHERE id = $1', [songId]);
     if (songResult.rows.length === 0) return res.status(404).json({ error: 'Song not found' });
     if (songResult.rows[0].uploaded_by !== req.user.userId && !(await isAdmin(req.user.userId))) {
@@ -81,6 +95,9 @@ const getSongRetention = async (req, res) => {
 const getGeography = async (req, res) => {
   try {
     const artistUserId = await resolveArtistScope(req);
+    if (artistUserId == null) {
+      return res.status(400).json({ error: 'Invalid artist ID' });
+    }
     res.json({
       artistUserId,
       days: windowDays(req),
@@ -96,6 +113,9 @@ const getGeography = async (req, res) => {
 const getRevenueByTrack = async (req, res) => {
   try {
     const artistUserId = await resolveArtistScope(req);
+    if (artistUserId == null) {
+      return res.status(400).json({ error: 'Invalid artist ID' });
+    }
     res.json({ artistUserId, tracks: await analyticsService.revenueByTrack(artistUserId) });
   } catch (error) {
     logger.error('Intel revenue error:', error);

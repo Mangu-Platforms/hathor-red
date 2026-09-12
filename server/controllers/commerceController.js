@@ -10,6 +10,7 @@ const { resolveUploadPath } = require('../utils/uploadPath');
 const commerceService = require('../services/commerce/commerceService');
 const auditService = require('../services/privacy/auditService');
 const { CommerceError } = commerceService;
+const { toPositiveInt } = require('../utils/streamToken');
 
 function handleError(res, error, context) {
   if (error instanceof CommerceError) {
@@ -25,8 +26,17 @@ function handleError(res, error, context) {
  */
 const createProduct = async (req, res) => {
   try {
-    const { songId, productType, title, description, priceCents, minPriceCents, nameYourPrice, currency } = req.body;
+    const { productType, title, description, priceCents, minPriceCents, nameYourPrice, currency } = req.body;
     const userId = req.user.userId;
+
+    // dose-1.47: positive-int bar on body songId when present
+    let songId = null;
+    if (req.body.songId != null && req.body.songId !== '') {
+      songId = toPositiveInt(req.body.songId);
+      if (songId == null) {
+        return res.status(400).json({ error: 'Invalid song ID' });
+      }
+    }
 
     if ((productType === 'track' || productType === 'album') && !songId) {
       return res.status(400).json({ error: 'songId is required for track/album products' });
@@ -80,7 +90,6 @@ const createProduct = async (req, res) => {
 /** GET /api/commerce/products — browse products (filter by song or artist). */
 const listProducts = async (req, res) => {
   try {
-    const { songId, artistId } = req.query;
     const params = [];
     let query = `
       SELECT p.*, s.title AS song_title, s.artist AS song_artist, u.display_name AS seller_name
@@ -89,12 +98,21 @@ const listProducts = async (req, res) => {
       JOIN users u ON u.id = p.artist_user_id
       WHERE p.active = TRUE`;
 
-    if (songId) {
-      params.push(parseInt(songId, 10));
+    // dose-1.47: positive-int bar on query songId / artistId
+    if (req.query.songId) {
+      const songId = toPositiveInt(req.query.songId);
+      if (songId == null) {
+        return res.status(400).json({ error: 'Invalid song ID' });
+      }
+      params.push(songId);
       query += ` AND p.song_id = $${params.length}`;
     }
-    if (artistId) {
-      params.push(parseInt(artistId, 10));
+    if (req.query.artistId) {
+      const artistId = toPositiveInt(req.query.artistId);
+      if (artistId == null) {
+        return res.status(400).json({ error: 'Invalid artist ID' });
+      }
+      params.push(artistId);
       query += ` AND p.artist_user_id = $${params.length}`;
     }
     query += ' ORDER BY p.created_at DESC LIMIT 100';
@@ -109,7 +127,11 @@ const listProducts = async (req, res) => {
 /** PUT /api/commerce/products/:id — owner/admin updates price, status, copy. */
 const updateProduct = async (req, res) => {
   try {
-    const productId = parseInt(req.params.id, 10);
+    // dose-1.47: positive-int bar on path :id
+    const productId = toPositiveInt(req.params.id);
+    if (productId == null) {
+      return res.status(400).json({ error: 'Invalid product ID' });
+    }
     const userId = req.user.userId;
 
     const existing = await db.query('SELECT * FROM products WHERE id = $1', [productId]);
@@ -199,7 +221,11 @@ const getLibrary = async (req, res) => {
 /** POST /api/commerce/download-token — mint a fresh one-time token for an owned song. */
 const requestDownloadToken = async (req, res) => {
   try {
-    const { songId } = req.body;
+    // dose-1.47: positive-int bar on body songId
+    const songId = toPositiveInt(req.body.songId);
+    if (songId == null) {
+      return res.status(400).json({ error: 'Invalid song ID' });
+    }
     const userId = req.user.userId;
 
     const owned = await db.query(
@@ -286,13 +312,18 @@ const createTier = async (req, res) => {
 /** GET /api/commerce/artists/:id/tiers — an artist's active tiers. */
 const listTiers = async (req, res) => {
   try {
+    // dose-1.47: positive-int bar on path :id
+    const artistId = toPositiveInt(req.params.id);
+    if (artistId == null) {
+      return res.status(400).json({ error: 'Invalid artist ID' });
+    }
     const result = await db.query(
       `SELECT t.*, u.display_name AS artist_name
        FROM artist_subscription_tiers t
        JOIN users u ON u.id = t.artist_user_id
        WHERE t.artist_user_id = $1 AND t.active = TRUE
        ORDER BY t.price_cents ASC`,
-      [parseInt(req.params.id, 10)]
+      [artistId]
     );
     res.json({ tiers: result.rows });
   } catch (error) {
@@ -319,9 +350,14 @@ const subscribeTier = async (req, res) => {
 /** POST /api/commerce/subscriptions/:id/cancel — cancel at period end. */
 const cancelSubscription = async (req, res) => {
   try {
+    // dose-1.47: positive-int bar on path :id
+    const subscriptionId = toPositiveInt(req.params.id);
+    if (subscriptionId == null) {
+      return res.status(400).json({ error: 'Invalid subscription ID' });
+    }
     const subscription = await commerceService.cancelSubscription({
       fanUserId: req.user.userId,
-      subscriptionId: parseInt(req.params.id, 10),
+      subscriptionId,
     });
     res.json({ message: 'Subscription will end at the current period', subscription });
   } catch (error) {
@@ -352,7 +388,12 @@ const getRevenue = async (req, res) => {
   try {
     let artistUserId = req.user.userId;
     if (req.query.artistId && (await isAdmin(req.user.userId))) {
-      artistUserId = parseInt(req.query.artistId, 10);
+      // dose-1.47: positive-int bar on query artistId
+      const parsed = toPositiveInt(req.query.artistId);
+      if (parsed == null) {
+        return res.status(400).json({ error: 'Invalid artist ID' });
+      }
+      artistUserId = parsed;
     }
     const summary = await commerceService.revenueSummary(artistUserId);
     const recent = await db.query(
@@ -372,7 +413,11 @@ const getRevenue = async (req, res) => {
 /** PUT /api/commerce/songs/:id/early-access — set/clear the early-access window. */
 const setEarlyAccess = async (req, res) => {
   try {
-    const songId = parseInt(req.params.id, 10);
+    // dose-1.47: positive-int bar on path :id
+    const songId = toPositiveInt(req.params.id);
+    if (songId == null) {
+      return res.status(400).json({ error: 'Invalid song ID' });
+    }
     const userId = req.user.userId;
     const { until } = req.body;
 
