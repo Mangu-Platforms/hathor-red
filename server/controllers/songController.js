@@ -136,7 +136,9 @@ const uploadSong = async (req, res) => {
 
     const { title, artist, album, duration, genre, year } = req.body;
 
-    if (!title || !artist || duration == null || duration === '') {
+    const titleTrim = typeof title === 'string' ? title.trim() : '';
+    const artistTrim = typeof artist === 'string' ? artist.trim() : '';
+    if (!titleTrim || !artistTrim || duration == null || duration === '') {
       return res.status(400).json({ error: 'Title, artist, and duration are required' });
     }
 
@@ -156,11 +158,27 @@ const uploadSong = async (req, res) => {
       yearVal = y;
     }
 
+    // dose-1.50: same ALLOWED_GENRES bar as getSongs filter (case-insensitive
+    // resolve; reject unknown strings so Home genre filter and uploads stay aligned).
+    // Omitted/empty genre remains null (optional field).
+    let genreVal = null;
+    if (genre != null && genre !== '') {
+      genreVal = resolveAllowedGenre(genre);
+      if (genreVal == null) {
+        return res.status(400).json({ error: 'Invalid genre', allowed: ALLOWED_GENRES });
+      }
+    }
+
+    const albumVal =
+      album != null && typeof album === 'string' && album.trim() !== ''
+        ? album.trim()
+        : null;
+
     const filePath = `/uploads/${req.file.filename}`;
 
     const result = await db.query(
       'INSERT INTO songs (title, artist, album, duration, file_path, genre, year, uploaded_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
-      [title, artist, album || null, durationSec, filePath, genre || null, yearVal, req.user.userId]
+      [titleTrim, artistTrim, albumVal, durationSec, filePath, genreVal, yearVal, req.user.userId]
     );
 
     const song = result.rows[0];
