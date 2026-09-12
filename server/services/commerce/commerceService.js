@@ -8,6 +8,10 @@
  * - download tokens: atomic UPDATE … WHERE consumed_at IS NULL — exactly one
  *   redeemer wins under concurrency.
  * - one active fan-club membership per (fan, artist): partial unique index.
+ *
+ * dose-1.60: price_cents / min_price_cents / amount_cents / tier.price_cents
+ * and revenueSummary counts use shared non-negative integer bar (reject
+ * NaN/negative/non-integer instead of raw parseInt coercion).
  */
 
 const crypto = require('crypto');
@@ -27,20 +31,38 @@ class CommerceError extends Error {
 }
 
 /**
+ * Finite non-negative integer (cents / counts). Rejects NaN, negative,
+ * non-integer, Infinity. Returns null on invalid.
+ * dose-1.60: same bar family as streamToken.toPositiveInt but allows 0.
+ */
+function toNonNegInt(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) return null;
+  return n;
+}
+
+/**
  * Resolve the amount a buyer must be charged for a product. Pure. Throws
  * CommerceError(400) on rule violations.
  */
 function resolveChargeAmount(product, requestedCents) {
-  const price = parseInt(product.price_cents, 10);
-  const min = product.min_price_cents === null || product.min_price_cents === undefined
+  const price = toNonNegInt(product.price_cents);
+  if (price == null) {
+    throw new CommerceError(400, 'Invalid product price');
+  }
+  const minRaw = product.min_price_cents;
+  const min = minRaw === null || minRaw === undefined
     ? 0
-    : parseInt(product.min_price_cents, 10);
+    : toNonNegInt(minRaw);
+  if (min == null) {
+    throw new CommerceError(400, 'Invalid product minimum price');
+  }
 
   if (product.name_your_price) {
     const amount = requestedCents === undefined || requestedCents === null
       ? price
-      : parseInt(requestedCents, 10);
-    if (!Number.isInteger(amount) || amount < 0) {
+      : toNonNegInt(requestedCents);
+    if (amount == null) {
       throw new CommerceError(400, 'Invalid amount');
     }
     if (amount < min) {
@@ -49,8 +71,11 @@ function resolveChargeAmount(product, requestedCents) {
     return amount;
   }
 
-  if (requestedCents !== undefined && requestedCents !== null && parseInt(requestedCents, 10) !== price) {
-    throw new CommerceError(400, 'Amount does not match the fixed price');
+  if (requestedCents !== undefined && requestedCents !== null) {
+    const req = toNonNegInt(requestedCents);
+    if (req == null || req !== price) {
+      throw new CommerceError(400, 'Amount does not match the fixed price');
+    }
   }
   return price;
 }
@@ -141,7 +166,10 @@ async function finalizePurchase({ purchase, product, chargeCents, providerRef, b
  * retried purchase can never double-charge.
  */
 async function chargeAndFinalize({ purchase, product, buyerUserId }) {
-  const chargeCents = parseInt(purchase.amount_cents, 10);
+  const chargeCents = toNonNegInt(purchase.amount_cents);
+  if (chargeCents == null) {
+    throw new CommerceError(400, 'Invalid purchase amount');
+  }
   const provider = getProvider();
 
   let outcome = { ok: true, providerRef: null };
@@ -322,8 +350,14 @@ async function subscribe({ fanUserId, tierId }) {
     throw err;
   }
 
+  const tierPrice = toNonNegInt(tier.price_cents);
+  if (tierPrice == null) {
+    await db.query('DELETE FROM artist_subscriptions WHERE id = $1', [subscription.id]);
+    throw new CommerceError(400, 'Invalid tier price');
+  }
+
   const outcome = await provider.createCharge({
-    amountCents: parseInt(tier.price_cents, 10),
+    amountCents: tierPrice,
     currency: tier.currency,
     idempotencyKey: `sub:${subscription.id}:first`,
     description: `Mangu fan club: ${tier.name}`,
@@ -342,7 +376,7 @@ async function subscribe({ fanUserId, tierId }) {
   await writeLedgerEntries({
     subscriptionId: subscription.id,
     artistUserId: tier.artist_user_id,
-    amountCents: parseInt(tier.price_cents, 10),
+    amountCents: tierPrice,
     currency: tier.currency,
   });
 
@@ -436,8 +470,8 @@ async function revenueSummary(artistUserId) {
   return result.rows.map((row) => ({
     entryType: row.entry_type,
     currency: row.currency,
-    entries: parseInt(row.entries, 10),
-    totalCents: parseInt(row.total_cents, 10),
+    entries: toNonNegInt(row.entries) ?? 0,
+    totalCents: toNonNegInt(row.total_cents) ?? 0,
   }));
 }
 
@@ -456,4 +490,5 @@ module.exports = {
   grantLibraryEntitlement,
   revenueSummary,
   processSubscriptionExpiryJob,
+  toNonNegInt,
 };
