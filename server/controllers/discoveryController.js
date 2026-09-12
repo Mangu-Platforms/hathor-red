@@ -5,10 +5,31 @@ const radarService = require('../services/discovery/radarService');
 const jobQueue = require('../services/jobs/jobQueue');
 const { toPositiveInt } = require('../utils/streamToken');
 
+const SEARCH_DEFAULT_LIMIT = 20;
+const SIMILAR_DEFAULT_LIMIT = 10;
+const DISCOVERY_MAX_LIMIT = 50;
+
+/**
+ * Parse discovery limit: finite positive integer when present, else default.
+ * Rejects NaN / non-integer / <=0 / Infinity with null (caller returns 400).
+ * Caps at DISCOVERY_MAX_LIMIT.
+ */
+function parseDiscoveryLimit(raw, defaultLimit) {
+  if (raw == null || raw === '') return defaultLimit;
+  const n = toPositiveInt(raw);
+  if (n == null) return null;
+  return Math.min(n, DISCOVERY_MAX_LIMIT);
+}
+
 /** GET /api/discovery/search?q=…&limit=… — semantic catalog search. */
 const search = async (req, res) => {
   try {
-    const limit = Math.min(parseInt(req.query.limit, 10) || 20, 50);
+    // dose-1.53: same finite positive-int limit bar as getSongs / privacy audit
+    // (reject NaN/0/negative/non-integer when limit is present).
+    const limit = parseDiscoveryLimit(req.query.limit, SEARCH_DEFAULT_LIMIT);
+    if (limit == null) {
+      return res.status(400).json({ error: 'Invalid limit' });
+    }
     const result = await searchService.semanticSearch(req.query.q, { limit });
     res.json(result);
   } catch (error) {
@@ -37,7 +58,11 @@ const similar = async (req, res) => {
     if (songId == null) {
       return res.status(400).json({ error: 'Invalid song ID' });
     }
-    const limit = Math.min(parseInt(req.query.limit, 10) || 10, 50);
+    // dose-1.53: same finite positive-int limit bar as search / getSongs
+    const limit = parseDiscoveryLimit(req.query.limit, SIMILAR_DEFAULT_LIMIT);
+    if (limit == null) {
+      return res.status(400).json({ error: 'Invalid limit' });
+    }
     const result = await searchService.similarSongs(songId, { limit });
     if (!result) return res.status(404).json({ error: 'Song not found' });
     res.json(result);
