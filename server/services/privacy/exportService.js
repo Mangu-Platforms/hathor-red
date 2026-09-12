@@ -16,6 +16,7 @@ const db = require('../../config/database');
 const { logger } = require('../../utils/logger');
 const { UPLOAD_DIR } = require('../../config/constants');
 const jobQueue = require('../jobs/jobQueue');
+const { toPositiveInt } = require('../../utils/streamToken');
 
 const EXPORT_TTL_HOURS = 72;
 
@@ -89,8 +90,10 @@ async function assembleUserData(userId) {
 
 /** Job handler 'gdpr-export'. Payload: { requestId }. */
 async function processExportJob(payload) {
-  const requestId = parseInt(payload.requestId, 10);
-  if (!requestId) throw new Error('gdpr-export job missing requestId');
+  // dose-1.58: same positive-int bar as stream/playback/controller ids
+  // (reject NaN/0/negative/non-integer instead of raw parseInt coercion).
+  const requestId = toPositiveInt(payload?.requestId);
+  if (requestId == null) throw new Error('gdpr-export job missing or invalid requestId');
 
   const requestResult = await db.query('SELECT * FROM data_export_requests WHERE id = $1', [requestId]);
   const request = requestResult.rows[0];
