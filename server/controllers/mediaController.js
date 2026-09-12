@@ -9,6 +9,7 @@ const features = require('../config/features');
 const jobWorker = require('../services/jobs/worker');
 const { buildMasterManifest, resolveHlsPath, appendTokenToPlaylist } = require('../services/media/hlsService');
 const { toPositiveInt } = require('../utils/streamToken');
+const { toNonNegInt } = require('../services/commerce/commerceService');
 
 const WAVEFORM_CACHE_TTL = 3600;
 
@@ -87,13 +88,19 @@ const getPipeline = async (req, res) => {
     }
 
     const variants = await loadVariants(asset.id);
+    // dose-1.63: fileSizeBytes uses shared toNonNegInt (finite non-negative
+    // integer; allow 0; reject NaN/negative/non-integer instead of raw parseInt).
+    const fileSizeBytes =
+      asset.file_size_bytes !== null && asset.file_size_bytes !== undefined
+        ? (toNonNegInt(asset.file_size_bytes) ?? null)
+        : null;
     res.json({
       pipeline: {
         asset: {
           id: asset.id,
           status: asset.status,
           sha256: asset.sha256,
-          fileSizeBytes: asset.file_size_bytes !== null ? parseInt(asset.file_size_bytes, 10) : null,
+          fileSizeBytes,
           loudnessLufs: asset.loudness_lufs,
           truePeakDb: asset.true_peak_db,
           hasWaveform: asset.waveform_peaks !== null,
@@ -386,13 +393,15 @@ const getJobStatus = async (req, res) => {
       return res.status(403).json({ error: 'Not your job' });
     }
 
+    // dose-1.63: attempts / maxAttempts use shared toNonNegInt (finite non-negative
+    // integer; allow 0; reject NaN/negative/non-integer instead of raw parseInt).
     res.json({
       job: {
         id: job.id,
         type: job.job_type,
         status: job.status,
-        attempts: parseInt(job.attempts, 10),
-        maxAttempts: parseInt(job.max_attempts, 10),
+        attempts: toNonNegInt(job.attempts) ?? 0,
+        maxAttempts: toNonNegInt(job.max_attempts) ?? 0,
         lastError: job.last_error,
         result: job.result,
         createdAt: job.created_at,
