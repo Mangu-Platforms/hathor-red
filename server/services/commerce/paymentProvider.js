@@ -12,6 +12,9 @@
  * The interface is intentionally tiny: createCharge / cancelRecurring. A
  * provider result is { ok, providerRef, error? } and never throws for a
  * decline — only for infrastructure failures.
+ *
+ * dose-1.72: mock createCharge decline check uses Number() + integer equality
+ * (reject NaN/junk) instead of raw parseInt coercion.
  */
 
 const crypto = require('crypto');
@@ -24,7 +27,9 @@ const mockProvider = {
   name: 'mock',
 
   async createCharge({ amountCents, currency = 'USD', idempotencyKey, description = '' }) {
-    if (parseInt(amountCents, 10) === MOCK_DECLINE_CENTS) {
+    // Number() (not parseInt) so fractional/junk never coerce to the decline sentinel.
+    const amount = Number(amountCents);
+    if (Number.isInteger(amount) && amount === MOCK_DECLINE_CENTS) {
       return { ok: false, providerRef: null, error: 'card_declined (mock reserved amount)' };
     }
     const ref = `mock_${crypto

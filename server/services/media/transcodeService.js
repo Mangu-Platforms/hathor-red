@@ -11,6 +11,9 @@
  *
  * Nothing in here throws for a missing binary — the pipeline degrades, the
  * platform keeps working (repo fallback doctrine).
+ *
+ * dose-1.72: processTranscodeJob assetId uses shared toPositiveInt (reject
+ * NaN/0/negative/non-integer instead of raw parseInt coercion).
  */
 
 const crypto = require('crypto');
@@ -22,6 +25,7 @@ const { execFile, spawn } = require('child_process');
 const db = require('../../config/database');
 const { logger } = require('../../utils/logger');
 const { UPLOAD_DIR, MEDIA_VARIANT_SPECS, WAVEFORM_BUCKETS } = require('../../config/constants');
+const { toPositiveInt } = require('../../utils/streamToken');
 
 let ffmpegAvailability = null; // cached: null = unknown, true/false once probed
 
@@ -296,10 +300,11 @@ function toStoredPath(absolutePath) {
  * Job handler for 'transcode' jobs. Payload: { assetId }.
  * Fingerprints the original, flags exact duplicates for copyright review
  * (FR-604), then renders or plan-records every variant.
+ * dose-1.72: assetId uses shared toPositiveInt (same bar as stream/media ids).
  */
 async function processTranscodeJob(payload) {
-  const assetId = parseInt(payload.assetId, 10);
-  if (!assetId) throw new Error('transcode job missing assetId');
+  const assetId = toPositiveInt(payload?.assetId);
+  if (assetId == null) throw new Error('transcode job missing assetId');
 
   const assetResult = await db.query('SELECT * FROM media_assets WHERE id = $1', [assetId]);
   const asset = assetResult.rows[0];

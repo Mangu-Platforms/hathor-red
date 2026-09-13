@@ -1,11 +1,11 @@
 # WHAT_SHIPS — Hathor Red live capability snapshot
 
-Last updated: 2026-09-13 (dose-1.71 discovery BPM/year bounds).
+Last updated: 2026-09-13 (dose-1.72 remaining parseInt bounds).
 
 ## Ships today
 
 - **Auth**: email/password + JWT. No OAuth routes mounted. `authMiddleware` normalizes `req.user` to `{ userId, username }` (same shape as `streamAuth`) and rejects stream-typed tokens on the Bearer path. **dose-1.64**: `getListeningStats` uses shared `toNonNegInt` for totalPlays and totalListeningTimeSeconds.
-- **Playback (Dose 1 core)**: signed stream URLs; streamAuth + streamToken; positive-int / bounded bars through dose-1.63. **dose-1.65**: syncService `current_position` / `elapsed_ms` use shared `toNonNegInt`. **dose-1.66**: `getRecommendations` userProfile.totalPlays uses shared `toNonNegInt` on COUNT(*) play_count (reject NaN from raw parseInt). **dose-1.67**: radarService co-listen weight uses shared `toNonNegInt` (reject NaN from raw parseInt). **dose-1.68**: REDIS_PORT, PORT, and JOB_POLL_INTERVAL_MS use shared `toPositiveInt` (reject NaN/0/negative/junk; fall back to 6379 / 5000 / 15000) instead of raw parseInt. **dose-1.69**: COLAB_TIMEOUT / COLAB_MAX_RETRIES / COLAB_RATE_LIMIT / COLAB_TOKEN_LIMIT and MAX_FILE_SIZE use shared `toPositiveInt` (fall back to 30000 / 3 / 60 / 100000 / 50MB). **dose-1.70**: streamSong Range header start/end use shared `toNonNegInt` (reject NaN/negative/non-integer instead of raw parseInt). **dose-1.71**: embeddingService bpmBucket + year era tokens and searchService parseIntent bpm use shared `toPositiveInt` / `toNonNegInt` (reject NaN/0/negative/non-integer instead of raw parseInt).
+- **Playback (Dose 1 core)**: signed stream URLs; streamAuth + streamToken; positive-int / bounded bars through dose-1.63. **dose-1.65**: syncService `current_position` / `elapsed_ms` use shared `toNonNegInt`. **dose-1.66**: `getRecommendations` userProfile.totalPlays uses shared `toNonNegInt` on COUNT(*) play_count (reject NaN from raw parseInt). **dose-1.67**: radarService co-listen weight uses shared `toNonNegInt` (reject NaN from raw parseInt). **dose-1.68**: REDIS_PORT, PORT, and JOB_POLL_INTERVAL_MS use shared `toPositiveInt` (reject NaN/0/negative/junk; fall back to 6379 / 5000 / 15000) instead of raw parseInt. **dose-1.69**: COLAB_TIMEOUT / COLAB_MAX_RETRIES / COLAB_RATE_LIMIT / COLAB_TOKEN_LIMIT and MAX_FILE_SIZE use shared `toPositiveInt` (fall back to 30000 / 3 / 60 / 100000 / 50MB). **dose-1.70**: streamSong Range header start/end use shared `toNonNegInt` (reject NaN/negative/non-integer instead of raw parseInt). **dose-1.71**: embeddingService bpmBucket + year era tokens and searchService parseIntent bpm use shared `toPositiveInt` / `toNonNegInt` (reject NaN/0/negative/non-integer instead of raw parseInt). **dose-1.72**: transcodeService `processTranscodeJob` assetId uses shared `toPositiveInt`; paymentProvider mock decline check uses `Number()` + integer equality (no raw parseInt left on live server paths outside `_reference`).
 - **Player**: full PlayerContext (queue, shuffle, seek guards, hydrate, logout clear).
 - **Queue UI / Playlists / Home genre / Rooms / Olympus flags / Podcasts (soon)** as prior.
 - **Pitch/stems**: not implemented; UI hidden.
@@ -19,12 +19,12 @@ Last updated: 2026-09-13 (dose-1.71 discovery BPM/year bounds).
 | Dose | Status |
 |------|--------|
 | 0 Truth | Done |
-| 1 Playback | Core done through dose-1.71 (discovery BPM/year bounds) |
+| 1 Playback | Core done through dose-1.72 (remaining parseInt bounds) |
 | 2 Account | Soft logout + profile path present |
 | 3–5 | Routes/flags/rooms as prior |
 
 ## Next item
 
-Optional multi-device live queue list (not claimed); any remaining raw parseInt on non-critical paths; Dose 2 polish if playback regressions appear.
+Optional multi-device live queue list (not claimed); Dose 2 polish if playback regressions appear; no further raw parseInt on live server paths.
 
 See also: [README.md](README.md), [BUGS.md](BUGS.md), [API.md](API.md).
