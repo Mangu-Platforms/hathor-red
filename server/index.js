@@ -15,6 +15,7 @@ const db = require('./config/database');
 const setupSocketHandlers = require('./socket/handlers');
 const { logger, requestLogger } = require('./utils/logger');
 const corsOptions = require('./config/cors');
+const { toPositiveInt } = require('./utils/streamToken');
 
 const authRoutes = require('./routes/auth');
 const songRoutes = require('./routes/songs');
@@ -301,7 +302,9 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Route not found', requestId: req.id });
 });
 
-const PORT = process.env.PORT || 5000;
+// dose-1.68: PORT and JOB_POLL_INTERVAL_MS use shared toPositiveInt (reject
+// NaN/0/negative/junk; fall back to defaults) instead of raw parseInt.
+const PORT = toPositiveInt(process.env.PORT) ?? 5000;
 
 const startServer = async () => {
   try {
@@ -334,7 +337,8 @@ const startServer = async () => {
           const exportService = require('./services/privacy/exportService');
           jobWorker.register('gdpr-export', exportService.processExportJob);
         }
-        await jobWorker.start({ intervalMs: parseInt(process.env.JOB_POLL_INTERVAL_MS, 10) || 15000 });
+        const pollMs = toPositiveInt(process.env.JOB_POLL_INTERVAL_MS) ?? 15000;
+        await jobWorker.start({ intervalMs: pollMs });
       } catch (workerErr) {
         logger.warn(`Job worker failed to start (API still serving): ${workerErr.message}`);
       }
