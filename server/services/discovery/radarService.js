@@ -8,12 +8,17 @@
  *
  * Redis holds the hot copy (radar:<userId>); the user_radar table is the
  * durable fallback so a Redis flush never blanks anyone's mix.
+ *
+ * dose-1.67: co-listen weight (COUNT(*) bigint string) uses shared toNonNegInt
+ * (finite non-negative integer; allow 0; reject NaN/negative/non-integer
+ * instead of raw parseInt coercion).
  */
 
 const db = require('../../config/database');
 const { redisClient } = require('../../config/redis');
 const { logger } = require('../../utils/logger');
 const { cosineSimilarity } = require('./embeddingService');
+const { toNonNegInt } = require('../commerce/commerceService');
 
 const RADAR_SIZE = 30;
 const RADAR_CACHE_TTL = 3600;
@@ -43,9 +48,13 @@ function centroid(vectors) {
  */
 function blendRadar({ coListen, candidates, tasteCentroid, size = RADAR_SIZE }) {
   const coListenMap = new Map();
-  const maxWeight = coListen.reduce((max, row) => Math.max(max, parseInt(row.weight, 10)), 0);
+  const maxWeight = coListen.reduce((max, row) => {
+    const w = toNonNegInt(row.weight) ?? 0;
+    return Math.max(max, w);
+  }, 0);
   for (const row of coListen) {
-    coListenMap.set(row.song_id, maxWeight > 0 ? parseInt(row.weight, 10) / maxWeight : 0);
+    const w = toNonNegInt(row.weight) ?? 0;
+    coListenMap.set(row.song_id, maxWeight > 0 ? w / maxWeight : 0);
   }
 
   const scored = [];
