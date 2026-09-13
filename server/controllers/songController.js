@@ -4,6 +4,7 @@ const mime = require('mime-types');
 const db = require('../config/database');
 const { redisClient } = require('../config/redis');
 const { signStreamToken, toPositiveInt } = require('../utils/streamToken');
+const { toNonNegInt } = require('../services/commerce/commerceService');
 const { logger } = require('../utils/logger');
 const {
   DEFAULT_PAGE_LIMIT,
@@ -362,12 +363,22 @@ const streamSong = async (req, res) => {
         return res.status(416).setHeader('Content-Range', `bytes */${fileSize}`).end();
       }
 
-      let start = match[1] === '' ? null : parseInt(match[1], 10);
-      let end = match[2] === '' ? null : parseInt(match[2], 10);
+      // dose-1.70: Range bounds use shared toNonNegInt (finite non-negative
+      // integer; allow 0; reject NaN/negative/non-integer instead of raw parseInt).
+      let start = match[1] === '' ? null : toNonNegInt(match[1]);
+      let end = match[2] === '' ? null : toNonNegInt(match[2]);
+
+      // Empty capture that failed toNonNegInt (e.g. overflow junk) is treated as invalid.
+      if (match[1] !== '' && start == null) {
+        return res.status(416).setHeader('Content-Range', `bytes */${fileSize}`).end();
+      }
+      if (match[2] !== '' && end == null) {
+        return res.status(416).setHeader('Content-Range', `bytes */${fileSize}`).end();
+      }
 
       if (start === null && end !== null) {
         const suffix = end;
-        if (Number.isNaN(suffix) || suffix <= 0) {
+        if (suffix <= 0) {
           return res.status(416).setHeader('Content-Range', `bytes */${fileSize}`).end();
         }
         start = Math.max(fileSize - suffix, 0);
@@ -377,7 +388,7 @@ const streamSong = async (req, res) => {
         if (end === null) end = fileSize - 1;
       }
 
-      if (Number.isNaN(start) || Number.isNaN(end) || start < 0 || end < start || start >= fileSize) {
+      if (start < 0 || end < start || start >= fileSize) {
         return res.status(416).setHeader('Content-Range', `bytes */${fileSize}`).end();
       }
 
