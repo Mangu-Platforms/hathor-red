@@ -9,10 +9,15 @@
  * The remote seam: migration 003's pgvector table (1536-dim) is the target
  * for a hosted embedding model; this module's public API (embedSong,
  * embedQuery, cosineSimilarity) is what a remote provider would re-implement.
+ *
+ * dose-1.71: bpmBucket and year era tokens use shared toPositiveInt / toNonNegInt
+ * (reject NaN/negative/non-integer instead of raw parseInt coercion).
  */
 
 const crypto = require('crypto');
 const db = require('../../config/database');
+const { toPositiveInt } = require('../../utils/streamToken');
+const { toNonNegInt } = require('../commerce/commerceService');
 
 const DIMS = 256;
 const MODEL = 'mangu-feature-hash-v1';
@@ -56,13 +61,14 @@ function embedTokens(tokens) {
 
 /** Coarse bpm bucket so 118 and 122 land together but 80 and 160 don't. */
 function bpmBucket(bpm) {
-  const value = parseInt(bpm, 10);
-  if (!value || value <= 0) return null;
+  const value = toPositiveInt(bpm);
+  if (value == null) return null;
   return `bpm${Math.round(value / 20) * 20}`;
 }
 
 /** Compose the text a song is embedded from. Pure. */
 function songText(song) {
+  const year = toPositiveInt(song.year);
   const parts = [
     song.title,
     song.artist,
@@ -71,7 +77,7 @@ function songText(song) {
     song.genre, // genre twice: it is the strongest similarity signal we store
     bpmBucket(song.bpm),
     song.key_signature ? `key${String(song.key_signature).toLowerCase()}` : null,
-    song.year ? `era${Math.floor(parseInt(song.year, 10) / 10) * 10}s` : null,
+    year != null ? `era${Math.floor(year / 10) * 10}s` : null,
   ];
   return parts.filter(Boolean).join(' ');
 }

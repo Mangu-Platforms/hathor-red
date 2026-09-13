@@ -6,11 +6,15 @@
  * Runs with zero external credentials. When pgvector + a remote model are
  * enabled, the candidate-fetch step is the swap point (SQL ANN query instead
  * of the JS ranking below).
+ *
+ * dose-1.71: parseIntent bpm uses shared toPositiveInt (reject NaN/0/negative/
+ * non-integer instead of raw parseInt coercion).
  */
 
 const db = require('../../config/database');
 const { ALLOWED_GENRES } = require('../../config/constants');
 const { embedQuery, cosineSimilarity } = require('./embeddingService');
+const { toPositiveInt } = require('../../utils/streamToken');
 
 const MOOD_LEXICON = {
   sad: ['sad', 'melancholy', 'melancholic', 'heartbreak', 'blue', 'crying', 'lonely'],
@@ -58,7 +62,7 @@ function parseIntent(query) {
   }
 
   const bpmMatch = lower.match(/(\d{2,3})\s*bpm/);
-  const bpm = bpmMatch ? parseInt(bpmMatch[1], 10) : null;
+  const bpm = bpmMatch ? toPositiveInt(bpmMatch[1]) : null;
 
   const moods = [];
   for (const [mood, words] of Object.entries(MOOD_LEXICON)) {
