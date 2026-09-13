@@ -1,11 +1,11 @@
 # WHAT_SHIPS — Hathor Red live capability snapshot
 
-Last updated: 2026-09-12 (dose-1.68 env port/interval toPositiveInt).
+Last updated: 2026-09-13 (dose-1.69 COLAB_* / MAX_FILE_SIZE toPositiveInt).
 
 ## Ships today
 
 - **Auth**: email/password + JWT. No OAuth routes mounted. `authMiddleware` normalizes `req.user` to `{ userId, username }` (same shape as `streamAuth`) and rejects stream-typed tokens on the Bearer path. **dose-1.64**: `getListeningStats` uses shared `toNonNegInt` for totalPlays and totalListeningTimeSeconds.
-- **Playback (Dose 1 core)**: signed stream URLs; streamAuth + streamToken; positive-int / bounded bars through dose-1.63. **dose-1.65**: syncService `current_position` / `elapsed_ms` use shared `toNonNegInt`. **dose-1.66**: `getRecommendations` userProfile.totalPlays uses shared `toNonNegInt` on COUNT(*) play_count (reject NaN from raw parseInt). **dose-1.67**: radarService co-listen weight uses shared `toNonNegInt` (reject NaN from raw parseInt). **dose-1.68**: REDIS_PORT, PORT, and JOB_POLL_INTERVAL_MS use shared `toPositiveInt` (reject NaN/0/negative/junk; fall back to 6379 / 5000 / 15000) instead of raw parseInt.
+- **Playback (Dose 1 core)**: signed stream URLs; streamAuth + streamToken; positive-int / bounded bars through dose-1.63. **dose-1.65**: syncService `current_position` / `elapsed_ms` use shared `toNonNegInt`. **dose-1.66**: `getRecommendations` userProfile.totalPlays uses shared `toNonNegInt` on COUNT(*) play_count (reject NaN from raw parseInt). **dose-1.67**: radarService co-listen weight uses shared `toNonNegInt` (reject NaN from raw parseInt). **dose-1.68**: REDIS_PORT, PORT, and JOB_POLL_INTERVAL_MS use shared `toPositiveInt` (reject NaN/0/negative/junk; fall back to 6379 / 5000 / 15000) instead of raw parseInt. **dose-1.69**: COLAB_TIMEOUT / COLAB_MAX_RETRIES / COLAB_RATE_LIMIT / COLAB_TOKEN_LIMIT and MAX_FILE_SIZE use shared `toPositiveInt` (fall back to 30000 / 3 / 60 / 100000 / 50MB).
 - **Player**: full PlayerContext (queue, shuffle, seek guards, hydrate, logout clear).
 - **Queue UI / Playlists / Home genre / Rooms / Olympus flags / Podcasts (soon)** as prior.
 - **Pitch/stems**: not implemented; UI hidden.
@@ -19,12 +19,12 @@ Last updated: 2026-09-12 (dose-1.68 env port/interval toPositiveInt).
 | Dose | Status |
 |------|--------|
 | 0 Truth | Done |
-| 1 Playback | Core done through dose-1.68 (env port/interval toPositiveInt) |
+| 1 Playback | Core done through dose-1.69 (COLAB_* / MAX_FILE_SIZE toPositiveInt) |
 | 2 Account | Soft logout + profile path present |
 | 3–5 | Routes/flags/rooms as prior |
 
 ## Next item
 
-Optional multi-device live queue list (not claimed); remaining raw parseInt on COLAB_* timeouts / MAX_FILE_SIZE / a few non-count paths.
+Optional multi-device live queue list (not claimed); remaining raw parseInt on a few non-count paths (e.g. Range header bounds in songController, BPM/year buckets in discovery).
 
 See also: [README.md](README.md), [BUGS.md](BUGS.md), [API.md](API.md).

@@ -7,7 +7,12 @@
  * - Music recommendations
  * - Mood detection
  * - Natural language music search
+ *
+ * dose-1.69: timeout / maxRetries / rateLimit use shared toPositiveInt
+ * (reject NaN/0/negative/junk; fall back to defaults) instead of raw parseInt.
  */
+
+const { toPositiveInt } = require('../utils/streamToken');
 
 const COLAB_CONFIG = {
   // API Configuration
@@ -30,13 +35,13 @@ const COLAB_CONFIG = {
   },
 
   // Request Configuration
-  timeout: parseInt(process.env.COLAB_TIMEOUT) || 30000,
-  maxRetries: parseInt(process.env.COLAB_MAX_RETRIES) || 3,
+  timeout: toPositiveInt(process.env.COLAB_TIMEOUT) ?? 30000,
+  maxRetries: toPositiveInt(process.env.COLAB_MAX_RETRIES) ?? 3,
 
   // Rate Limiting
   rateLimit: {
-    maxRequestsPerMinute: parseInt(process.env.COLAB_RATE_LIMIT) || 60,
-    maxTokensPerMinute: parseInt(process.env.COLAB_TOKEN_LIMIT) || 100000
+    maxRequestsPerMinute: toPositiveInt(process.env.COLAB_RATE_LIMIT) ?? 60,
+    maxTokensPerMinute: toPositiveInt(process.env.COLAB_TOKEN_LIMIT) ?? 100000
   },
 
   // Feature Flags
