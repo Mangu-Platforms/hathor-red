@@ -14,6 +14,16 @@ function songFromGetSong(res) {
   return null;
 }
 
+/**
+ * dose-1.73: positive integer room id from route param.
+ * Reject NaN/0/negative/non-integer instead of raw parseInt that can emit NaN.
+ */
+function toPositiveRoomId(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n <= 0) return null;
+  return n;
+}
+
 const ListeningRoom = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -36,6 +46,7 @@ const ListeningRoom = () => {
 
   const token = localStorage.getItem('token');
   const API_URL = process.env.REACT_APP_API_URL || '';
+  const roomId = toPositiveRoomId(id);
 
   const applyRoster = (roster) => {
     if (!Array.isArray(roster)) return;
@@ -51,27 +62,29 @@ const ListeningRoom = () => {
 
   // dose-1.9: stable fetch so useEffect deps stay honest (BUGS #8 hygiene)
   const fetchRoom = useCallback(async () => {
+    if (roomId == null) return;
     try {
-      const res = await musicService.getRoom(id);
+      const res = await musicService.getRoom(roomId);
       setRoom(res.room);
       setHostId(res.room?.host_id ?? null);
       setParticipants(res.participants || []);
     } catch (err) {
       console.error('Failed to fetch room:', err);
     }
-  }, [id]);
+  }, [roomId]);
 
   useEffect(() => {
+    if (roomId == null) return undefined;
     fetchRoom();
-    musicService.joinRoom(id).catch(() => {});
+    musicService.joinRoom(roomId).catch(() => {});
 
     return () => {
-      musicService.leaveRoom(id).catch(() => {});
+      musicService.leaveRoom(roomId).catch(() => {});
     };
-  }, [id, fetchRoom]);
+  }, [roomId, fetchRoom]);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || roomId == null) return undefined;
 
     const newSocket = io(API_URL || window.location.origin, {
       auth: { token },
@@ -79,7 +92,7 @@ const ListeningRoom = () => {
     });
 
     newSocket.on('connect', () => {
-      newSocket.emit('join-room', parseInt(id, 10));
+      newSocket.emit('join-room', roomId);
     });
 
     newSocket.on('room-state', (state) => {
@@ -185,11 +198,11 @@ const ListeningRoom = () => {
     setSocket(newSocket);
 
     return () => {
-      newSocket.emit('leave-room', parseInt(id, 10));
+      newSocket.emit('leave-room', roomId);
       newSocket.disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, token, API_URL]);
+  }, [roomId, token, API_URL]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -212,9 +225,9 @@ const ListeningRoom = () => {
   };
 
   const pickSong = (song) => {
-    if (!socket || !song?.id) return;
+    if (!socket || !song?.id || roomId == null) return;
     socket.emit('room-control', {
-      roomId: parseInt(id, 10),
+      roomId,
       action: 'change-song',
       songId: song.id,
     });
@@ -222,26 +235,35 @@ const ListeningRoom = () => {
   };
 
   const sendMessage = () => {
-    if (!chatInput.trim() || !socket) return;
-    socket.emit('room-chat', { roomId: parseInt(id, 10), message: chatInput });
+    if (!chatInput.trim() || !socket || roomId == null) return;
+    socket.emit('room-chat', { roomId, message: chatInput });
     setChatInput('');
   };
 
   const handleTyping = () => {
-    socket?.emit('typing', { roomId: parseInt(id, 10) });
+    if (roomId == null) return;
+    socket?.emit('typing', { roomId });
   };
 
   const sendControl = (action) => {
-    if (!socket || !room) return;
+    if (!socket || !room || roomId == null) return;
     // Host Play requires a current track; pause is always allowed when playing.
     if (action === 'play' && !currentSong) return;
-    const data = { roomId: parseInt(id, 10), action };
+    const data = { roomId, action };
     if (action === 'play' || action === 'pause') {
       const pos = Number.isFinite(progress) ? Math.floor(progress) : 0;
       data.position = Math.max(0, pos);
     }
     socket.emit('room-control', data);
   };
+
+  if (roomId == null) {
+    return (
+      <div className="loading-screen">
+        Invalid room id. <button type="button" onClick={() => navigate('/rooms')}>Back to rooms</button>
+      </div>
+    );
+  }
 
   if (!room) return <div className="loading-screen">Loading room...</div>;
 
